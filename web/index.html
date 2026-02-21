@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProfessorAI - Educational AI Assistant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+        }
+
+        .message-bubble {
+            padding: 0.75rem 1rem;
+            border-radius: 18px;
+            margin-bottom: 0.75rem;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+
+        .user-bubble {
+            background-color: #dbeafe;
+            align-self: flex-end;
+            margin-left: auto;
+            border-bottom-right-radius: 4px;
+        }
+
+        .ai-bubble {
+            background-color: #e0f2fe;
+            align-self: flex-start;
+            margin-right: auto;
+            border-bottom-left-radius: 4px;
+        }
+
+        .system-message {
+            background-color: #fef3c7;
+            color: #78350f;
+            font-size: 0.8rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 10px;
+            align-self: flex-start;
+            margin-left: 1rem;
+            margin-top: -0.5rem;
+        }
+
+        .chat-scroll-area {
+            height: 400px;
+            overflow-y: auto;
+        }
+
+        .sidebar-scroll {
+            height: calc(100vh - 120px);
+            overflow-y: auto;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .module-item {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .module-item:hover {
+            background-color: #f3f4f6;
+        }
+
+        .sub-topic-item {
+            cursor: pointer;
+            transition: all 0.3s ease;
+            padding-left: 1rem;
+        }
+
+        .sub-topic-item:hover {
+            background-color: #e5e7eb;
+        }
+
+        .humanoid-figure {
+            width: 200px;
+            height: 300px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50px;
+            position: relative;
+            margin: 0 auto;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .humanoid-head {
+            width: 60px;
+            height: 60px;
+            background: #4f46e5;
+            border-radius: 50%;
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .humanoid-body {
+            width: 80px;
+            height: 120px;
+            background: #6366f1;
+            border-radius: 20px;
+            position: absolute;
+            top: 90px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .humanoid-arm {
+            width: 15px;
+            height: 80px;
+            background: #8b5cf6;
+            border-radius: 10px;
+            position: absolute;
+            top: 100px;
+        }
+
+        .humanoid-arm.left {
+            left: 45px;
+            transform: rotate(-15deg);
+        }
+
+        .humanoid-arm.right {
+            right: 45px;
+            transform: rotate(15deg);
+        }
+
+        .humanoid-leg {
+            width: 20px;
+            height: 90px;
+            background: #a855f7;
+            border-radius: 10px;
+            position: absolute;
+            bottom: 20px;
+        }
+
+        .humanoid-leg.left {
+            left: 65px;
+        }
+
+        .humanoid-leg.right {
+            right: 65px;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen">
+    <!-- Navigation Bar -->
+    <nav class="bg-white shadow-lg border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <h1 class="text-2xl font-bold text-gray-800">ProfessorAI</h1>
+                </div>
+                <div class="flex space-x-6">
+                    <a href="index.html"
+                        class="text-blue-600 font-semibold px-3 py-2 rounded-md hover:bg-blue-50 transition-colors">Home</a>
+                    <a href="upload.html"
+                        class="text-gray-700 px-3 py-2 rounded-md hover:bg-gray-100 transition-colors">Generate Course
+                        Content</a>
+                    <a href="courses.html"
+                        class="text-gray-700 px-3 py-2 rounded-md hover:bg-gray-100 transition-colors">Courses</a>
+                    <a href="chat.html"
+                        class="text-gray-700 px-3 py-2 rounded-md hover:bg-gray-100 transition-colors">Chat Only</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="flex h-screen">
+        <!-- Left Sidebar - Course Modules -->
+        <div class="w-80 bg-white shadow-lg border-r border-gray-200">
+            <div class="p-4 border-b border-gray-200">
+                <h2 class="text-lg font-semibold text-gray-800">Course Modules</h2>
+            </div>
+            <div class="sidebar-scroll p-4">
+                <div id="courseModules">
+                    <!-- Course modules will be loaded here -->
+                    <div class="text-gray-500 text-center py-8">
+                        <p>Loading course modules...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center - Humanoid Figure and Class Controls -->
+        <div class="flex-1 flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+            <div class="text-center">
+                <div class="humanoid-figure">
+                    <div class="humanoid-head"></div>
+                    <div class="humanoid-body"></div>
+                    <div class="humanoid-arm left"></div>
+                    <div class="humanoid-arm right"></div>
+                    <div class="humanoid-leg left"></div>
+                    <div class="humanoid-leg right"></div>
+                </div>
+                <h3 class="mt-6 text-2xl font-bold text-gray-800">Welcome to ProfessorAI</h3>
+                <p class="mt-2 text-gray-600">Your AI-powered educational companion</p>
+                <p class="mt-1 text-sm text-gray-500">Ask questions about your course content or explore modules</p>
+
+                <!-- Class Controls -->
+                <div class="mt-8 space-y-4">
+                    <!-- Module Selection -->
+                    <div class="bg-white rounded-lg p-4 shadow-md max-w-md mx-auto">
+                        <h4 class="font-semibold text-gray-800 mb-3">Select Module to Teach</h4>
+                        <select id="moduleSelect"
+                            class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 mb-3">
+                            <option value="">Select a module...</option>
+                        </select>
+                        <select id="subTopicSelect"
+                            class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 mb-3" disabled>
+                            <option value="">Select a sub-topic...</option>
+                        </select>
+                    </div>
+
+                    <!-- Class Control Buttons -->
+                    <div class="flex justify-center space-x-4">
+                        <button id="startClassButton"
+                            class="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled>
+                            🎓 Start the Class
+                        </button>
+                        <button id="pauseClassButton"
+                            class="px-6 py-3 bg-yellow-600 text-white rounded-lg font-semibold hover:bg-yellow-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled>
+                            ⏸️ Pause
+                        </button>
+                        <button id="stopClassButton"
+                            class="px-6 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled>
+                            ⏹️ Stop
+                        </button>
+                    </div>
+
+                    <!-- Class Status -->
+                    <div id="classStatus" class="text-center text-sm text-gray-600 mt-4 h-6"></div>
+
+                    <!-- Teaching Content Preview -->
+                    <div id="teachingPreview" class="hidden mt-4 bg-white rounded-lg p-4 shadow-md max-w-2xl mx-auto">
+                        <h4 class="font-semibold text-gray-800 mb-2">Teaching Content Preview:</h4>
+                        <div id="previewContent"
+                            class="text-sm text-gray-700 max-h-32 overflow-y-auto bg-gray-50 p-3 rounded border"></div>
+                        <button id="hidePreviewButton" class="mt-2 text-xs text-blue-600 hover:text-blue-800">Hide
+                            Preview</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Sidebar - Chat Interface -->
+        <div class="w-96 bg-white shadow-lg border-l border-gray-200">
+            <div class="p-4 border-b border-gray-200">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-2">
+                        <h2 class="text-lg font-semibold text-gray-800">AI Assistant</h2>
+                        <div id="connectionIndicator" class="w-3 h-3 rounded-full bg-red-500" title="Disconnected"></div>
+                    </div>
+                    <select id="languageSelect"
+                        class="text-sm border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <!-- Languages will be populated here -->
+                    </select>
+                </div>
+            </div>
+
+            <div class="flex flex-col h-full">
+                <!-- Chat History -->
+                <div id="chatHistory" class="chat-scroll-area flex flex-col space-y-4 p-4 bg-gray-50">
+                    <div class="ai-bubble">Hello! I am ProfessorAI. How can I assist you with your studies today?</div>
+                </div>
+
+                <!-- Chat Input -->
+                <div class="p-4 border-t border-gray-200 bg-white">
+                    <div class="flex flex-col gap-3">
+                        <textarea id="textInput"
+                            class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 resize-none" rows="2"
+                            placeholder="Ask about your course content..."></textarea>
+
+                        <div class="flex gap-2">
+                            <button id="sendTextButton"
+                                class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors">
+                                Send
+                            </button>
+                            <button id="startVoiceButton"
+                                class="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors">
+                                🎤
+                            </button>
+                            <button id="stopVoiceButton"
+                                class="px-4 py-2 bg-red-500 text-white rounded-lg font-semibold hover:bg-red-600 transition-colors"
+                                disabled>
+                                ⏹️
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="statusMessage" class="text-center mt-2 text-sm text-gray-600 h-4"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <audio id="audioPlayback" class="hidden"></audio>
+
+    <script>
+        // API Configuration
+        const isFileProtocol = window.location.protocol === 'file:';
+        const isSecure = window.location.protocol === 'https:';
+
+        const API_BASE_URL = isFileProtocol ? "http://127.0.0.1:5001" : (isSecure ? `https://${window.location.host}` : `http://${window.location.host}`);
+        const WS_URL = isFileProtocol ? "ws://127.0.0.1:8765" : (isSecure ? `wss://${window.location.hostname}/ws` : `ws://${window.location.hostname}:8765`);
+
+        // DOM Elements
+        const textInput = document.getElementById('textInput');
+        const sendTextButton = document.getElementById('sendTextButton');
+        const startVoiceButton = document.getElementById('startVoiceButton');
+        const stopVoiceButton = document.getElementById('stopVoiceButton');
+        const chatHistory = document.getElementById('chatHistory');
+        const statusMessage = document.getElementById('statusMessage');
+        const audioPlayback = document.getElementById('audioPlayback');
+        const languageSelect = document.getElementById('languageSelect');
+        const courseModules = document.getElementById('courseModules');
+        const moduleSelect = document.getElementById('moduleSelect');
+        const subTopicSelect = document.getElementById('subTopicSelect');
+        const startClassButton = document.getElementById('startClassButton');
+        const pauseClassButton = document.getElementById('pauseClassButton');
+        const stopClassButton = document.getElementById('stopClassButton');
+        const classStatus = document.getElementById('classStatus');
+        const teachingPreview = document.getElementById('teachingPreview');
+        const previewContent = document.getElementById('previewContent');
+        const hidePreviewButton = document.getElementById('hidePreviewButton');
+        const connectionIndicator = document.getElementById('connectionIndicator');
+
+        // WebSocket State
+        let ws = null;
+        let wsConnected = false;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
+
+        // Audio Streaming State
+        let audioQueue = [];
+        let isPlayingAudio = false;
+        let currentAudioElement = null;
+        let firstAudioTime = null;
+        let audioStartTime = null;
+        let chunkCount = 0;
+
+        // General State
+        let mediaRecorder, audioChunks = [], isRecording = false;
+        let currentCourse = null;
+        let classAudio = null;
+        let isClassPlaying = false;
+
+        // Supported Languages
+        const SUPPORTED_LANGUAGES = [
+            { "code": "en-IN", "name": "English" },
+            { "code": "hi-IN", "name": "Hindi" },
+            { "code": "bn-IN", "name": "Bengali" },
+            { "code": "mr-IN", "name": "Marathi" },
+            { "code": "ta-IN", "name": "Tamil" },
+            { "code": "te-IN", "name": "Telugu" },
+            { "code": "kn-IN", "name": "Kannada" },
+            { "code": "ml-IN", "name": "Malayalam" },
+            { "code": "gu-IN", "name": "Gujarati" },
+            { "code": "pa-IN", "name": "Punjabi" },
+            { "code": "ur-IN", "name": "Urdu" }
+        ];
+
+        // Initialize
+        function init() {
+            populateLanguages();
+            loadCourseModules();
+            setupClassControls();
+            initWebSocket();
+        }
+
+        // WebSocket Functions
+        function initWebSocket() {
+            console.log('🔗 Connecting to WebSocket:', WS_URL);
+            statusMessage.textContent = 'Connecting to AI assistant...';
+            
+            try {
+                ws = new WebSocket(WS_URL);
+                
+                ws.onopen = function() {
+                    console.log('✅ WebSocket connected successfully');
+                    wsConnected = true;
+                    reconnectAttempts = 0;
+                    updateConnectionIndicator(true);
+                    statusMessage.textContent = 'AI assistant connected!';
+                    toggleButtons(false); // Update button states
+                    
+                    // Send a test ping to verify connection
+                    setTimeout(() => {
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify({ type: 'ping' }));
+                        }
+                    }, 1000);
+                    
+                    // Start heartbeat to keep connection alive
+                    startHeartbeat();
+                    
+                    setTimeout(() => {
+                        if (statusMessage.textContent === 'AI assistant connected!') {
+                            statusMessage.textContent = '';
+                        }
+                    }, 3000);
+                };
+                
+                ws.onmessage = function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        handleWebSocketMessage(data);
+                    } catch (e) {
+                        console.error('Error parsing WebSocket message:', e);
+                    }
+                };
+                
+                ws.onclose = function(event) {
+                    console.log('🔌 WebSocket closed:', event.code, event.reason);
+                    wsConnected = false;
+                    updateConnectionIndicator(false);
+                    toggleButtons(false); // Update button states
+                    
+                    // Stop heartbeat and audio playback
+                    stopHeartbeat();
+                    stopAudioPlayback();
+                    
+                    // Only auto-reconnect for unexpected closures
+                    if (event.code !== 1000 && reconnectAttempts < maxReconnectAttempts) {
+                        reconnectAttempts++;
+                        updateConnectionIndicator('reconnecting');
+                        statusMessage.textContent = `Reconnecting... (${reconnectAttempts}/${maxReconnectAttempts})`;
+                        setTimeout(() => initWebSocket(), 2000 * reconnectAttempts);
+                    } else if (event.code === 1000) {
+                        statusMessage.textContent = 'Connection closed normally.';
+                        console.log('🔌 Normal WebSocket closure - not reconnecting');
+                    } else {
+                        statusMessage.textContent = 'Connection lost. Please refresh the page.';
+                        addMessage('Connection to AI assistant lost. Please refresh the page to reconnect.', 'ai');
+                    }
+                };
+                
+                ws.onerror = function(error) {
+                    console.error('❌ WebSocket error:', error);
+                    statusMessage.textContent = 'Connection error. Retrying...';
+                };
+                
+            } catch (error) {
+                console.error('Failed to create WebSocket:', error);
+                statusMessage.textContent = 'Failed to connect to AI assistant';
+            }
+        }
+
+        function handleWebSocketMessage(data) {
+            const messageType = data.type;
+            console.log('📨 Received:', messageType);
+
+            switch (messageType) {
+                case 'connection_ready':
+                    console.log('🎉 AI Assistant ready:', data.services);
+                    statusMessage.textContent = 'AI Assistant ready!';
+                    setTimeout(() => {
+                        if (statusMessage.textContent === 'AI Assistant ready!') {
+                            statusMessage.textContent = '';
+                        }
+                    }, 2000);
+                    break;
+
+                case 'pong':
+                    console.log('🏓 WebSocket ping successful');
+                    break;
+
+                case 'processing_started':
+                    statusMessage.textContent = 'AI is thinking...';
+                    break;
+
+                case 'text_response':
+                    if (!firstAudioTime) {
+                        const responseTime = Date.now() - audioStartTime;
+                        console.log(`📝 Text response in ${responseTime}ms`);
+                    }
+                    addMessage(data.text, 'ai', data.metadata?.sources || []);
+                    break;
+
+                case 'audio_generation_started':
+                    statusMessage.textContent = 'Generating speech...';
+                    audioStartTime = Date.now();
+                    chunkCount = 0;
+                    firstAudioTime = null;
+                    break;
+
+                case 'audio_chunk':
+                    handleAudioChunk(data);
+                    break;
+
+                case 'audio_generation_complete':
+                case 'class_complete':
+                    handleAudioComplete(data);
+                    toggleButtons(false); // Re-enable buttons
+                    break;
+
+                case 'teaching_content':
+                    displayTeachingContent(data);
+                    break;
+
+                case 'course_info':
+                    classStatus.textContent = `Teaching: ${data.module_title} - ${data.sub_topic_title}`;
+                    break;
+
+                case 'class_starting':
+                    classStatus.textContent = 'Loading class content...';
+                    startClassButton.disabled = true;
+                    pauseClassButton.disabled = false;
+                    stopClassButton.disabled = false;
+                    break;
+
+                case 'transcription_started':
+                    statusMessage.textContent = 'Transcribing voice...';
+                    break;
+
+                case 'transcription_complete':
+                    if (data.transcribed_text) {
+                        addMessage(`You said: "${data.transcribed_text}"`, 'user');
+                        textInput.value = data.transcribed_text;
+                        statusMessage.textContent = '';
+                        toggleButtons(false);
+                        // Automatically send the transcribed text
+                        setTimeout(() => handleSendText(), 500);
+                    } else {
+                        statusMessage.textContent = 'Could not understand voice';
+                        setTimeout(() => statusMessage.textContent = '', 3000);
+                        toggleButtons(false);
+                    }
+                    break;
+
+                case 'error':
+                    console.error('WebSocket error:', data.error);
+                    statusMessage.textContent = '';
+                    addMessage(`Error: ${data.error}`, 'ai');
+                    toggleButtons(false);
+                    break;
+
+                default:
+                    console.log('Unknown message type:', messageType, data);
+                    break;
+            }
+        }
+
+        function handleAudioChunk(data) {
+            chunkCount++;
+            
+            // Record first audio latency
+            if (!firstAudioTime || data.is_first_chunk || chunkCount === 1) {
+                firstAudioTime = Date.now() - audioStartTime;
+                console.log(`🚀 First audio chunk in ${firstAudioTime}ms!`);
+                
+                if (firstAudioTime <= 300) {
+                    statusMessage.textContent = `🚀 Excellent latency: ${firstAudioTime}ms`;
+                } else if (firstAudioTime <= 900) {
+                    statusMessage.textContent = `✅ Good latency: ${firstAudioTime}ms`;
+                } else {
+                    statusMessage.textContent = `⚠️ High latency: ${firstAudioTime}ms`;
+                }
+            }
+
+            // Convert base64 to audio and queue for playback
+            try {
+                const audioData = atob(data.audio_data);
+                const audioArray = new Uint8Array(audioData.length);
+                for (let i = 0; i < audioData.length; i++) {
+                    audioArray[i] = audioData.charCodeAt(i);
+                }
+                
+                queueAudioChunk(audioArray, data.chunk_id || chunkCount);
+                
+            } catch (e) {
+                console.error('Error processing audio chunk:', e);
+            }
+        }
+
+        function handleAudioComplete(data) {
+            const totalTime = Date.now() - audioStartTime;
+            console.log(`✅ Audio complete: ${chunkCount} chunks in ${totalTime}ms`);
+            
+            setTimeout(() => {
+                if (statusMessage.textContent.includes('latency') || statusMessage.textContent.includes('Generating')) {
+                    statusMessage.textContent = '';
+                }
+            }, 3000);
+        }
+
+        function queueAudioChunk(audioArray, chunkId) {
+            audioQueue.push({
+                data: audioArray,
+                id: chunkId,
+                timestamp: Date.now()
+            });
+            
+            if (!isPlayingAudio) {
+                playNextAudioChunk();
+            }
+        }
+
+        function playNextAudioChunk() {
+            if (audioQueue.length === 0) {
+                isPlayingAudio = false;
+                return;
+            }
+            
+            isPlayingAudio = true;
+            const chunk = audioQueue.shift();
+            
+            try {
+                const blob = new Blob([chunk.data], { type: 'audio/mpeg' });
+                const audioUrl = URL.createObjectURL(blob);
+                const audio = new Audio();
+                currentAudioElement = audio;
+                
+                audio.onended = function() {
+                    URL.revokeObjectURL(audioUrl);
+                    currentAudioElement = null;
+                    playNextAudioChunk();
+                };
+                
+                audio.onerror = function(e) {
+                    console.error(`Audio chunk ${chunk.id} error:`, e);
+                    URL.revokeObjectURL(audioUrl);
+                    currentAudioElement = null;
+                    setTimeout(() => playNextAudioChunk(), 50);
+                };
+                
+                audio.oncanplay = function() {
+                    audio.play().catch(e => {
+                        console.error(`Play failed for chunk ${chunk.id}:`, e);
+                        URL.revokeObjectURL(audioUrl);
+                        currentAudioElement = null;
+                        setTimeout(() => playNextAudioChunk(), 50);
+                    });
+                };
+                
+                audio.src = audioUrl;
+                audio.load();
+                
+            } catch (e) {
+                console.error(`Error processing audio chunk ${chunk.id}:`, e);
+                setTimeout(() => playNextAudioChunk(), 50);
+            }
+        }
+
+        function stopAudioPlayback() {
+            if (currentAudioElement) {
+                try {
+                    currentAudioElement.pause();
+                    currentAudioElement.currentTime = 0;
+                    if (currentAudioElement.src && currentAudioElement.src.startsWith('blob:')) {
+                        URL.revokeObjectURL(currentAudioElement.src);
+                    }
+                } catch (e) {
+                    console.warn('Error stopping audio:', e);
+                }
+                currentAudioElement = null;
+            }
+            
+            audioQueue.forEach(chunk => {
+                if (chunk.url) {
+                    try {
+                        URL.revokeObjectURL(chunk.url);
+                    } catch (e) {
+                        console.warn('Error cleaning up audio URL:', e);
+                    }
+                }
+            });
+            audioQueue = [];
+            isPlayingAudio = false;
+        }
+
+        function displayTeachingContent(data) {
+            if (data.content) {
+                previewContent.textContent = data.content.substring(0, 500) + (data.content.length > 500 ? '...' : '');
+                teachingPreview.classList.remove('hidden');
+            }
+        }
+
+        function populateLanguages() {
+            SUPPORTED_LANGUAGES.forEach(lang => {
+                const option = document.createElement('option');
+                option.value = lang.code;
+                option.textContent = lang.name;
+                languageSelect.appendChild(option);
+            });
+            languageSelect.value = "en-IN";
+        }
+
+        async function loadCourseModules() {
+            try {
+                console.log('📚 Loading courses from:', `${API_BASE_URL}/api/courses`);
+                courseModules.innerHTML = '<div class="text-blue-500 text-center py-8"><p>Loading courses...</p></div>';
+                
+                const response = await fetch(`${API_BASE_URL}/api/courses`);
+                console.log('📚 Courses response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const courses = await response.json();
+                console.log('📚 Loaded courses:', courses);
+                
+                if (courses.length === 0) {
+                    courseModules.innerHTML = '<div class="text-gray-500 text-center py-8"><p>No courses available.<br>Upload PDFs to generate content.</p></div>';
+                    moduleSelect.innerHTML = '<option value="">No courses available</option>';
+                    return;
+                }
+
+                // Store the first course for class functionality
+                currentCourse = courses[0];
+                console.log('📚 Selected course:', currentCourse);
+
+                // Display the first course modules in sidebar
+                await displayCourseModules(currentCourse);
+
+                // Populate module selector
+                populateModuleSelector(currentCourse);
+
+            } catch (error) {
+                console.error('❌ Error loading courses:', error);
+                courseModules.innerHTML = `<div class="text-red-500 text-center py-8"><p>Error loading courses:<br>${error.message}</p></div>`;
+                moduleSelect.innerHTML = '<option value="">Error loading courses</option>';
+            }
+        }
+
+        function populateModuleSelector(course) {
+            moduleSelect.innerHTML = '<option value="">Select a module...</option>';
+
+            course.modules.forEach((module, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = `Week ${module.week}: ${module.title}`;
+                moduleSelect.appendChild(option);
+            });
+        }
+
+        async function displayCourseModules(course) {
+            try {
+                // Fetch detailed course content
+                const response = await fetch(`${API_BASE_URL}/api/course/${course.course_id}`);
+                if (!response.ok) throw new Error('Failed to load course details');
+
+                const courseDetails = await response.json();
+
+                courseModules.innerHTML = `
+                    <div class="mb-4">
+                        <h3 class="font-semibold text-gray-800 mb-2">${courseDetails.course_title}</h3>
+                    </div>
+                `;
+
+                courseDetails.modules.forEach((module, moduleIndex) => {
+                    const moduleDiv = document.createElement('div');
+                    moduleDiv.className = 'mb-3';
+
+                    const moduleHeader = document.createElement('div');
+                    moduleHeader.className = 'module-item p-3 bg-gray-100 rounded-lg font-medium text-gray-800';
+                    moduleHeader.innerHTML = `
+                        <div class="flex justify-between items-center">
+                            <span>Week ${module.week}: ${module.title}</span>
+                            <span class="text-gray-500">▼</span>
+                        </div>
+                    `;
+
+                    const subTopicsDiv = document.createElement('div');
+                    subTopicsDiv.className = 'mt-2 space-y-1 hidden';
+
+                    module.sub_topics.forEach((subTopic, subIndex) => {
+                        const subTopicDiv = document.createElement('div');
+                        subTopicDiv.className = 'sub-topic-item p-2 text-sm text-gray-700 rounded hover:bg-gray-100';
+                        subTopicDiv.textContent = subTopic.title;
+                        subTopicDiv.onclick = () => askAboutTopic(subTopic.title);
+                        subTopicsDiv.appendChild(subTopicDiv);
+                    });
+
+                    moduleHeader.onclick = () => {
+                        const isHidden = subTopicsDiv.classList.contains('hidden');
+                        subTopicsDiv.classList.toggle('hidden');
+                        moduleHeader.querySelector('span:last-child').textContent = isHidden ? '▲' : '▼';
+                    };
+
+                    moduleDiv.appendChild(moduleHeader);
+                    moduleDiv.appendChild(subTopicsDiv);
+                    courseModules.appendChild(moduleDiv);
+                });
+
+                // Update currentCourse with detailed data
+                currentCourse = courseDetails;
+                populateModuleSelector(courseDetails);
+
+            } catch (error) {
+                console.error('Error loading course details:', error);
+                courseModules.innerHTML = '<div class="text-red-500 text-center py-8"><p>Error loading course details</p></div>';
+            }
+        }
+
+        function askAboutTopic(topicTitle) {
+            textInput.value = `Tell me about ${topicTitle}`;
+            handleSendText();
+        }
+
+
+
+        function toggleButtons(isProcessing) {
+            const wsDisabled = !wsConnected;
+            sendTextButton.disabled = isProcessing || wsDisabled;
+            startVoiceButton.disabled = isRecording || isProcessing || wsDisabled;
+            stopVoiceButton.disabled = !isRecording || isProcessing;
+            textInput.disabled = isProcessing || wsDisabled;
+            
+            // Update button text to show connection status
+            if (wsDisabled && !isProcessing) {
+                sendTextButton.textContent = 'Disconnected';
+            } else if (isProcessing) {
+                sendTextButton.textContent = 'Processing...';
+            } else {
+                sendTextButton.textContent = 'Send';
+            }
+        }
+
+        function addMessage(text, sender, sources = []) {
+            const messageContainer = document.createElement('div');
+            messageContainer.classList.add('flex', 'flex-col', sender === 'user' ? 'items-end' : 'items-start');
+
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message-bubble', sender === 'user' ? 'user-bubble' : 'ai-bubble');
+            messageDiv.textContent = text;
+            messageContainer.appendChild(messageDiv);
+
+            if (sources.length > 0 && sender === 'ai') {
+                const sourceDiv = document.createElement('div');
+                sourceDiv.classList.add('system-message');
+                sourceDiv.textContent = `Sources: ${sources.join(', ')}`;
+                messageContainer.appendChild(sourceDiv);
+            }
+
+            chatHistory.appendChild(messageContainer);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        // Voice transcription via WebSocket
+        async function handleVoiceStop() {
+            statusMessage.textContent = 'Processing voice...';
+            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            audioChunks = [];
+
+            if (!wsConnected) {
+                statusMessage.textContent = 'Connection lost. Cannot process voice.';
+                toggleButtons(false);
+                return;
+            }
+
+            try {
+                // Convert audio blob to base64
+                const reader = new FileReader();
+                reader.onload = function() {
+                    const base64Audio = reader.result.split(',')[1]; // Remove data:audio/webm;base64, prefix
+                    
+                    const message = {
+                        type: 'transcribe_audio',
+                        audio_data: base64Audio,
+                        language: languageSelect.value,
+                        request_id: `voice_${Date.now()}`
+                    };
+
+                    console.log('📤 Sending voice transcription request');
+                    ws.send(JSON.stringify(message));
+                };
+                reader.readAsDataURL(audioBlob);
+
+            } catch (err) {
+                console.error('Voice processing error:', err);
+                statusMessage.textContent = 'Voice processing failed';
+                toggleButtons(false);
+            }
+        }
+
+        function handleSendText() {
+            const query = textInput.value.trim();
+            if (!query) return;
+
+            if (!wsConnected) {
+                addMessage('Connection lost. Please refresh the page to reconnect.', 'ai');
+                return;
+            }
+
+            addMessage(query, 'user');
+            textInput.value = '';
+            statusMessage.textContent = 'ProfessorAI is thinking...';
+            toggleButtons(true);
+
+            // Stop any current audio playback
+            stopAudioPlayback();
+
+            try {
+                const message = {
+                    type: 'chat_with_audio',
+                    message: query,
+                    language: languageSelect.value,
+                    request_id: `chat_${Date.now()}`
+                };
+
+                console.log('📤 Sending WebSocket message:', message);
+                ws.send(JSON.stringify(message));
+                
+                // Set timeout to re-enable buttons if no response
+                setTimeout(() => {
+                    if (sendTextButton.disabled) {
+                        toggleButtons(false);
+                        if (statusMessage.textContent === 'ProfessorAI is thinking...') {
+                            statusMessage.textContent = 'Response timeout. Please try again.';
+                            setTimeout(() => statusMessage.textContent = '', 3000);
+                        }
+                    }
+                }, 30000); // 30 second timeout
+
+            } catch (err) {
+                console.error('WebSocket send error:', err);
+                addMessage(`Sorry, failed to send message: ${err.message}`, 'ai');
+                statusMessage.textContent = '';
+                toggleButtons(false);
+            }
+        }
+
+        // Voice functionality with WebSocket
+        startVoiceButton.addEventListener('click', async () => {
+            if (!wsConnected) {
+                statusMessage.textContent = 'Connection lost. Cannot record voice.';
+                return;
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                isRecording = true;
+                audioChunks = [];
+                toggleButtons(false);
+                statusMessage.textContent = 'Recording... Speak now!';
+                mediaRecorder = new MediaRecorder(stream);
+                mediaRecorder.start();
+                mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                mediaRecorder.onstop = handleVoiceStop;
+            } catch (err) {
+                statusMessage.textContent = 'Microphone access denied.';
+                console.error('Microphone error:', err);
+                toggleButtons(false);
+            }
+        });
+
+        stopVoiceButton.addEventListener('click', () => {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                isRecording = false;
+                mediaRecorder.stop();
+                toggleButtons(false);
+            }
+        });
+
+        // Event Listeners
+        sendTextButton.addEventListener('click', handleSendText);
+        textInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSendText();
+            }
+        });
+
+        // Class Control Functions
+        function setupClassControls() {
+            moduleSelect.addEventListener('change', function () {
+                const moduleIndex = parseInt(this.value);
+                if (isNaN(moduleIndex) || !currentCourse) {
+                    subTopicSelect.innerHTML = '<option value="">Select a sub-topic...</option>';
+                    subTopicSelect.disabled = true;
+                    startClassButton.disabled = true;
+                    return;
+                }
+
+                const module = currentCourse.modules[moduleIndex];
+                subTopicSelect.innerHTML = '<option value="">Select a sub-topic...</option>';
+
+                module.sub_topics.forEach((subTopic, index) => {
+                    const option = document.createElement('option');
+                    option.value = index;
+                    option.textContent = subTopic.title;
+                    subTopicSelect.appendChild(option);
+                });
+
+                subTopicSelect.disabled = false;
+            });
+
+            subTopicSelect.addEventListener('change', function () {
+                const subTopicIndex = parseInt(this.value);
+                startClassButton.disabled = isNaN(subTopicIndex);
+            });
+
+            startClassButton.addEventListener('click', startClass);
+            pauseClassButton.addEventListener('click', pauseClass);
+            stopClassButton.addEventListener('click', stopClass);
+            hidePreviewButton.addEventListener('click', () => {
+                teachingPreview.classList.add('hidden');
+            });
+        }
+
+        function updateConnectionIndicator(status) {
+            if (!connectionIndicator) return;
+            
+            if (status === true) {
+                connectionIndicator.className = 'w-3 h-3 rounded-full bg-green-500';
+                connectionIndicator.title = 'Connected to AI Assistant';
+            } else if (status === 'reconnecting') {
+                connectionIndicator.className = 'w-3 h-3 rounded-full bg-yellow-500';
+                connectionIndicator.title = 'Reconnecting...';
+            } else {
+                connectionIndicator.className = 'w-3 h-3 rounded-full bg-red-500';
+                connectionIndicator.title = 'Disconnected from AI Assistant';
+            }
+        }
+
+        // Connection heartbeat to prevent timeouts
+        let heartbeatInterval = null;
+        
+        function startHeartbeat() {
+            // Clear any existing heartbeat
+            if (heartbeatInterval) {
+                clearInterval(heartbeatInterval);
+            }
+            
+            // Send ping every 30 seconds to keep connection alive
+            heartbeatInterval = setInterval(() => {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'ping' }));
+                    console.log('🏓 Heartbeat ping sent');
+                } else {
+                    clearInterval(heartbeatInterval);
+                    heartbeatInterval = null;
+                }
+            }, 30000);
+        }
+        
+        function stopHeartbeat() {
+            if (heartbeatInterval) {
+                clearInterval(heartbeatInterval);
+                heartbeatInterval = null;
+            }
+        }
+
+        function startClass() {
+            const moduleIndex = parseInt(moduleSelect.value);
+            const subTopicIndex = parseInt(subTopicSelect.value);
+
+            console.log('Starting class with:', { moduleIndex, subTopicIndex, currentCourse: currentCourse?.course_id });
+
+            if (isNaN(moduleIndex) || isNaN(subTopicIndex) || !currentCourse) {
+                const errorMsg = 'Please select a module and sub-topic first';
+                alert(errorMsg);
+                return;
+            }
+
+            if (!wsConnected) {
+                alert('Connection lost. Please refresh the page to reconnect.');
+                return;
+            }
+
+            // Stop any current audio playback
+            stopAudioPlayback();
+
+            const module = currentCourse.modules[moduleIndex];
+            const subTopic = module.sub_topics[subTopicIndex];
+
+            classStatus.textContent = `Starting class: ${subTopic.title}`;
+            startClassButton.disabled = true;
+            pauseClassButton.disabled = false;
+            stopClassButton.disabled = false;
+
+            try {
+                const message = {
+                    type: 'start_class',
+                    course_id: currentCourse.course_id || 'default',
+                    module_index: moduleIndex,
+                    sub_topic_index: subTopicIndex,
+                    language: languageSelect.value,
+                    request_id: `class_${Date.now()}`
+                };
+
+                console.log('📤 Starting class via WebSocket:', message);
+                ws.send(JSON.stringify(message));
+
+            } catch (err) {
+                console.error('Error starting class:', err);
+                classStatus.textContent = `Error starting class: ${err.message}`;
+                startClassButton.disabled = false;
+                pauseClassButton.disabled = true;
+                stopClassButton.disabled = true;
+            }
+        }
+
+        function pauseClass() {
+            if (currentAudioElement) {
+                currentAudioElement.pause();
+                classStatus.textContent = 'Class paused';
+                pauseClassButton.textContent = '▶️ Resume';
+                pauseClassButton.onclick = resumeClass;
+            }
+        }
+
+        function resumeClass() {
+            if (currentAudioElement) {
+                currentAudioElement.play();
+                classStatus.textContent = 'Class resumed';
+                pauseClassButton.textContent = '⏸️ Pause';
+                pauseClassButton.onclick = pauseClass;
+            }
+        }
+
+        function stopClass() {
+            stopAudioPlayback();
+            classStatus.textContent = 'Class stopped';
+            startClassButton.disabled = false;
+            pauseClassButton.disabled = true;
+            stopClassButton.disabled = true;
+            pauseClassButton.textContent = '⏸️ Pause';
+            pauseClassButton.onclick = pauseClass;
+            teachingPreview.classList.add('hidden');
+        }
+
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 Initializing ProfAI...');
+            init();
+        });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProfAI WebSocket Test - Low Latency Audio</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        h1 {
+            color: #4a5568;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #718096;
+            margin-bottom: 30px;
+            font-style: italic;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        input,
+        textarea,
+        select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus,
+        textarea:focus,
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+
+        .button-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 8px;
+            font-weight: 600;
+            display: none;
+        }
+
+        .status.info {
+            background: #bee3f8;
+            color: #2b6cb0;
+            border-left: 4px solid #3182ce;
+        }
+
+        .status.success {
+            background: #c6f6d5;
+            color: #22543d;
+            border-left: 4px solid #38a169;
+        }
+
+        .status.error {
+            background: #fed7d7;
+            color: #742a2a;
+            border-left: 4px solid #e53e3e;
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin: 25px 0;
+        }
+
+        .metric {
+            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+        }
+
+        .metric-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .metric-label {
+            font-size: 12px;
+            color: #718096;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .response-text {
+            background: #f7fafc;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border-left: 4px solid #667eea;
+            display: none;
+        }
+
+        .response-text h4 {
+            margin-top: 0;
+            color: #4a5568;
+        }
+
+        .audio-controls {
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        audio {
+            width: 100%;
+            margin: 15px 0;
+            border-radius: 8px;
+        }
+
+        .connection-status {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .connection-status.connected {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .connection-status.disconnected {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .connection-status.connecting {
+            background: #fef5e7;
+            color: #744210;
+        }
+
+        .performance-indicator {
+            text-align: center;
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+
+        .performance-indicator.excellent {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .performance-indicator.good {
+            background: #fef5e7;
+            color: #744210;
+        }
+
+        .performance-indicator.poor {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .log-container {
+            background: #1a202c;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin: 20px 0;
+            display: none;
+        }
+
+        .log-entry {
+            margin: 2px 0;
+            padding: 2px 0;
+        }
+
+        .log-entry.info {
+            color: #63b3ed;
+        }
+
+        .log-entry.success {
+            color: #68d391;
+        }
+
+        .log-entry.error {
+            color: #fc8181;
+        }
+
+        .log-entry.warning {
+            color: #f6e05e;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🚀 ProfAI WebSocket Test</h1>
+        <p class="subtitle">Low-latency audio streaming with sub-900ms target</p>
+
+        <div style="text-align: center; margin-bottom: 20px;">
+            <span id="connectionStatus" class="connection-status disconnected">Disconnected</span>
+        </div>
+
+        <div class="input-group">
+            <label for="message">Message or Text:</label>
+            <textarea id="message"
+                placeholder="Enter your message or text to test the system...">Hello! Can you explain what artificial intelligence is and how it's used in education? I'm interested in learning more about this topic.</textarea>
+        </div>
+
+        <div class="input-group">
+            <label for="language">Language:</label>
+            <select id="language">
+                <option value="en-IN">English (India)</option>
+                <option value="hi-IN">Hindi</option>
+                <option value="ta-IN">Tamil</option>
+                <option value="te-IN">Telugu</option>
+                <option value="bn-IN">Bengali</option>
+                <option value="gu-IN">Gujarati</option>
+                <option value="kn-IN">Kannada</option>
+                <option value="ml-IN">Malayalam</option>
+                <option value="mr-IN">Marathi</option>
+                <option value="pa-IN">Punjabi</option>
+            </select>
+        </div>
+
+        <div class="button-group">
+            <button id="connectBtn" onclick="connectWebSocket()">🔗 Connect</button>
+            <button id="pingBtn" onclick="testPing()" disabled>🏓 Ping Test</button>
+            <button id="chatBtn" onclick="testChatWithAudio()" disabled>💬 Chat + Audio</button>
+            <button id="audioBtn" onclick="testAudioOnly()" disabled>🔊 Audio Only</button>
+            <button id="classBtn" onclick="testStartClass()" disabled>🎓 Start Class</button>
+            <button id="metricsBtn" onclick="getMetrics()" disabled>📊 Get Metrics</button>
+            <button id="stopAudioBtn" onclick="stopAudioPlayback()" disabled>⏹️ Stop Audio</button>
+            <button id="disconnectBtn" onclick="disconnectWebSocket()" disabled>🔌 Disconnect</button>
+            <button id="logBtn" onclick="toggleLogs()">📋 Toggle Logs</button>
+        </div>
+
+        <div id="status" class="status"></div>
+
+        <div class="metrics">
+            <div class="metric">
+                <div class="metric-value" id="connectionTime">-</div>
+                <div class="metric-label">Connection (ms)</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="firstResponse">-</div>
+                <div class="metric-label">First Response (ms)</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="firstAudio">-</div>
+                <div class="metric-label">First Audio (ms)</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="totalChunks">-</div>
+                <div class="metric-label">Audio Chunks</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="totalSize">-</div>
+                <div class="metric-label">Audio Size (KB)</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="totalTime">-</div>
+                <div class="metric-label">Total Time (s)</div>
+            </div>
+        </div>
+
+        <div id="performanceIndicator" class="performance-indicator" style="display: none;"></div>
+
+        <div id="responseText" class="response-text"></div>
+
+        <div class="audio-controls">
+            <audio id="audioPlayer" controls style="display: none;"></audio>
+        </div>
+
+        <div id="logContainer" class="log-container"></div>
+    </div>
+
+    <script>
+        let ws = null;
+        let startTime = null;
+        let firstResponseTime = null;
+        let firstAudioTime = null;
+        let chunkCount = 0;
+        let totalAudioSize = 0;
+        let audioChunks = [];
+        let isConnected = false;
+        let currentRequestId = null;
+        
+        // Audio queue management for sequential playback
+        let audioQueue = [];
+        let isPlayingAudio = false;
+        let currentAudioElement = null;
+
+        function updateConnectionStatus(status) {
+            const statusElement = document.getElementById('connectionStatus');
+            statusElement.className = `connection-status ${status}`;
+            statusElement.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+            isConnected = status === 'connected';
+            updateButtonStates();
+        }
+
+        function updateButtonStates() {
+            const buttons = ['pingBtn', 'chatBtn', 'audioBtn', 'classBtn', 'metricsBtn', 'disconnectBtn'];
+            buttons.forEach(id => {
+                document.getElementById(id).disabled = !isConnected;
+            });
+            document.getElementById('connectBtn').disabled = isConnected;
+            
+            // Stop audio button is enabled when audio is playing
+            document.getElementById('stopAudioBtn').disabled = !isPlayingAudio;
+        }
+
+        function showStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.style.display = 'block';
+            addLog(message, type);
+        }
+
+        function updateMetric(id, value) {
+            document.getElementById(id).textContent = value;
+        }
+
+        function resetMetrics() {
+            // Stop any current audio playback
+            stopAudioPlayback();
+            
+            // Reset all metrics
+            updateMetric('firstResponse', '-');
+            updateMetric('firstAudio', '-');
+            updateMetric('totalChunks', '-');
+            updateMetric('totalSize', '-');
+            updateMetric('totalTime', '-');
+            
+            // Reset counters and arrays
+            chunkCount = 0;
+            totalAudioSize = 0;
+            audioChunks = [];
+            firstResponseTime = null;
+            firstAudioTime = null;
+            currentRequestId = null;
+            
+            // Hide performance indicator
+            document.getElementById('performanceIndicator').style.display = 'none';
+            
+            // Clear response text
+            document.getElementById('responseText').style.display = 'none';
+            document.getElementById('audioPlayer').style.display = 'none';
+            
+            addLog('🔄 Metrics reset - ready for new test', 'info');
+        }
+
+        function addLog(message, type = 'info') {
+            const logContainer = document.getElementById('logContainer');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        function toggleLogs() {
+            const logContainer = document.getElementById('logContainer');
+            logContainer.style.display = logContainer.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const hostname = window.location.hostname || 'localhost';
+            const wsUrl = `${protocol}//${hostname}:8765`;
+
+            console.log('Connecting to WebSocket:', wsUrl);
+            showStatus('Connecting to WebSocket...', 'info');
+            updateConnectionStatus('connecting');
+
+            const connectStart = Date.now();
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = function () {
+                const connectionTime = Date.now() - connectStart;
+                updateMetric('connectionTime', connectionTime);
+                console.log('WebSocket connected');
+                showStatus(`WebSocket connected in ${connectionTime}ms`, 'success');
+                updateConnectionStatus('connected');
+            };
+
+            ws.onmessage = function (event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleWebSocketMessage(data);
+                } catch (e) {
+                    console.error('Error parsing WebSocket message:', e);
+                    showStatus('Error parsing message: ' + e.message, 'error');
+                }
+            };
+
+            ws.onclose = function (event) {
+                console.log('WebSocket closed:', event.code, event.reason);
+                showStatus(`WebSocket closed (${event.code}): ${event.reason || 'Connection closed'}`, 'info');
+                updateConnectionStatus('disconnected');
+            };
+
+            ws.onerror = function (error) {
+                console.error('WebSocket error:', error);
+                showStatus('WebSocket connection error - Make sure the WebSocket server is running on port 8765', 'error');
+                updateConnectionStatus('disconnected');
+            };
+        }
+
+        function handleWebSocketMessage(data) {
+            const messageType = data.type;
+            addLog(`Received: ${messageType}`, 'info');
+
+            switch (messageType) {
+                case 'connection_ready':
+                    showStatus(data.message, 'success');
+                    addLog(`Services: ${JSON.stringify(data.services)}`, 'info');
+                    break;
+
+                case 'processing_started':
+                    showStatus(data.message, 'info');
+                    break;
+
+                case 'text_response':
+                    if (!firstResponseTime) {
+                        firstResponseTime = Date.now() - startTime;
+                        updateMetric('firstResponse', firstResponseTime);
+                        addLog(`First response in ${firstResponseTime}ms`, 'success');
+                    }
+
+                    const responseDiv = document.getElementById('responseText');
+                    responseDiv.innerHTML = `<h4>AI Response:</h4><p>${data.text}</p>`;
+                    responseDiv.style.display = 'block';
+                    break;
+
+                case 'audio_generation_started':
+                    showStatus(data.message, 'info');
+                    break;
+
+                case 'audio_chunk':
+                    handleAudioChunk(data);
+                    break;
+
+                case 'audio_generation_complete':
+                case 'class_complete':
+                    handleStreamComplete(data);
+                    break;
+
+                case 'teaching_content':
+                    const contentDiv = document.getElementById('responseText');
+                    contentDiv.innerHTML = `<h4>Teaching Content:</h4><p>${data.content.substring(0, 300)}${data.content.length > 300 ? '...' : ''}</p>`;
+                    contentDiv.style.display = 'block';
+                    break;
+
+                case 'course_info':
+                    showStatus(`Course: ${data.module_title} - ${data.sub_topic_title}`, 'info');
+                    break;
+
+                case 'metrics_response':
+                    displayMetrics(data.metrics);
+                    break;
+
+                case 'pong':
+                    const pingTime = Date.now() - startTime;
+                    showStatus(`Ping response in ${pingTime}ms`, 'success');
+                    break;
+
+                case 'error':
+                    console.error('WebSocket error:', data.error);
+                    showStatus('Error: ' + data.error, 'error');
+                    break;
+
+                default:
+                    addLog(`Unknown message type: ${messageType}`, 'warning');
+                    break;
+            }
+        }
+
+        function handleAudioChunk(data) {
+            chunkCount++;
+            totalAudioSize += data.size;
+
+            // Record first audio latency (enhanced for streaming)
+            const isFirstChunk = !firstAudioTime || data.is_first_chunk || chunkCount === 1;
+            
+            if (isFirstChunk) {
+                firstAudioTime = Date.now() - startTime;
+                updateMetric('firstAudio', firstAudioTime);
+                addLog(`🚀 FIRST AUDIO CHUNK in ${firstAudioTime}ms!`, 'success');
+
+                // Enhanced performance indicator with sub-300ms target
+                const indicator = document.getElementById('performanceIndicator');
+                if (firstAudioTime <= 300) {
+                    indicator.className = 'performance-indicator excellent';
+                    indicator.textContent = `🚀 EXCELLENT: ${firstAudioTime}ms (Sub-300ms achieved!)`;
+                    showStatus(`🚀 STREAMING SUCCESS! First audio in ${firstAudioTime}ms`, 'success');
+                } else if (firstAudioTime <= 900) {
+                    indicator.className = 'performance-indicator good';
+                    indicator.textContent = `🎉 GOOD: ${firstAudioTime}ms (Under 900ms target)`;
+                    showStatus(`🎉 Good streaming! First audio in ${firstAudioTime}ms`, 'success');
+                } else {
+                    indicator.className = 'performance-indicator poor';
+                    indicator.textContent = `⚠️ SLOW: ${firstAudioTime}ms (Needs optimization)`;
+                    showStatus(`⚠️ Slow streaming: ${firstAudioTime}ms`, 'info');
+                }
+                indicator.style.display = 'block';
+            }
+
+            // Update metrics
+            updateMetric('totalChunks', chunkCount);
+            updateMetric('totalSize', Math.round(totalAudioSize / 1024));
+
+            // Convert base64 to audio blob and add to chunks
+            try {
+                const audioData = atob(data.audio_data);
+                const audioArray = new Uint8Array(audioData.length);
+                for (let i = 0; i < audioData.length; i++) {
+                    audioArray[i] = audioData.charCodeAt(i);
+                }
+                audioChunks.push(audioArray);
+
+                // SEQUENTIAL STREAMING: Queue chunks for sequential playback
+                queueAudioChunk(audioArray, data.chunk_id || chunkCount);
+                
+                if (isFirstChunk) {
+                    addLog(`🎵 FIRST chunk ${chunkCount}: ${data.size} bytes - starting playback!`, 'success');
+                } else {
+                    addLog(`📦 Chunk ${chunkCount}: ${data.size} bytes - queued`, 'info');
+                }
+                
+            } catch (e) {
+                console.error('Error processing audio chunk:', e);
+                addLog(`❌ Error processing audio chunk: ${e.message}`, 'error');
+            }
+        }
+
+        function handleStreamComplete(data) {
+            const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+            updateMetric('totalTime', totalTime);
+
+            showStatus(`✅ Stream complete! ${data.total_chunks || chunkCount} chunks in ${totalTime}s`, 'success');
+            addLog(`Stream complete: ${data.total_chunks || chunkCount} chunks, ${Math.round(totalAudioSize / 1024)}KB`, 'success');
+
+            // Combine all audio chunks and create downloadable audio
+            combineAudioChunks();
+        }
+
+        function queueAudioChunk(audioArray, chunkId) {
+            // Add chunk to queue with enhanced metadata
+            audioQueue.push({
+                data: audioArray,
+                id: chunkId,
+                url: null,
+                timestamp: Date.now()
+            });
+            
+            addLog(`📦 Queued chunk ${chunkId} (${audioQueue.length} in queue)`, 'info');
+            
+            // Start playing if not already playing
+            if (!isPlayingAudio) {
+                playNextAudioChunk();
+            }
+        }
+        
+        function playNextAudioChunk() {
+            if (audioQueue.length === 0) {
+                isPlayingAudio = false;
+                updateButtonStates();
+                addLog('🎵 Audio queue empty - playback complete', 'success');
+                return;
+            }
+            
+            isPlayingAudio = true;
+            updateButtonStates();
+            const chunk = audioQueue.shift();
+            
+            try {
+                // Create blob with proper MIME type detection
+                const blob = new Blob([chunk.data], { type: 'audio/mpeg' });
+                const audioUrl = URL.createObjectURL(blob);
+                
+                const audio = new Audio();
+                currentAudioElement = audio;
+                
+                // Enhanced event listeners with better error handling
+                audio.onloadeddata = function() {
+                    addLog(`📻 Chunk ${chunk.id} loaded (${audio.duration?.toFixed(1) || '?'}s)`, 'info');
+                };
+                
+                audio.onended = function() {
+                    addLog(`✅ Chunk ${chunk.id} finished playing`, 'success');
+                    
+                    // Clean up resources
+                    URL.revokeObjectURL(audioUrl);
+                    currentAudioElement = null;
+                    
+                    // Immediate transition to next chunk for seamless playback
+                    playNextAudioChunk();
+                };
+                
+                audio.onerror = function(e) {
+                    console.error(`Audio chunk ${chunk.id} error:`, e);
+                    addLog(`❌ Chunk ${chunk.id} playback failed`, 'error');
+                    
+                    // Clean up and continue to next chunk
+                    URL.revokeObjectURL(audioUrl);
+                    currentAudioElement = null;
+                    
+                    // Continue with next chunk after brief delay
+                    setTimeout(() => playNextAudioChunk(), 50);
+                };
+                
+                audio.oncanplay = function() {
+                    // Start playing as soon as we can
+                    audio.play().then(() => {
+                        addLog(`▶️ Playing chunk ${chunk.id} (${audioQueue.length} remaining)`, 'success');
+                    }).catch(e => {
+                        console.error(`Play failed for chunk ${chunk.id}:`, e);
+                        addLog(`❌ Play failed for chunk ${chunk.id}: ${e.message}`, 'error');
+                        
+                        // Clean up and continue
+                        URL.revokeObjectURL(audioUrl);
+                        currentAudioElement = null;
+                        setTimeout(() => playNextAudioChunk(), 50);
+                    });
+                };
+                
+                // Set source and start loading
+                audio.src = audioUrl;
+                audio.load();
+                
+            } catch (e) {
+                console.error(`Error processing audio chunk ${chunk.id}:`, e);
+                addLog(`❌ Error processing chunk ${chunk.id}: ${e.message}`, 'error');
+                
+                // Continue with next chunk
+                setTimeout(() => playNextAudioChunk(), 50);
+            }
+        }
+        
+        function stopAudioPlayback() {
+            addLog('🛑 Stopping audio playback...', 'info');
+            
+            // Stop current audio
+            if (currentAudioElement) {
+                try {
+                    currentAudioElement.pause();
+                    currentAudioElement.currentTime = 0;
+                    
+                    // Clean up current audio URL if it exists
+                    if (currentAudioElement.src && currentAudioElement.src.startsWith('blob:')) {
+                        URL.revokeObjectURL(currentAudioElement.src);
+                    }
+                } catch (e) {
+                    console.warn('Error stopping current audio:', e);
+                }
+                currentAudioElement = null;
+            }
+            
+            // Clear queue and clean up URLs
+            const queueSize = audioQueue.length;
+            audioQueue.forEach(chunk => {
+                if (chunk.url) {
+                    try {
+                        URL.revokeObjectURL(chunk.url);
+                    } catch (e) {
+                        console.warn('Error cleaning up audio URL:', e);
+                    }
+                }
+            });
+            audioQueue = [];
+            isPlayingAudio = false;
+            
+            updateButtonStates();
+            addLog(`🛑 Audio stopped - cleared ${queueSize} queued chunks`, 'success');
+        }
+        
+        function playAudioChunk(audioArray) {
+            // Legacy function - now redirects to queue
+            queueAudioChunk(audioArray, Date.now());
+        }
+
+        function combineAudioChunks() {
+            if (audioChunks.length === 0) return;
+
+            try {
+                // Calculate total size
+                let totalSize = 0;
+                audioChunks.forEach(chunk => totalSize += chunk.length);
+
+                // Combine chunks
+                const combinedArray = new Uint8Array(totalSize);
+                let offset = 0;
+                audioChunks.forEach(chunk => {
+                    combinedArray.set(chunk, offset);
+                    offset += chunk.length;
+                });
+
+                // Create audio element
+                const blob = new Blob([combinedArray], { type: 'audio/mpeg' });
+                const audioUrl = URL.createObjectURL(blob);
+                const audioPlayer = document.getElementById('audioPlayer');
+                audioPlayer.src = audioUrl;
+                audioPlayer.style.display = 'block';
+
+                addLog(`Combined audio ready: ${Math.round(totalSize / 1024)}KB`, 'success');
+            } catch (e) {
+                console.error('Error combining audio chunks:', e);
+                addLog(`Error combining audio: ${e.message}`, 'error');
+            }
+        }
+
+        function testPing() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                showStatus('WebSocket not connected', 'error');
+                return;
+            }
+
+            startTime = Date.now();
+            ws.send(JSON.stringify({ type: 'ping' }));
+            showStatus('Ping sent...', 'info');
+        }
+
+        function testChatWithAudio() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                showStatus('WebSocket not connected', 'error');
+                return;
+            }
+
+            const message = document.getElementById('message').value.trim();
+            const language = document.getElementById('language').value;
+
+            if (!message) {
+                showStatus('Please enter a message', 'error');
+                return;
+            }
+
+            resetMetrics();
+            startTime = Date.now();
+            firstResponseTime = null;
+            firstAudioTime = null;
+            currentRequestId = `chat_${Date.now()}`;
+
+            document.getElementById('responseText').style.display = 'none';
+            document.getElementById('audioPlayer').style.display = 'none';
+
+            ws.send(JSON.stringify({
+                type: 'chat_with_audio',
+                message: message,
+                language: language,
+                request_id: currentRequestId
+            }));
+
+            showStatus('Sending chat request...', 'info');
+            addLog(`Chat request: ${message.substring(0, 50)}...`, 'info');
+        }
+
+        function testAudioOnly() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                showStatus('WebSocket not connected', 'error');
+                return;
+            }
+
+            const text = document.getElementById('message').value.trim();
+            const language = document.getElementById('language').value;
+
+            if (!text) {
+                showStatus('Please enter text', 'error');
+                return;
+            }
+
+            resetMetrics();
+            startTime = Date.now();
+            firstAudioTime = null;
+            currentRequestId = `audio_${Date.now()}`;
+
+            document.getElementById('responseText').style.display = 'none';
+            document.getElementById('audioPlayer').style.display = 'none';
+
+            ws.send(JSON.stringify({
+                type: 'audio_only',
+                text: text,
+                language: language,
+                request_id: currentRequestId
+            }));
+
+            showStatus('Generating audio...', 'info');
+            addLog(`Audio generation: ${text.substring(0, 50)}...`, 'info');
+        }
+
+        function testStartClass() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                showStatus('WebSocket not connected', 'error');
+                return;
+            }
+
+            const language = document.getElementById('language').value;
+
+            resetMetrics();
+            startTime = Date.now();
+            firstAudioTime = null;
+            currentRequestId = `class_${Date.now()}`;
+
+            document.getElementById('responseText').style.display = 'none';
+            document.getElementById('audioPlayer').style.display = 'none';
+
+            ws.send(JSON.stringify({
+                type: 'start_class',
+                course_id: '1',
+                module_index: 0,
+                sub_topic_index: 0,
+                language: language,
+                request_id: currentRequestId
+            }));
+
+            showStatus('Starting class...', 'info');
+            addLog('Class start request sent', 'info');
+        }
+
+        function getMetrics() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                showStatus('WebSocket not connected', 'error');
+                return;
+            }
+
+            ws.send(JSON.stringify({
+                type: 'get_metrics',
+                request_id: `metrics_${Date.now()}`
+            }));
+
+            showStatus('Requesting metrics...', 'info');
+        }
+
+        function displayMetrics(metrics) {
+            const sessionMetrics = metrics.session_metrics || {};
+            const performanceMetrics = metrics.performance_metrics || {};
+
+            const metricsText = `
+                <h4>Session Metrics:</h4>
+                <p>Duration: ${sessionMetrics.session_duration?.toFixed(1) || 0}s</p>
+                <p>Messages: ${sessionMetrics.message_count || 0}</p>
+                <p>Language: ${sessionMetrics.current_language || 'Unknown'}</p>
+                
+                <h4>Performance Metrics:</h4>
+                <p>Total Requests: ${performanceMetrics.total_requests || 0}</p>
+                <p>Average Response Time: ${performanceMetrics.avg_response_time?.toFixed(2) || 0}s</p>
+                <p>Chat Requests: ${performanceMetrics.chat_requests || 0}</p>
+                <p>Audio Requests: ${performanceMetrics.audio_requests || 0}</p>
+                <p>Teaching Requests: ${performanceMetrics.teaching_requests || 0}</p>
+                <p>Errors: ${performanceMetrics.errors || 0}</p>
+            `;
+
+            const responseDiv = document.getElementById('responseText');
+            responseDiv.innerHTML = metricsText;
+            responseDiv.style.display = 'block';
+
+            showStatus('Metrics received', 'success');
+        }
+
+        function disconnectWebSocket() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+            updateConnectionStatus('disconnected');
+            showStatus('Disconnected from WebSocket', 'info');
+        }
+
+        // Initialize page
+        window.onload = function () {
+            updateButtonStates();
+            showStatus('Ready to test ProfAI WebSocket. Click Connect to start.', 'info');
+            addLog('Page loaded - ready for testing', 'info');
+        };
+    </script>
+</body>
+
+</html>

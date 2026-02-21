@@ -1,0 +1,5820 @@
+[
+  {
+    "course_id": 1,
+    "course_title": "Generative AI Handson",
+    "weeks": [
+      {
+        "week_number": null,
+        "week_title": "Introduction to Generative AI",
+        "topics": [
+          {
+            "topic_id": 1,
+            "topic_title": "Overview of Generative AI"
+          },
+          {
+            "topic_id": 2,
+            "topic_title": "The Importance of Data Quality"
+          },
+          {
+            "topic_id": 3,
+            "topic_title": "Introduction to Foundation Models"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Foundation Models",
+        "topics": [
+          {
+            "topic_id": 4,
+            "topic_title": "Types of Foundation Models"
+          },
+          {
+            "topic_id": 5,
+            "topic_title": "Introducing DBRX"
+          },
+          {
+            "topic_id": 6,
+            "topic_title": "Use Cases of Foundation Models"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Prompt Engineering",
+        "topics": [
+          {
+            "topic_id": 7,
+            "topic_title": "Basics of Prompt Engineering"
+          },
+          {
+            "topic_id": 8,
+            "topic_title": "Automated Analysis of Product Reviews"
+          },
+          {
+            "topic_id": 9,
+            "topic_title": "Best Practices for Prompt Engineering"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Retrieval Augmented Generation (RAG)",
+        "topics": [
+          {
+            "topic_id": 10,
+            "topic_title": "Understanding RAG"
+          },
+          {
+            "topic_id": 11,
+            "topic_title": "Implementing RAG in Applications"
+          },
+          {
+            "topic_id": 12,
+            "topic_title": "Use Case: Improving RAG Application Response Quality"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Fine-Tuning Foundation Models",
+        "topics": [
+          {
+            "topic_id": 13,
+            "topic_title": "What is Fine-Tuning?"
+          },
+          {
+            "topic_id": 14,
+            "topic_title": "Creating a Bespoke LLM"
+          },
+          {
+            "topic_id": 15,
+            "topic_title": "Efficient Fine-Tuning with LoRA"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Pretraining Models",
+        "topics": [
+          {
+            "topic_id": 16,
+            "topic_title": "When to Pretrain a Model"
+          },
+          {
+            "topic_id": 17,
+            "topic_title": "Data Preparation for Pretraining"
+          },
+          {
+            "topic_id": 18,
+            "topic_title": "Case Study: Training Stable Diffusion"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Evaluating LLMs",
+        "topics": [
+          {
+            "topic_id": 19,
+            "topic_title": "Importance of Evaluation"
+          },
+          {
+            "topic_id": 20,
+            "topic_title": "Best Practices for LLM Evaluation"
+          },
+          {
+            "topic_id": 21,
+            "topic_title": "Use Case: Evaluating RAG Applications"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Final Project and Course Wrap-Up",
+        "topics": [
+          {
+            "topic_id": 22,
+            "topic_title": "Capstone Project Overview"
+          },
+          {
+            "topic_id": 23,
+            "topic_title": "Course Review and Key Takeaways"
+          },
+          {
+            "topic_id": 24,
+            "topic_title": "Future Directions in Generative AI"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "course_id": 2,
+    "course_title": "Basic English Speaking Techniques",
+    "weeks": [
+      {
+        "week_number": null,
+        "week_title": "Foundations of Spoken English as a Closed-Loop System",
+        "topics": [
+          {
+            "topic_id": 25,
+            "topic_title": "Open- vs. Closed-Loop Control in Speech"
+          },
+          {
+            "topic_id": 26,
+            "topic_title": "Proprioceptive Feedback in Speech"
+          },
+          {
+            "topic_id": 27,
+            "topic_title": "Simultaneity: Mind–Mouth–Ear Training"
+          },
+          {
+            "topic_id": 28,
+            "topic_title": "Mental Intensity Experiment"
+          },
+          {
+            "topic_id": 29,
+            "topic_title": "Why Grammar-First Fails for Speaking"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Core Rules and Habits for Rapid Spoken Fluency",
+        "topics": [
+          {
+            "topic_id": 30,
+            "topic_title": "Rule 1: Speak Aloud (Full Voice)"
+          },
+          {
+            "topic_id": 31,
+            "topic_title": "Rule 2: Think in English (No Reading During Drills)"
+          },
+          {
+            "topic_id": 32,
+            "topic_title": "Rule 3: Repetition Builds Automaticity"
+          },
+          {
+            "topic_id": 33,
+            "topic_title": "Rule 4: Errorless Learning via Controlled Input"
+          },
+          {
+            "topic_id": 34,
+            "topic_title": "Implementing with SELQ Materials"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Designing Effective Daily Study and Calibration",
+        "topics": [
+          {
+            "topic_id": 35,
+            "topic_title": "Session Architecture (2-hour Model)"
+          },
+          {
+            "topic_id": 36,
+            "topic_title": "Calibration in Real Time"
+          },
+          {
+            "topic_id": 37,
+            "topic_title": "Audio and Recording Setup"
+          },
+          {
+            "topic_id": 38,
+            "topic_title": "Stress Management for Natural Speech"
+          },
+          {
+            "topic_id": 39,
+            "topic_title": "Progress Tracking"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Grammar Through Speech: Learning by Sound and Feel",
+        "topics": [
+          {
+            "topic_id": 40,
+            "topic_title": "Grammar Is Essential—But Spoken"
+          },
+          {
+            "topic_id": 41,
+            "topic_title": "Statements vs. Questions (Proprioceptive Feel)"
+          },
+          {
+            "topic_id": 42,
+            "topic_title": "Intonation and Word Order"
+          },
+          {
+            "topic_id": 43,
+            "topic_title": "Pronunciation–Spelling Connection"
+          },
+          {
+            "topic_id": 44,
+            "topic_title": "Avoiding Segregated Skill Practice"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "What to Study: Normal English from Day One",
+        "topics": [
+          {
+            "topic_id": 45,
+            "topic_title": "No ‘Beginner/Advanced’ Language Split"
+          },
+          {
+            "topic_id": 46,
+            "topic_title": "Sentence Complexity vs. Language Level"
+          },
+          {
+            "topic_id": 47,
+            "topic_title": "Normal English in SELQ Lessons"
+          },
+          {
+            "topic_id": 48,
+            "topic_title": "Controlled Free Speech"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Selecting and Preparing Texts: Newspaper-Centered Practice",
+        "topics": [
+          {
+            "topic_id": 49,
+            "topic_title": "Why Newspapers"
+          },
+          {
+            "topic_id": 50,
+            "topic_title": "From Text to Audio"
+          },
+          {
+            "topic_id": 51,
+            "topic_title": "Vocabulary Notebook Method"
+          },
+          {
+            "topic_id": 52,
+            "topic_title": "Reading for Meaning (Aloud)"
+          },
+          {
+            "topic_id": 53,
+            "topic_title": "Syntax and Style Awareness"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Using Texts for Expressions, Fluency, and Conversation",
+        "topics": [
+          {
+            "topic_id": 54,
+            "topic_title": "Identifying and Practicing Expressions"
+          },
+          {
+            "topic_id": 55,
+            "topic_title": "Fluency Reads"
+          },
+          {
+            "topic_id": 56,
+            "topic_title": "Recall Without Text"
+          },
+          {
+            "topic_id": 57,
+            "topic_title": "Guided Q&A From Articles"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Mastering English Verbs I: Principles and A-Format Drills",
+        "topics": [
+          {
+            "topic_id": 58,
+            "topic_title": "Why Verbs Mark Fluency"
+          },
+          {
+            "topic_id": 59,
+            "topic_title": "Learn All Forms Together"
+          },
+          {
+            "topic_id": 60,
+            "topic_title": "A-Format Conjugation"
+          },
+          {
+            "topic_id": 61,
+            "topic_title": "High-Repetition Strategy"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Mastering English Verbs II: Sentence Completion, B-Format, and Selection Drills",
+        "topics": [
+          {
+            "topic_id": 62,
+            "topic_title": "Sentence Completion Drills"
+          },
+          {
+            "topic_id": 63,
+            "topic_title": "B-Format Switching"
+          },
+          {
+            "topic_id": 64,
+            "topic_title": "Tense/Person Selection"
+          },
+          {
+            "topic_id": 65,
+            "topic_title": "Transfer to Unseen Verbs"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Pronunciation, Coarticulation, and Tempo",
+        "topics": [
+          {
+            "topic_id": 66,
+            "topic_title": "Difficult Phonemes and Stops"
+          },
+          {
+            "topic_id": 67,
+            "topic_title": "Coarticulation and Natural Flow"
+          },
+          {
+            "topic_id": 68,
+            "topic_title": "Error Prevention in Output"
+          },
+          {
+            "topic_id": 69,
+            "topic_title": "Tempo Ramping"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Persistence, Scheduling, and Self-Assessment",
+        "topics": [
+          {
+            "topic_id": 70,
+            "topic_title": "Rule 5: Time on Task"
+          },
+          {
+            "topic_id": 71,
+            "topic_title": "Plateaus and Motivation"
+          },
+          {
+            "topic_id": 72,
+            "topic_title": "Low-Stress, Natural Speech"
+          },
+          {
+            "topic_id": 73,
+            "topic_title": "Self-Recording and Rubrics"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Capstone Performance and Long-Term Fluency Plan",
+        "topics": [
+          {
+            "topic_id": 74,
+            "topic_title": "Capstone Conversation"
+          },
+          {
+            "topic_id": 75,
+            "topic_title": "Fluency Read Showcase"
+          },
+          {
+            "topic_id": 76,
+            "topic_title": "Independent Practice Blueprint"
+          },
+          {
+            "topic_id": 77,
+            "topic_title": "Resource List and Next Steps"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "course_id": 3,
+    "course_title": "Hindi to English Speaking course",
+    "weeks": [
+      {
+        "week_number": null,
+        "week_title": "Orientation and Sound System of English",
+        "topics": [
+          {
+            "topic_id": 78,
+            "topic_title": "Course orientation, goals and learning habits"
+          },
+          {
+            "topic_id": 79,
+            "topic_title": "Roman alphabet: capitals, smalls, handwriting basics"
+          },
+          {
+            "topic_id": 80,
+            "topic_title": "Vowels and consonants overview"
+          },
+          {
+            "topic_id": 81,
+            "topic_title": "English vowel pronunciation"
+          },
+          {
+            "topic_id": 82,
+            "topic_title": "Consonant pronunciation and variants"
+          },
+          {
+            "topic_id": 83,
+            "topic_title": "Silent letters"
+          },
+          {
+            "topic_id": 84,
+            "topic_title": "Stress on etiquette in speech"
+          },
+          {
+            "topic_id": 85,
+            "topic_title": "Contractions and spoken forms"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Greetings, Manners and Core Speaking Routines",
+        "topics": [
+          {
+            "topic_id": 86,
+            "topic_title": "Greetings across the day and contexts"
+          },
+          {
+            "topic_id": 87,
+            "topic_title": "Addressing and kinship in English"
+          },
+          {
+            "topic_id": 88,
+            "topic_title": "Polite formulas and social moves"
+          },
+          {
+            "topic_id": 89,
+            "topic_title": "Exclamations"
+          },
+          {
+            "topic_id": 90,
+            "topic_title": "Everyday phrases and short responses"
+          },
+          {
+            "topic_id": 91,
+            "topic_title": "Commands and softened imperatives"
+          },
+          {
+            "topic_id": 92,
+            "topic_title": "Apology and excuse"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Present Tenses and Sentence Mechanics",
+        "topics": [
+          {
+            "topic_id": 93,
+            "topic_title": "Present Indefinite"
+          },
+          {
+            "topic_id": 94,
+            "topic_title": "Present Continuous"
+          },
+          {
+            "topic_id": 95,
+            "topic_title": "Present Perfect"
+          },
+          {
+            "topic_id": 96,
+            "topic_title": "Present Perfect Continuous"
+          },
+          {
+            "topic_id": 97,
+            "topic_title": "Affirmative, negative, interrogative forms"
+          },
+          {
+            "topic_id": 98,
+            "topic_title": "Drills and short answers"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Past and Future Tenses with Contractions & Tags",
+        "topics": [
+          {
+            "topic_id": 99,
+            "topic_title": "Past Indefinite, Continuous, Perfect, Perfect Continuous"
+          },
+          {
+            "topic_id": 100,
+            "topic_title": "Future Indefinite, Continuous, Perfect, Perfect Continuous"
+          },
+          {
+            "topic_id": 101,
+            "topic_title": "Negatives and questions across tenses"
+          },
+          {
+            "topic_id": 102,
+            "topic_title": "Contractions"
+          },
+          {
+            "topic_id": 103,
+            "topic_title": "Tag questions (Tail questions)"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Modal Verbs and Imperatives in Interaction",
+        "topics": [
+          {
+            "topic_id": 104,
+            "topic_title": "Ability, permission, possibility"
+          },
+          {
+            "topic_id": 105,
+            "topic_title": "Advice, obligation, necessity"
+          },
+          {
+            "topic_id": 106,
+            "topic_title": "Requests and offers"
+          },
+          {
+            "topic_id": 107,
+            "topic_title": "Imperative mood"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "WH-Questions, Negatives and Transformation",
+        "topics": [
+          {
+            "topic_id": 108,
+            "topic_title": "WH-Masterclass I"
+          },
+          {
+            "topic_id": 109,
+            "topic_title": "WH-Masterclass II"
+          },
+          {
+            "topic_id": 110,
+            "topic_title": "Converting statements to questions"
+          },
+          {
+            "topic_id": 111,
+            "topic_title": "Systematic negatives"
+          },
+          {
+            "topic_id": 112,
+            "topic_title": "Short answers and echo questions"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Nouns, Pronouns, Articles and Determiners",
+        "topics": [
+          {
+            "topic_id": 113,
+            "topic_title": "Pronouns and deixis"
+          },
+          {
+            "topic_id": 114,
+            "topic_title": "Using ‘it’ and ‘that’ correctly"
+          },
+          {
+            "topic_id": 115,
+            "topic_title": "Possessives"
+          },
+          {
+            "topic_id": 116,
+            "topic_title": "Articles a/an/the"
+          },
+          {
+            "topic_id": 117,
+            "topic_title": "Degrees of adjectives and emphasis with do/does/did"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Prepositions, Linkers and Co-relatives",
+        "topics": [
+          {
+            "topic_id": 118,
+            "topic_title": "Place prepositions"
+          },
+          {
+            "topic_id": 119,
+            "topic_title": "Time prepositions"
+          },
+          {
+            "topic_id": 120,
+            "topic_title": "Phrase prepositions"
+          },
+          {
+            "topic_id": 121,
+            "topic_title": "Verb–preposition collocations"
+          },
+          {
+            "topic_id": 122,
+            "topic_title": "Linkers and co-relatives"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Active–Passive Voice and Sentence Transformation",
+        "topics": [
+          {
+            "topic_id": 123,
+            "topic_title": "Active vs passive across tenses"
+          },
+          {
+            "topic_id": 124,
+            "topic_title": "Imperatives to passive with let"
+          },
+          {
+            "topic_id": 125,
+            "topic_title": "Transformations among sentence types"
+          },
+          {
+            "topic_id": 126,
+            "topic_title": "Common error correction"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Functional Language I: Social Transactions",
+        "topics": [
+          {
+            "topic_id": 127,
+            "topic_title": "Invitations"
+          },
+          {
+            "topic_id": 128,
+            "topic_title": "Meeting and parting"
+          },
+          {
+            "topic_id": 129,
+            "topic_title": "Gratitude and appreciation"
+          },
+          {
+            "topic_id": 130,
+            "topic_title": "Congratulations and good wishes"
+          },
+          {
+            "topic_id": 131,
+            "topic_title": "Refusal and believing"
+          },
+          {
+            "topic_id": 132,
+            "topic_title": "Requests, apologies and reparations"
+          },
+          {
+            "topic_id": 133,
+            "topic_title": "Agreement, consent and negation"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Functional Language II: Time, Permission, Instructions, Emotions",
+        "topics": [
+          {
+            "topic_id": 134,
+            "topic_title": "Talking about time and schedules"
+          },
+          {
+            "topic_id": 135,
+            "topic_title": "Permission and prohibition"
+          },
+          {
+            "topic_id": 136,
+            "topic_title": "Instructions and orders"
+          },
+          {
+            "topic_id": 137,
+            "topic_title": "Meals and hospitality"
+          },
+          {
+            "topic_id": 138,
+            "topic_title": "Health and weather talk"
+          },
+          {
+            "topic_id": 139,
+            "topic_title": "Encouragement, consolation, annoyance, affection, sadness"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Everyday Contexts I: Home, Study, Shopping, People",
+        "topics": [
+          {
+            "topic_id": 140,
+            "topic_title": "At home and out of home (with a servant)"
+          },
+          {
+            "topic_id": 141,
+            "topic_title": "On meeting and study habits"
+          },
+          {
+            "topic_id": 142,
+            "topic_title": "Shopping conversations"
+          },
+          {
+            "topic_id": 143,
+            "topic_title": "People and descriptions"
+          },
+          {
+            "topic_id": 144,
+            "topic_title": "Animals and games"
+          },
+          {
+            "topic_id": 145,
+            "topic_title": "General topics small talk"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Everyday Contexts II: Travel, Public Services, Complaints",
+        "topics": [
+          {
+            "topic_id": 146,
+            "topic_title": "Asking the way and public transport"
+          },
+          {
+            "topic_id": 147,
+            "topic_title": "Travel and tourism"
+          },
+          {
+            "topic_id": 148,
+            "topic_title": "Entertainment and sport"
+          },
+          {
+            "topic_id": 149,
+            "topic_title": "Public services"
+          },
+          {
+            "topic_id": 150,
+            "topic_title": "Healthcare encounters"
+          },
+          {
+            "topic_id": 151,
+            "topic_title": "Property and complaints"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Careers, Projects, Word Power and Writing",
+        "topics": [
+          {
+            "topic_id": 152,
+            "topic_title": "Campus and telephone"
+          },
+          {
+            "topic_id": 153,
+            "topic_title": "Interviews and workplace"
+          },
+          {
+            "topic_id": 154,
+            "topic_title": "Careers and selling"
+          },
+          {
+            "topic_id": 155,
+            "topic_title": "Word power and correctness"
+          },
+          {
+            "topic_id": 156,
+            "topic_title": "Idioms and proverbs"
+          },
+          {
+            "topic_id": 157,
+            "topic_title": "Letter writing essentials"
+          },
+          {
+            "topic_id": 158,
+            "topic_title": "Capstone speaking assessment"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "course_id": 4,
+    "course_title": "Cyber Security",
+    "weeks": [
+      {
+        "week_number": null,
+        "week_title": "Security Mindset and Information Assurance Fundamentals",
+        "topics": [
+          {
+            "topic_id": 159,
+            "topic_title": "The security mindset and current threat landscape"
+          },
+          {
+            "topic_id": 160,
+            "topic_title": "CIA triad (Confidentiality, Integrity, Availability)"
+          },
+          {
+            "topic_id": 161,
+            "topic_title": "Authentication"
+          },
+          {
+            "topic_id": 162,
+            "topic_title": "Authorization"
+          },
+          {
+            "topic_id": 163,
+            "topic_title": "Nonrepudiation"
+          },
+          {
+            "topic_id": 164,
+            "topic_title": "Putting it together"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Cryptography Essentials: From Classical Ciphers to Public Key",
+        "topics": [
+          {
+            "topic_id": 165,
+            "topic_title": "Classical cryptography and cryptanalysis"
+          },
+          {
+            "topic_id": 166,
+            "topic_title": "Symmetric encryption basics"
+          },
+          {
+            "topic_id": 167,
+            "topic_title": "Block cipher modes (CBC) and IVs"
+          },
+          {
+            "topic_id": 168,
+            "topic_title": "Common algorithms and pitfalls"
+          },
+          {
+            "topic_id": 169,
+            "topic_title": "Public key (asymmetric) encryption"
+          },
+          {
+            "topic_id": 170,
+            "topic_title": "Applied crypto"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Networking Foundations and DNS Security",
+        "topics": [
+          {
+            "topic_id": 171,
+            "topic_title": "Why DNS exists"
+          },
+          {
+            "topic_id": 172,
+            "topic_title": "DNS hierarchy and authorities"
+          },
+          {
+            "topic_id": 173,
+            "topic_title": "Resource records in practice"
+          },
+          {
+            "topic_id": 174,
+            "topic_title": "DNS security exposures"
+          },
+          {
+            "topic_id": 175,
+            "topic_title": "Abuse of DNS"
+          },
+          {
+            "topic_id": 176,
+            "topic_title": "Hands-on analysis (conceptual)"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Firewalls and Network Defense-in-Depth",
+        "topics": [
+          {
+            "topic_id": 177,
+            "topic_title": "Evolution of firewalls"
+          },
+          {
+            "topic_id": 178,
+            "topic_title": "Packet-filtering firewalls"
+          },
+          {
+            "topic_id": 179,
+            "topic_title": "Stateful inspection"
+          },
+          {
+            "topic_id": 180,
+            "topic_title": "Application/proxy firewalls"
+          },
+          {
+            "topic_id": 181,
+            "topic_title": "Windows Firewall under the hood"
+          },
+          {
+            "topic_id": 182,
+            "topic_title": "Architecting defense-in-depth"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Virtualization and RFID: Technology and Risk",
+        "topics": [
+          {
+            "topic_id": 183,
+            "topic_title": "Virtualization motivation and history"
+          },
+          {
+            "topic_id": 184,
+            "topic_title": "Virtualization types"
+          },
+          {
+            "topic_id": 185,
+            "topic_title": "Security implications of virtualization"
+          },
+          {
+            "topic_id": 186,
+            "topic_title": "RFID fundamentals"
+          },
+          {
+            "topic_id": 187,
+            "topic_title": "EPC vs CSC"
+          },
+          {
+            "topic_id": 188,
+            "topic_title": "RFID security and privacy"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Windows Security Internals",
+        "topics": [
+          {
+            "topic_id": 189,
+            "topic_title": "Windows tokens"
+          },
+          {
+            "topic_id": 190,
+            "topic_title": "Privileges and least privilege"
+          },
+          {
+            "topic_id": 191,
+            "topic_title": "Access control lists (ACLs) for processes/threads"
+          },
+          {
+            "topic_id": 192,
+            "topic_title": "Window messaging and hooks"
+          },
+          {
+            "topic_id": 193,
+            "topic_title": "Windows program execution pipeline"
+          },
+          {
+            "topic_id": 194,
+            "topic_title": "Abuse and hardening points"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Antiforensics, Proxies, and Threat Infrastructure",
+        "topics": [
+          {
+            "topic_id": 195,
+            "topic_title": "Why attackers proxy"
+          },
+          {
+            "topic_id": 196,
+            "topic_title": "Proxy and VPN ecosystem"
+          },
+          {
+            "topic_id": 197,
+            "topic_title": "Detecting proxy use"
+          },
+          {
+            "topic_id": 198,
+            "topic_title": "Tunneling techniques"
+          },
+          {
+            "topic_id": 199,
+            "topic_title": "Threat infrastructure"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Cybercrime Monetization and Fraud",
+        "topics": [
+          {
+            "topic_id": 200,
+            "topic_title": "Phishing, smishing, vishing, and mobile malware"
+          },
+          {
+            "topic_id": 201,
+            "topic_title": "Rogue antivirus"
+          },
+          {
+            "topic_id": 202,
+            "topic_title": "Click fraud"
+          },
+          {
+            "topic_id": 203,
+            "topic_title": "Case studies and policy"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Exploitation I: Memory Corruption and Shellcode",
+        "topics": [
+          {
+            "topic_id": 204,
+            "topic_title": "Gaining a foothold with shellcode"
+          },
+          {
+            "topic_id": 205,
+            "topic_title": "Integer overflow vulnerabilities"
+          },
+          {
+            "topic_id": 206,
+            "topic_title": "Stack-based buffer overflows"
+          },
+          {
+            "topic_id": 207,
+            "topic_title": "Format string vulnerabilities"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Exploitation II: Web and Document Attacks",
+        "topics": [
+          {
+            "topic_id": 208,
+            "topic_title": "SQL injection"
+          },
+          {
+            "topic_id": 209,
+            "topic_title": "Malicious PDF files"
+          },
+          {
+            "topic_id": 210,
+            "topic_title": "Race conditions"
+          },
+          {
+            "topic_id": 211,
+            "topic_title": "Web exploit tools and services"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Reconnaissance, Social Engineering, and Denial of Service",
+        "topics": [
+          {
+            "topic_id": 212,
+            "topic_title": "Cross-site scripting (XSS)"
+          },
+          {
+            "topic_id": 213,
+            "topic_title": "Social engineering"
+          },
+          {
+            "topic_id": 214,
+            "topic_title": "WarXing"
+          },
+          {
+            "topic_id": 215,
+            "topic_title": "DoS and brute-force attacks"
+          },
+          {
+            "topic_id": 216,
+            "topic_title": "DNS amplification attacks"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Malicious Code I: Taxonomy, Evasion, and Persistence",
+        "topics": [
+          {
+            "topic_id": 217,
+            "topic_title": "Worms and viruses"
+          },
+          {
+            "topic_id": 218,
+            "topic_title": "Obfuscation and VM obfuscation"
+          },
+          {
+            "topic_id": 219,
+            "topic_title": "Persistence mechanisms"
+          },
+          {
+            "topic_id": 220,
+            "topic_title": "Rootkits"
+          },
+          {
+            "topic_id": 221,
+            "topic_title": "Spyware"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Malicious Code II: Privilege, Evasion, and Data Theft",
+        "topics": [
+          {
+            "topic_id": 222,
+            "topic_title": "Privilege escalation"
+          },
+          {
+            "topic_id": 223,
+            "topic_title": "Virtual machine detection by malware"
+          },
+          {
+            "topic_id": 224,
+            "topic_title": "Form grabbing and man-in-the-middle (MITM)"
+          },
+          {
+            "topic_id": 225,
+            "topic_title": "DLL injection techniques"
+          },
+          {
+            "topic_id": 226,
+            "topic_title": "Browser Helper Objects (BHOs)"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Defense and Analysis: Forensics, Honeypots, and IDS",
+        "topics": [
+          {
+            "topic_id": 227,
+            "topic_title": "Why memory forensics matters"
+          },
+          {
+            "topic_id": 228,
+            "topic_title": "Volatility framework fundamentals"
+          },
+          {
+            "topic_id": 229,
+            "topic_title": "Honeypots"
+          },
+          {
+            "topic_id": 230,
+            "topic_title": "Malware naming conventions"
+          },
+          {
+            "topic_id": 231,
+            "topic_title": "Automated malware analysis"
+          },
+          {
+            "topic_id": 232,
+            "topic_title": "Intrusion detection systems (IDS)"
+          },
+          {
+            "topic_id": 233,
+            "topic_title": "Capstone: Building proactive defenses"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "course_id": 5,
+    "course_title": "Artificial Intelligence and Machine Learning (AI/Ml)",
+    "weeks": [
+      {
+        "week_number": null,
+        "week_title": "Foundations of AI: Concepts, History, and Ethics",
+        "topics": [
+          {
+            "topic_id": 234,
+            "topic_title": "Course orientation and expectations"
+          },
+          {
+            "topic_id": 235,
+            "topic_title": "What is Artificial Intelligence?"
+          },
+          {
+            "topic_id": 236,
+            "topic_title": "Strong AI vs Weak AI and the Turing Test"
+          },
+          {
+            "topic_id": 237,
+            "topic_title": "Heuristics vs algorithms"
+          },
+          {
+            "topic_id": 238,
+            "topic_title": "Knowledge representation"
+          },
+          {
+            "topic_id": 239,
+            "topic_title": "AI in games and expert systems"
+          },
+          {
+            "topic_id": 240,
+            "topic_title": "Ethics, bias, and accountability"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Practical Setup: Python, Data Tools, and Environments",
+        "topics": [
+          {
+            "topic_id": 241,
+            "topic_title": "Environment setup"
+          },
+          {
+            "topic_id": 242,
+            "topic_title": "Jupyter and Google Colab"
+          },
+          {
+            "topic_id": 243,
+            "topic_title": "NumPy essentials"
+          },
+          {
+            "topic_id": 244,
+            "topic_title": "Pandas for tabular data"
+          },
+          {
+            "topic_id": 245,
+            "topic_title": "Matplotlib basics"
+          },
+          {
+            "topic_id": 246,
+            "topic_title": "Loading datasets and simple EDA"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Machine Learning Pipeline and Core Concepts",
+        "topics": [
+          {
+            "topic_id": 247,
+            "topic_title": "Types of ML and tasks"
+          },
+          {
+            "topic_id": 248,
+            "topic_title": "Data preparation and cleaning"
+          },
+          {
+            "topic_id": 249,
+            "topic_title": "Train/validation/test splits and k-fold cross-validation"
+          },
+          {
+            "topic_id": 250,
+            "topic_title": "Regularization"
+          },
+          {
+            "topic_id": 251,
+            "topic_title": "Scaling and normalization"
+          },
+          {
+            "topic_id": 252,
+            "topic_title": "Bias-variance tradeoff"
+          },
+          {
+            "topic_id": 253,
+            "topic_title": "Evaluation metrics"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Regression I: Linear Models and Error Metrics",
+        "topics": [
+          {
+            "topic_id": 254,
+            "topic_title": "Linear regression and curve fitting"
+          },
+          {
+            "topic_id": 255,
+            "topic_title": "Loss functions and error"
+          },
+          {
+            "topic_id": 256,
+            "topic_title": "Gradient descent intuition"
+          },
+          {
+            "topic_id": 257,
+            "topic_title": "NumPy implementation and visualization"
+          },
+          {
+            "topic_id": 258,
+            "topic_title": "Multivariate linear regression"
+          },
+          {
+            "topic_id": 259,
+            "topic_title": "Keras linear regression"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Classification I: Fundamentals, kNN, and Decision Trees",
+        "topics": [
+          {
+            "topic_id": 260,
+            "topic_title": "Classification overview"
+          },
+          {
+            "topic_id": 261,
+            "topic_title": "k-Nearest Neighbors"
+          },
+          {
+            "topic_id": 262,
+            "topic_title": "Decision trees"
+          },
+          {
+            "topic_id": 263,
+            "topic_title": "Hands-on with scikit-learn"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Classification II: Random Forests, SVMs, and Naive Bayes",
+        "topics": [
+          {
+            "topic_id": 264,
+            "topic_title": "Random forests"
+          },
+          {
+            "topic_id": 265,
+            "topic_title": "Support Vector Machines"
+          },
+          {
+            "topic_id": 266,
+            "topic_title": "Bayesian inference basics"
+          },
+          {
+            "topic_id": 267,
+            "topic_title": "Naive Bayes variants"
+          },
+          {
+            "topic_id": 268,
+            "topic_title": "Model selection and tuning"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Neural Networks I: Activation Functions, Logistic Regression, and MLPs",
+        "topics": [
+          {
+            "topic_id": 269,
+            "topic_title": "Why activation functions matter"
+          },
+          {
+            "topic_id": 270,
+            "topic_title": "Common activations"
+          },
+          {
+            "topic_id": 271,
+            "topic_title": "Logistic regression"
+          },
+          {
+            "topic_id": 272,
+            "topic_title": "Anatomy of an MLP"
+          },
+          {
+            "topic_id": 273,
+            "topic_title": "Hyperparameters"
+          },
+          {
+            "topic_id": 274,
+            "topic_title": "Keras practice"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Convolutional Neural Networks I: Building Blocks and Image Classification",
+        "topics": [
+          {
+            "topic_id": 275,
+            "topic_title": "CNN fundamentals"
+          },
+          {
+            "topic_id": 276,
+            "topic_title": "Pooling and nonlinearity"
+          },
+          {
+            "topic_id": 277,
+            "topic_title": "Architectural patterns"
+          },
+          {
+            "topic_id": 278,
+            "topic_title": "Image preprocessing and augmentation"
+          },
+          {
+            "topic_id": 279,
+            "topic_title": "Keras CNNs on MNIST and CIFAR-10"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Convolutional Neural Networks II: Regularization, Transfer Learning, and Audio",
+        "topics": [
+          {
+            "topic_id": 280,
+            "topic_title": "Regularization in CNNs"
+          },
+          {
+            "topic_id": 281,
+            "topic_title": "Transfer learning"
+          },
+          {
+            "topic_id": 282,
+            "topic_title": "Model monitoring"
+          },
+          {
+            "topic_id": 283,
+            "topic_title": "CNNs for audio"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Sequence Models: RNNs, LSTMs, and GRUs",
+        "topics": [
+          {
+            "topic_id": 284,
+            "topic_title": "RNN basics and BPTT"
+          },
+          {
+            "topic_id": 285,
+            "topic_title": "LSTM and GRU architectures"
+          },
+          {
+            "topic_id": 286,
+            "topic_title": "Bidirectional RNNs"
+          },
+          {
+            "topic_id": 287,
+            "topic_title": "Keras implementations"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Representation Learning: Autoencoders, VAEs, and GANs",
+        "topics": [
+          {
+            "topic_id": 288,
+            "topic_title": "Autoencoders"
+          },
+          {
+            "topic_id": 289,
+            "topic_title": "Variational Autoencoders (VAEs)"
+          },
+          {
+            "topic_id": 290,
+            "topic_title": "Generative Adversarial Networks (GANs)"
+          },
+          {
+            "topic_id": 291,
+            "topic_title": "Hands-on: Simple GAN"
+          },
+          {
+            "topic_id": 292,
+            "topic_title": "Adversarial robustness"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Natural Language Processing: From Features to Transformers",
+        "topics": [
+          {
+            "topic_id": 293,
+            "topic_title": "Classical NLP preprocessing"
+          },
+          {
+            "topic_id": 294,
+            "topic_title": "Word embeddings"
+          },
+          {
+            "topic_id": 295,
+            "topic_title": "Deep NLP"
+          },
+          {
+            "topic_id": 296,
+            "topic_title": "Transformers and attention"
+          },
+          {
+            "topic_id": 297,
+            "topic_title": "Applied text modeling"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Reinforcement Learning and Deep RL",
+        "topics": [
+          {
+            "topic_id": 298,
+            "topic_title": "RL fundamentals"
+          },
+          {
+            "topic_id": 299,
+            "topic_title": "Markov processes and MDPs"
+          },
+          {
+            "topic_id": 300,
+            "topic_title": "Control and exploration"
+          },
+          {
+            "topic_id": 301,
+            "topic_title": "Tooling and Deep RL overview"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Capstone, Responsible AI, and Next Steps",
+        "topics": [
+          {
+            "topic_id": 302,
+            "topic_title": "Capstone project presentations"
+          },
+          {
+            "topic_id": 303,
+            "topic_title": "Reproducibility and reporting"
+          },
+          {
+            "topic_id": 304,
+            "topic_title": "Responsible AI in practice"
+          },
+          {
+            "topic_id": 305,
+            "topic_title": "Deployment and monitoring basics"
+          },
+          {
+            "topic_id": 306,
+            "topic_title": "Paths forward"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "course_id": 6,
+    "course_title": "Robotics ",
+    "weeks": [
+      {
+        "week_number": null,
+        "week_title": "Foundations and Scope of Robotics",
+        "topics": [
+          {
+            "topic_id": 307,
+            "topic_title": "Course orientation and outcomes"
+          },
+          {
+            "topic_id": 308,
+            "topic_title": "What is robotics? Intelligent connection between perception and action"
+          },
+          {
+            "topic_id": 309,
+            "topic_title": "Robot mechanical structures overview"
+          },
+          {
+            "topic_id": 310,
+            "topic_title": "Industrial vs advanced robotics"
+          },
+          {
+            "topic_id": 311,
+            "topic_title": "Safety, ethics, and standards"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Rigid-Body Pose and Rotations: The Math Toolkit",
+        "topics": [
+          {
+            "topic_id": 312,
+            "topic_title": "Pose of a rigid body and rotation matrices"
+          },
+          {
+            "topic_id": 313,
+            "topic_title": "Elementary rotations and composition"
+          },
+          {
+            "topic_id": 314,
+            "topic_title": "Euler angles (ZYZ, ZYX/RPY)"
+          },
+          {
+            "topic_id": 315,
+            "topic_title": "Angle–axis and unit quaternions"
+          },
+          {
+            "topic_id": 316,
+            "topic_title": "Homogeneous transformations"
+          },
+          {
+            "topic_id": 317,
+            "topic_title": "Background brush-up (as needed)"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Direct Kinematics and the Denavit–Hartenberg Convention",
+        "topics": [
+          {
+            "topic_id": 318,
+            "topic_title": "Open-chain manipulator kinematics"
+          },
+          {
+            "topic_id": 319,
+            "topic_title": "Denavit–Hartenberg (DH) parameters"
+          },
+          {
+            "topic_id": 320,
+            "topic_title": "Base and end-effector frames"
+          },
+          {
+            "topic_id": 321,
+            "topic_title": "Closed-chain extension"
+          },
+          {
+            "topic_id": 322,
+            "topic_title": "Kinematics of typical structures"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Differential Kinematics, Singularities, and Statics",
+        "topics": [
+          {
+            "topic_id": 323,
+            "topic_title": "Geometric and analytical Jacobians"
+          },
+          {
+            "topic_id": 324,
+            "topic_title": "Kinematic singularities and decoupling"
+          },
+          {
+            "topic_id": 325,
+            "topic_title": "Redundancy analysis"
+          },
+          {
+            "topic_id": 326,
+            "topic_title": "Inverse differential kinematics"
+          },
+          {
+            "topic_id": 327,
+            "topic_title": "Statics and kineto-statics duality"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Trajectory Planning: Joint Space and Operational Space",
+        "topics": [
+          {
+            "topic_id": 328,
+            "topic_title": "Paths vs trajectories"
+          },
+          {
+            "topic_id": 329,
+            "topic_title": "Joint-space point-to-point motion"
+          },
+          {
+            "topic_id": 330,
+            "topic_title": "Motion through via points"
+          },
+          {
+            "topic_id": 331,
+            "topic_title": "Operational-space path primitives"
+          },
+          {
+            "topic_id": 332,
+            "topic_title": "Orientation interpolation"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Actuators and Sensors for Robots",
+        "topics": [
+          {
+            "topic_id": 333,
+            "topic_title": "Joint actuation systems"
+          },
+          {
+            "topic_id": 334,
+            "topic_title": "Drives and transmission effects"
+          },
+          {
+            "topic_id": 335,
+            "topic_title": "Low-level position control"
+          },
+          {
+            "topic_id": 336,
+            "topic_title": "Proprioceptive sensing"
+          },
+          {
+            "topic_id": 337,
+            "topic_title": "Exteroceptive sensing"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Robot Control Architectures and Programming",
+        "topics": [
+          {
+            "topic_id": 338,
+            "topic_title": "Functional control architecture"
+          },
+          {
+            "topic_id": 339,
+            "topic_title": "Programming environments"
+          },
+          {
+            "topic_id": 340,
+            "topic_title": "Hardware architecture"
+          },
+          {
+            "topic_id": 341,
+            "topic_title": "Tooling and lab setup"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Manipulator Dynamics and Model Properties",
+        "topics": [
+          {
+            "topic_id": 342,
+            "topic_title": "Lagrange formulation"
+          },
+          {
+            "topic_id": 343,
+            "topic_title": "Dynamic model properties"
+          },
+          {
+            "topic_id": 344,
+            "topic_title": "Newton–Euler recursive algorithms"
+          },
+          {
+            "topic_id": 345,
+            "topic_title": "Direct vs inverse dynamics; trajectory scaling"
+          },
+          {
+            "topic_id": 346,
+            "topic_title": "Operational-space dynamics and manipulability"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Motion Control I: Decentralized and Feedforward Methods",
+        "topics": [
+          {
+            "topic_id": 347,
+            "topic_title": "The motion control problem"
+          },
+          {
+            "topic_id": 348,
+            "topic_title": "Independent joint control"
+          },
+          {
+            "topic_id": 349,
+            "topic_title": "Decentralized feedforward compensation"
+          },
+          {
+            "topic_id": 350,
+            "topic_title": "Computed-torque feedforward"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Motion Control II: Centralized and Operational-Space Control",
+        "topics": [
+          {
+            "topic_id": 351,
+            "topic_title": "PD control with gravity compensation"
+          },
+          {
+            "topic_id": 352,
+            "topic_title": "Inverse dynamics (feedback linearization)"
+          },
+          {
+            "topic_id": 353,
+            "topic_title": "Robust control"
+          },
+          {
+            "topic_id": 354,
+            "topic_title": "Adaptive control"
+          },
+          {
+            "topic_id": 355,
+            "topic_title": "Operational-space control"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Interaction and Force Control",
+        "topics": [
+          {
+            "topic_id": 356,
+            "topic_title": "Manipulator–environment interaction"
+          },
+          {
+            "topic_id": 357,
+            "topic_title": "Compliance and impedance"
+          },
+          {
+            "topic_id": 358,
+            "topic_title": "Force control architectures"
+          },
+          {
+            "topic_id": 359,
+            "topic_title": "Constrained motion and task analysis"
+          },
+          {
+            "topic_id": 360,
+            "topic_title": "Hybrid force/motion control"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Visual Servoing and Vision for Control",
+        "topics": [
+          {
+            "topic_id": 361,
+            "topic_title": "Vision system configurations"
+          },
+          {
+            "topic_id": 362,
+            "topic_title": "Image processing and features"
+          },
+          {
+            "topic_id": 363,
+            "topic_title": "Pose estimation and interaction matrix"
+          },
+          {
+            "topic_id": 364,
+            "topic_title": "Stereo vision and calibration"
+          },
+          {
+            "topic_id": 365,
+            "topic_title": "Position-based vs image-based visual servoing"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Wheeled Mobile Robots: Modeling, Planning, and Control",
+        "topics": [
+          {
+            "topic_id": 366,
+            "topic_title": "Nonholonomic constraints"
+          },
+          {
+            "topic_id": 367,
+            "topic_title": "Kinematic and dynamic models"
+          },
+          {
+            "topic_id": 368,
+            "topic_title": "Planning for mobile robots"
+          },
+          {
+            "topic_id": 369,
+            "topic_title": "Motion control"
+          },
+          {
+            "topic_id": 370,
+            "topic_title": "Odometric localization"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Motion Planning in Configuration Space and Capstone",
+        "topics": [
+          {
+            "topic_id": 371,
+            "topic_title": "Configuration space formulation"
+          },
+          {
+            "topic_id": 372,
+            "topic_title": "Algorithmic planning methods"
+          },
+          {
+            "topic_id": 373,
+            "topic_title": "Sampling-based planning"
+          },
+          {
+            "topic_id": 374,
+            "topic_title": "Artificial potential fields"
+          },
+          {
+            "topic_id": 375,
+            "topic_title": "Extension to manipulators and integration"
+          },
+          {
+            "topic_id": 376,
+            "topic_title": "Capstone presentations and course synthesis"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "course_id": 7,
+    "course_title": "Social Change and Development in India",
+    "weeks": [
+      {
+        "week_number": null,
+        "week_title": "Framing Social Change: Colonial Modernity and Sociological Lenses",
+        "topics": [
+          {
+            "topic_id": 377,
+            "topic_title": "Social structure and culture: working definitions"
+          },
+          {
+            "topic_id": 378,
+            "topic_title": "Colonialism as structure"
+          },
+          {
+            "topic_id": 379,
+            "topic_title": "Capitalism and the nation-state"
+          },
+          {
+            "topic_id": 380,
+            "topic_title": "Paradoxes of colonial modernity"
+          },
+          {
+            "topic_id": 381,
+            "topic_title": "Studying change"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Structural Change under Colonialism: Industrialisation and Urbanisation",
+        "topics": [
+          {
+            "topic_id": 382,
+            "topic_title": "Industrialisation here, deindustrialisation there"
+          },
+          {
+            "topic_id": 383,
+            "topic_title": "From city decline to colonial city rise"
+          },
+          {
+            "topic_id": 384,
+            "topic_title": "Urbanisation without industrial jobs"
+          },
+          {
+            "topic_id": 385,
+            "topic_title": "The colonial city model"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Mobility, Migration, and Early Global Flows",
+        "topics": [
+          {
+            "topic_id": 386,
+            "topic_title": "Indenture and overseas migration"
+          },
+          {
+            "topic_id": 387,
+            "topic_title": "Internal labour movements"
+          },
+          {
+            "topic_id": 388,
+            "topic_title": "Tea plantations as a case"
+          },
+          {
+            "topic_id": 389,
+            "topic_title": "Cultural residues and new economies"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Post-Independence Structural Change: Industry and Urbanisation",
+        "topics": [
+          {
+            "topic_id": 390,
+            "topic_title": "Planning and nationalist political economy"
+          },
+          {
+            "topic_id": 391,
+            "topic_title": "Industrial townships"
+          },
+          {
+            "topic_id": 392,
+            "topic_title": "Urbanisation trends, 1951–2011"
+          },
+          {
+            "topic_id": 393,
+            "topic_title": "Urban impacts on villages"
+          },
+          {
+            "topic_id": 394,
+            "topic_title": "Smart Cities and contemporary urban change"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Cultural Change I: Nineteenth–Early Twentieth Century Social Reform",
+        "topics": [
+          {
+            "topic_id": 395,
+            "topic_title": "Modern frameworks of reform"
+          },
+          {
+            "topic_id": 396,
+            "topic_title": "Debating ‘social evils’ and women’s education"
+          },
+          {
+            "topic_id": 397,
+            "topic_title": "Reformers and repertoires"
+          },
+          {
+            "topic_id": 398,
+            "topic_title": "Intra-community contestations"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Cultural Change II: Sanskritisation, Westernisation, Modernisation, Secularisation",
+        "topics": [
+          {
+            "topic_id": 399,
+            "topic_title": "Sanskritisation: mechanism and limits"
+          },
+          {
+            "topic_id": 400,
+            "topic_title": "De-/Re-Sanskritisation and identity"
+          },
+          {
+            "topic_id": 401,
+            "topic_title": "Westernisation: elites and diffusion"
+          },
+          {
+            "topic_id": 402,
+            "topic_title": "Modernisation and Indian secularities"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "The Constitution and Social Change: Rights, Courts, and Grassroots Democracy",
+        "topics": [
+          {
+            "topic_id": 403,
+            "topic_title": "Law, justice, and rights expansion"
+          },
+          {
+            "topic_id": 404,
+            "topic_title": "Panchayati Raj architecture"
+          },
+          {
+            "topic_id": 405,
+            "topic_title": "Powers, finance, and transparency"
+          },
+          {
+            "topic_id": 406,
+            "topic_title": "Participation, training, and gendered empowerment"
+          },
+          {
+            "topic_id": 407,
+            "topic_title": "Tribal self-governance and its contradictions"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Rural Society I: Agrarian Structure, Caste and Class",
+        "topics": [
+          {
+            "topic_id": 408,
+            "topic_title": "Land, livelihood, and gender"
+          },
+          {
+            "topic_id": 409,
+            "topic_title": "Dominant castes and proprietary power"
+          },
+          {
+            "topic_id": 410,
+            "topic_title": "Labour regimes and inequality"
+          },
+          {
+            "topic_id": 411,
+            "topic_title": "Colonial land systems"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Rural Society II: Land Reforms and the Green Revolution (Phase I)",
+        "topics": [
+          {
+            "topic_id": 412,
+            "topic_title": "Land reform laws and uneven implementation"
+          },
+          {
+            "topic_id": 413,
+            "topic_title": "Green Revolution package and regions"
+          },
+          {
+            "topic_id": 414,
+            "topic_title": "Productivity and differentiation"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Rural Society III: Markets, Migration, Gender and Globalisation",
+        "topics": [
+          {
+            "topic_id": 415,
+            "topic_title": "Phase II shifts and risk"
+          },
+          {
+            "topic_id": 416,
+            "topic_title": "Circulation of labour and feminisation"
+          },
+          {
+            "topic_id": 417,
+            "topic_title": "Globalisation of agriculture"
+          },
+          {
+            "topic_id": 418,
+            "topic_title": "Seeds, knowledge, and ecology"
+          },
+          {
+            "topic_id": 419,
+            "topic_title": "Farmers’ distress and policy responses"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Industrial Society I: Labour Markets and the Organisation of Work",
+        "topics": [
+          {
+            "topic_id": 420,
+            "topic_title": "Sectoral employment and the informal majority"
+          },
+          {
+            "topic_id": 421,
+            "topic_title": "Formal–informal interfaces"
+          },
+          {
+            "topic_id": 422,
+            "topic_title": "Liberalisation, disinvestment, outsourcing"
+          },
+          {
+            "topic_id": 423,
+            "topic_title": "Getting jobs: from jobbers to HR"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Industrial Society II: Labour Process, Working Conditions, and Collective Action",
+        "topics": [
+          {
+            "topic_id": 424,
+            "topic_title": "Mechanisation and alienation"
+          },
+          {
+            "topic_id": 425,
+            "topic_title": "Just-in-time pressures"
+          },
+          {
+            "topic_id": 426,
+            "topic_title": "Taylorism in services"
+          },
+          {
+            "topic_id": 427,
+            "topic_title": "Safety and precarity"
+          },
+          {
+            "topic_id": 428,
+            "topic_title": "Home-based work and value chains"
+          },
+          {
+            "topic_id": 429,
+            "topic_title": "Strikes, lockouts and city futures"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Mass Media and Communications",
+        "topics": [
+          {
+            "topic_id": 430,
+            "topic_title": "Media as institutions of social change"
+          },
+          {
+            "topic_id": 431,
+            "topic_title": "Representation, festivals, and consumption"
+          },
+          {
+            "topic_id": 432,
+            "topic_title": "Digital divides and access"
+          },
+          {
+            "topic_id": 433,
+            "topic_title": "State, regulation, and freedom"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Social Movements and Contemporary Transformations",
+        "topics": [
+          {
+            "topic_id": 434,
+            "topic_title": "Concepts and typologies"
+          },
+          {
+            "topic_id": 435,
+            "topic_title": "Movements in India"
+          },
+          {
+            "topic_id": 436,
+            "topic_title": "Movements, parties, and pressure groups"
+          },
+          {
+            "topic_id": 437,
+            "topic_title": "Constitutionalism and change"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "course_id": 8,
+    "course_title": "Indian Societies",
+    "weeks": [
+      {
+        "week_number": null,
+        "week_title": "Seeing Indian Society Sociologically",
+        "topics": [
+          {
+            "topic_id": 438,
+            "topic_title": "From common sense to sociology"
+          },
+          {
+            "topic_id": 439,
+            "topic_title": "Social maps and identities"
+          },
+          {
+            "topic_id": 440,
+            "topic_title": "Personal troubles and public issues"
+          },
+          {
+            "topic_id": 441,
+            "topic_title": "Course roadmap and assessment"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Demography: Concepts, Data, and Methods",
+        "topics": [
+          {
+            "topic_id": 442,
+            "topic_title": "What is demography?"
+          },
+          {
+            "topic_id": 443,
+            "topic_title": "Counting people"
+          },
+          {
+            "topic_id": 444,
+            "topic_title": "Classical theories"
+          },
+          {
+            "topic_id": 445,
+            "topic_title": "Core indicators"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "India’s Population Dynamics: 1901–2011 and Beyond",
+        "topics": [
+          {
+            "topic_id": 446,
+            "topic_title": "Historical trends and shocks"
+          },
+          {
+            "topic_id": 447,
+            "topic_title": "Mortality decline and fertility differentials"
+          },
+          {
+            "topic_id": 448,
+            "topic_title": "Age structure and dependency"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Gender, Literacy, and Rural–Urban Transitions",
+        "topics": [
+          {
+            "topic_id": 449,
+            "topic_title": "Sex ratio and child sex ratio"
+          },
+          {
+            "topic_id": 450,
+            "topic_title": "Literacy and inequality"
+          },
+          {
+            "topic_id": 451,
+            "topic_title": "Urbanisation and rural–urban linkages"
+          },
+          {
+            "topic_id": 452,
+            "topic_title": "Project Workshop 1"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Population Policy, Health Goals, and Ethics",
+        "topics": [
+          {
+            "topic_id": 453,
+            "topic_title": "From Family Planning to Family Welfare"
+          },
+          {
+            "topic_id": 454,
+            "topic_title": "Policy targets and health systems"
+          },
+          {
+            "topic_id": 455,
+            "topic_title": "Food security and livelihoods"
+          },
+          {
+            "topic_id": 456,
+            "topic_title": "Project Workshop 2"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Caste: Concepts, Structure, and Theory",
+        "topics": [
+          {
+            "topic_id": 457,
+            "topic_title": "Varna and Jati"
+          },
+          {
+            "topic_id": 458,
+            "topic_title": "Defining features of caste"
+          },
+          {
+            "topic_id": 459,
+            "topic_title": "Purity, pollution, and wholism"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Caste through Colonialism and Contemporary Politics",
+        "topics": [
+          {
+            "topic_id": 460,
+            "topic_title": "Colonial constructions and enumerations"
+          },
+          {
+            "topic_id": 461,
+            "topic_title": "Nationalism and reform"
+          },
+          {
+            "topic_id": 462,
+            "topic_title": "Change and persistence post-1947"
+          },
+          {
+            "topic_id": 463,
+            "topic_title": "Visibility and invisibility of caste"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Tribal Societies: Diversity, Development, and Identity",
+        "topics": [
+          {
+            "topic_id": 464,
+            "topic_title": "Who are the tribes?"
+          },
+          {
+            "topic_id": 465,
+            "topic_title": "Tribe–caste debates"
+          },
+          {
+            "topic_id": 466,
+            "topic_title": "Development and dispossession"
+          },
+          {
+            "topic_id": 467,
+            "topic_title": "Identity, movements, and middle classes"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Family and Kinship in India",
+        "topics": [
+          {
+            "topic_id": 468,
+            "topic_title": "Family forms"
+          },
+          {
+            "topic_id": 469,
+            "topic_title": "Residence and inheritance"
+          },
+          {
+            "topic_id": 470,
+            "topic_title": "Family change and continuity"
+          },
+          {
+            "topic_id": 471,
+            "topic_title": "Project Workshop 3"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Markets as Social Institutions: Embedded Economies",
+        "topics": [
+          {
+            "topic_id": 472,
+            "topic_title": "Economics vs sociology of markets"
+          },
+          {
+            "topic_id": 473,
+            "topic_title": "Weekly haat in Bastar"
+          },
+          {
+            "topic_id": 474,
+            "topic_title": "Pre-colonial networks and instruments"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Capitalism, Commodification, Status, and Globalisation",
+        "topics": [
+          {
+            "topic_id": 475,
+            "topic_title": "Marx on capitalism"
+          },
+          {
+            "topic_id": 476,
+            "topic_title": "Commodification and consumption"
+          },
+          {
+            "topic_id": 477,
+            "topic_title": "Globalisation and liberalisation"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Inequality and Exclusion I: Caste and Tribe",
+        "topics": [
+          {
+            "topic_id": 478,
+            "topic_title": "Caste prejudice and exclusion"
+          },
+          {
+            "topic_id": 479,
+            "topic_title": "Tribal marginalisation"
+          },
+          {
+            "topic_id": 480,
+            "topic_title": "State, law, and social change"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Inequality and Exclusion II: Gender, Minorities, and Disability",
+        "topics": [
+          {
+            "topic_id": 481,
+            "topic_title": "Struggles for women’s equality"
+          },
+          {
+            "topic_id": 482,
+            "topic_title": "Religious minorities and protection"
+          },
+          {
+            "topic_id": 483,
+            "topic_title": "Caring for the differently abled"
+          },
+          {
+            "topic_id": 484,
+            "topic_title": "Project Workshop 4"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Challenges of Cultural Diversity and Project Presentations",
+        "topics": [
+          {
+            "topic_id": 485,
+            "topic_title": "Unity in diversity: beyond slogans"
+          },
+          {
+            "topic_id": 486,
+            "topic_title": "Managing diversity"
+          },
+          {
+            "topic_id": 487,
+            "topic_title": "Project showcase"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "course_id": 9,
+    "course_title": "Bhaswati sanskrit",
+    "weeks": [
+      {
+        "week_number": null,
+        "week_title": "Orientation and Sanskrit Literary Landscape",
+        "topics": [
+          {
+            "topic_id": 488,
+            "topic_title": "Course overview and outcomes"
+          },
+          {
+            "topic_id": 489,
+            "topic_title": "Sanskrit as a classical language"
+          },
+          {
+            "topic_id": 490,
+            "topic_title": "Genres and canons"
+          },
+          {
+            "topic_id": 491,
+            "topic_title": "Reading apparatus"
+          },
+          {
+            "topic_id": 492,
+            "topic_title": "Assessment model and study habits"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Prayers and Values – Eeshvar and Surya Hymns (eÄõye)",
+        "topics": [
+          {
+            "topic_id": 493,
+            "topic_title": "Close reading of selected verses"
+          },
+          {
+            "topic_id": 494,
+            "topic_title": "Chandas and sound"
+          },
+          {
+            "topic_id": 495,
+            "topic_title": "Value education through Sanskrit hymns"
+          },
+          {
+            "topic_id": 496,
+            "topic_title": "Practice"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Teacher–Student Counsel – Vuq'kklue (Upanishadic ethos)",
+        "topics": [
+          {
+            "topic_id": 497,
+            "topic_title": "Ethical maxims and gurukula culture"
+          },
+          {
+            "topic_id": 498,
+            "topic_title": "Syntax workshop"
+          },
+          {
+            "topic_id": 499,
+            "topic_title": "Aesthetic of the didactic"
+          },
+          {
+            "topic_id": 500,
+            "topic_title": "Application"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Filial Duty and Moral Choice – Ekr̥tjakā xjīhlī",
+        "topics": [
+          {
+            "topic_id": 501,
+            "topic_title": "Narrative and values"
+          },
+          {
+            "topic_id": 502,
+            "topic_title": "Grammar focus"
+          },
+          {
+            "topic_id": 503,
+            "topic_title": "Rasa cues"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Kingship and Statecraft – Iztkuqj×tadkas uḍi",
+        "topics": [
+          {
+            "topic_id": 504,
+            "topic_title": "Rajadharma essentials"
+          },
+          {
+            "topic_id": 505,
+            "topic_title": "Nīti discourse forms"
+          },
+          {
+            "topic_id": 506,
+            "topic_title": "Linguistic analysis"
+          },
+          {
+            "topic_id": 507,
+            "topic_title": "Policy reflection"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Social Duty – NkSokfjdL; fu\"Bk",
+        "topics": [
+          {
+            "topic_id": 508,
+            "topic_title": "Duties of the citizen"
+          },
+          {
+            "topic_id": 509,
+            "topic_title": "Rhetoric of pledge"
+          },
+          {
+            "topic_id": 510,
+            "topic_title": "Grammar drill"
+          },
+          {
+            "topic_id": 511,
+            "topic_title": "Workshop"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Alaṅkāra and Rasa – LwfDr and Lakṣaṇe",
+        "topics": [
+          {
+            "topic_id": 512,
+            "topic_title": "Figures of speech"
+          },
+          {
+            "topic_id": 513,
+            "topic_title": "Rasa orientation"
+          },
+          {
+            "topic_id": 514,
+            "topic_title": "Identification practice"
+          },
+          {
+            "topic_id": 515,
+            "topic_title": "Creative exercise"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Patriotic Ode – uSosQukfi lea xrk olqerh",
+        "topics": [
+          {
+            "topic_id": 516,
+            "topic_title": "Context and theme"
+          },
+          {
+            "topic_id": 517,
+            "topic_title": "Close reading and scansion"
+          },
+          {
+            "topic_id": 518,
+            "topic_title": "Ethical dialectic"
+          },
+          {
+            "topic_id": 519,
+            "topic_title": "Performance"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "National Struggle in Sanskrit – gYnh?kkVh",
+        "topics": [
+          {
+            "topic_id": 520,
+            "topic_title": "Historical-literary synthesis"
+          },
+          {
+            "topic_id": 521,
+            "topic_title": "Topos of place and crowd"
+          },
+          {
+            "topic_id": 522,
+            "topic_title": "Lexicon lab"
+          },
+          {
+            "topic_id": 523,
+            "topic_title": "Reflective response"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Women, Education, and Agency – Enkylk from IqjUèkzhi×pde",
+        "topics": [
+          {
+            "topic_id": 524,
+            "topic_title": "Dialogic exploration"
+          },
+          {
+            "topic_id": 525,
+            "topic_title": "Ethics and social reform"
+          },
+          {
+            "topic_id": 526,
+            "topic_title": "Language focus"
+          },
+          {
+            "topic_id": 527,
+            "topic_title": "Policy brief"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Karma and Worldly Order – dk;kZdk;ZO;ofLFkfr",
+        "topics": [
+          {
+            "topic_id": 528,
+            "topic_title": "Karmayoga fundamentals"
+          },
+          {
+            "topic_id": 529,
+            "topic_title": "Sāttvika vs Āsuri dispositions"
+          },
+          {
+            "topic_id": 530,
+            "topic_title": "Philosophical grammar"
+          },
+          {
+            "topic_id": 531,
+            "topic_title": "Applied ethics"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Sahitya-śāstra Primer – fo|kLFkkukfu",
+        "topics": [
+          {
+            "topic_id": 532,
+            "topic_title": "Map of knowledge"
+          },
+          {
+            "topic_id": 533,
+            "topic_title": "Textual criticism and sources"
+          },
+          {
+            "topic_id": 534,
+            "topic_title": "Research methods"
+          },
+          {
+            "topic_id": 535,
+            "topic_title": "Project scaffolding"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Integrated Workshop – Grammar, Prosody, and Translation",
+        "topics": [
+          {
+            "topic_id": 536,
+            "topic_title": "Grammar consolidation"
+          },
+          {
+            "topic_id": 537,
+            "topic_title": "Prosody lab"
+          },
+          {
+            "topic_id": 538,
+            "topic_title": "Translation clinic"
+          },
+          {
+            "topic_id": 539,
+            "topic_title": "Alaṅkāra identification across texts"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Capstone and Assessment",
+        "topics": [
+          {
+            "topic_id": 540,
+            "topic_title": "Annotated translation portfolio"
+          },
+          {
+            "topic_id": 541,
+            "topic_title": "Oral viva and recitation"
+          },
+          {
+            "topic_id": 542,
+            "topic_title": "Reflective synthesis"
+          },
+          {
+            "topic_id": 543,
+            "topic_title": "Feedback and next steps"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "course_id": 10,
+    "course_title": "Accountancy Part I And II",
+    "weeks": [
+      {
+        "week_number": null,
+        "week_title": "Foundations of Partnership Accounting",
+        "topics": [
+          {
+            "topic_id": 544,
+            "topic_title": "Nature and Definition of Partnership"
+          },
+          {
+            "topic_id": 545,
+            "topic_title": "Partnership Deed"
+          },
+          {
+            "topic_id": 546,
+            "topic_title": "Act Provisions Relevant to Accounting"
+          },
+          {
+            "topic_id": 547,
+            "topic_title": "Orientation and Course Expectations"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Partners’ Capital Accounting Systems",
+        "topics": [
+          {
+            "topic_id": 548,
+            "topic_title": "Capital Accounts: Fixed vs Fluctuating"
+          },
+          {
+            "topic_id": 549,
+            "topic_title": "Journal Entries and Ledger Postings"
+          },
+          {
+            "topic_id": 550,
+            "topic_title": "Practice Set 1"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Profit Distribution and the P&L Appropriation Account",
+        "topics": [
+          {
+            "topic_id": 551,
+            "topic_title": "Purpose and Structure of P&L Appropriation"
+          },
+          {
+            "topic_id": 552,
+            "topic_title": "Partner Remuneration"
+          },
+          {
+            "topic_id": 553,
+            "topic_title": "Interest on Partner’s Loan"
+          },
+          {
+            "topic_id": 554,
+            "topic_title": "Practice Set 2"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Interest on Capital and Drawings: Methods and Calculations",
+        "topics": [
+          {
+            "topic_id": 555,
+            "topic_title": "Interest on Capital"
+          },
+          {
+            "topic_id": 556,
+            "topic_title": "Interest on Drawings"
+          },
+          {
+            "topic_id": 557,
+            "topic_title": "Comprehensive Calculations Workshop"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Guarantee of Profit and Past Adjustments",
+        "topics": [
+          {
+            "topic_id": 558,
+            "topic_title": "Guarantee of Minimum Profit"
+          },
+          {
+            "topic_id": 559,
+            "topic_title": "Past Adjustments and P&L Adjustment Account"
+          },
+          {
+            "topic_id": 560,
+            "topic_title": "Practice Set 3"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Reconstitution Overview and Admission of a Partner",
+        "topics": [
+          {
+            "topic_id": 561,
+            "topic_title": "Modes of Reconstitution"
+          },
+          {
+            "topic_id": 562,
+            "topic_title": "Admission Mechanics"
+          },
+          {
+            "topic_id": 563,
+            "topic_title": "New Profit Sharing and Sacrificing Ratios"
+          },
+          {
+            "topic_id": 564,
+            "topic_title": "Practice Set 4"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Goodwill: Concepts, Drivers, and Valuation Methods I",
+        "topics": [
+          {
+            "topic_id": 565,
+            "topic_title": "Goodwill Fundamentals"
+          },
+          {
+            "topic_id": 566,
+            "topic_title": "Average Profits Method"
+          },
+          {
+            "topic_id": 567,
+            "topic_title": "Super Profits Method"
+          },
+          {
+            "topic_id": 568,
+            "topic_title": "Practice Set 5"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Goodwill Valuation Methods II and Accounting Treatment",
+        "topics": [
+          {
+            "topic_id": 569,
+            "topic_title": "Capitalisation Methods"
+          },
+          {
+            "topic_id": 570,
+            "topic_title": "Accounting for Goodwill on Admission"
+          },
+          {
+            "topic_id": 571,
+            "topic_title": "Hidden Goodwill"
+          },
+          {
+            "topic_id": 572,
+            "topic_title": "AS 26 Implications"
+          },
+          {
+            "topic_id": 573,
+            "topic_title": "Practice Set 6"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Accumulated Profits/Losses and Revaluation on Admission",
+        "topics": [
+          {
+            "topic_id": 574,
+            "topic_title": "Adjusting Reserves and P&L Balances"
+          },
+          {
+            "topic_id": 575,
+            "topic_title": "Revaluation of Assets and Reassessment of Liabilities"
+          },
+          {
+            "topic_id": 576,
+            "topic_title": "Integrated Admission Case"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Capital Adjustments and Change in Profit-Sharing Ratio",
+        "topics": [
+          {
+            "topic_id": 577,
+            "topic_title": "Adjustment of Capitals"
+          },
+          {
+            "topic_id": 578,
+            "topic_title": "Change in PSR Among Existing Partners"
+          },
+          {
+            "topic_id": 579,
+            "topic_title": "Practice Set 7"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Retirement and Death of a Partner",
+        "topics": [
+          {
+            "topic_id": 580,
+            "topic_title": "Amounts Due to Retiring/Deceased Partner"
+          },
+          {
+            "topic_id": 581,
+            "topic_title": "New Profit-Sharing and Gaining Ratios"
+          },
+          {
+            "topic_id": 582,
+            "topic_title": "Settlement Options"
+          },
+          {
+            "topic_id": 583,
+            "topic_title": "Practice Set 8"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Dissolution of a Partnership Firm",
+        "topics": [
+          {
+            "topic_id": 584,
+            "topic_title": "Dissolution vs Dissolution of Firm"
+          },
+          {
+            "topic_id": 585,
+            "topic_title": "Settlement of Accounts"
+          },
+          {
+            "topic_id": 586,
+            "topic_title": "Accounting Treatment"
+          },
+          {
+            "topic_id": 587,
+            "topic_title": "Capstone Review and Assessment"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "course_id": 11,
+    "course_title": "Our Wondrous World",
+    "weeks": [
+      {
+        "week_number": null,
+        "week_title": "Foundations: NEP 2020, NCF-SE 2023 and The World Around Us (TWAU)",
+        "topics": [
+          {
+            "topic_id": 588,
+            "topic_title": "Policy to Classroom: NEP 2020 aims for the Preparatory Stage"
+          },
+          {
+            "topic_id": 589,
+            "topic_title": "NCF-SE 2023: Rationale for TWAU"
+          },
+          {
+            "topic_id": 590,
+            "topic_title": "Grade 5 TWAU Competencies and Cross-cutting Themes"
+          },
+          {
+            "topic_id": 591,
+            "topic_title": "Textbook Architecture"
+          },
+          {
+            "topic_id": 592,
+            "topic_title": "Teacher Role as Facilitator"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Spiral Curriculum and Concept Mapping",
+        "topics": [
+          {
+            "topic_id": 593,
+            "topic_title": "Progression from Grades 3–5"
+          },
+          {
+            "topic_id": 594,
+            "topic_title": "Concept Threads Across Units"
+          },
+          {
+            "topic_id": 595,
+            "topic_title": "Unit-Outcome Mapping"
+          },
+          {
+            "topic_id": 596,
+            "topic_title": "Designing a Year Plan"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Unit 1A: Water—The Essence of Life (Ch. 1)",
+        "topics": [
+          {
+            "topic_id": 597,
+            "topic_title": "Forms and Sources of Water"
+          },
+          {
+            "topic_id": 598,
+            "topic_title": "Simple Investigations"
+          },
+          {
+            "topic_id": 599,
+            "topic_title": "Water Cycle and Land–Water Interactions"
+          },
+          {
+            "topic_id": 600,
+            "topic_title": "Freshwater Habitats"
+          },
+          {
+            "topic_id": 601,
+            "topic_title": "Water Conservation"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Unit 1B: Journey of a River—Case of Godavari (Ch. 2)",
+        "topics": [
+          {
+            "topic_id": 602,
+            "topic_title": "River Systems Literacy"
+          },
+          {
+            "topic_id": 603,
+            "topic_title": "Socio-ecological Systems"
+          },
+          {
+            "topic_id": 604,
+            "topic_title": "Dams and Trade-offs"
+          },
+          {
+            "topic_id": 605,
+            "topic_title": "Pollution and Eutrophication"
+          },
+          {
+            "topic_id": 606,
+            "topic_title": "Disaster Education"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Unit 2A: The Mystery of Food—Microbes, Preservation, Health (Ch. 3)",
+        "topics": [
+          {
+            "topic_id": 607,
+            "topic_title": "Microbes in Daily Life"
+          },
+          {
+            "topic_id": 608,
+            "topic_title": "Traditional Preservation Methods"
+          },
+          {
+            "topic_id": 609,
+            "topic_title": "Fermentation and Digestion"
+          },
+          {
+            "topic_id": 610,
+            "topic_title": "Oral Health and Safe Eating"
+          },
+          {
+            "topic_id": 611,
+            "topic_title": "Market Literacy"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Unit 2B: Our School—A Happy, Green, Safe Place (Ch. 4)",
+        "topics": [
+          {
+            "topic_id": 612,
+            "topic_title": "School as a Learning Ecosystem"
+          },
+          {
+            "topic_id": 613,
+            "topic_title": "Waste Management and Dignity of Labour"
+          },
+          {
+            "topic_id": 614,
+            "topic_title": "Water and Energy Efficiency"
+          },
+          {
+            "topic_id": 615,
+            "topic_title": "Safety and Citizenship"
+          },
+          {
+            "topic_id": 616,
+            "topic_title": "Project Design"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Unit 3A: Our Vibrant Country—Civics, Symbols, Currency, Diversity (Ch. 5)",
+        "topics": [
+          {
+            "topic_id": 617,
+            "topic_title": "Civic Foundations"
+          },
+          {
+            "topic_id": 618,
+            "topic_title": "Currency as Curriculum"
+          },
+          {
+            "topic_id": 619,
+            "topic_title": "National/State Symbols"
+          },
+          {
+            "topic_id": 620,
+            "topic_title": "Multilingual and Cultural Landscapes"
+          },
+          {
+            "topic_id": 621,
+            "topic_title": "Event-based Learning"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Unit 3B: Some Unique Places—Islands, Mangroves, Northeast, Western Ghats (Ch. 6)",
+        "topics": [
+          {
+            "topic_id": 622,
+            "topic_title": "Physical Geography and Biodiversity"
+          },
+          {
+            "topic_id": 623,
+            "topic_title": "Indigenous Knowledge and Ethics"
+          },
+          {
+            "topic_id": 624,
+            "topic_title": "Conservation Education"
+          },
+          {
+            "topic_id": 625,
+            "topic_title": "Field Trip/Virtual Trip Design"
+          },
+          {
+            "topic_id": 626,
+            "topic_title": "Sustainable Tourism"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Unit 4: Energy and Materials—How Things Work/Are Made (Ch. 7–8)",
+        "topics": [
+          {
+            "topic_id": 627,
+            "topic_title": "Everyday Energy"
+          },
+          {
+            "topic_id": 628,
+            "topic_title": "Clean Energy Literacy"
+          },
+          {
+            "topic_id": 629,
+            "topic_title": "Fibres to Fabric"
+          },
+          {
+            "topic_id": 630,
+            "topic_title": "Crafts and IKS"
+          },
+          {
+            "topic_id": 631,
+            "topic_title": "Assessment through Making"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Unit 5: Earth Systems and Rhythms—Day–Night, Seasons, Phenology (Ch. 9)",
+        "topics": [
+          {
+            "topic_id": 632,
+            "topic_title": "Globe and Torch Modelling"
+          },
+          {
+            "topic_id": 633,
+            "topic_title": "Seasonal Cycles"
+          },
+          {
+            "topic_id": 634,
+            "topic_title": "Phenology and Journaling"
+          },
+          {
+            "topic_id": 635,
+            "topic_title": "Agro-climatic Links and Festivals"
+          },
+          {
+            "topic_id": 636,
+            "topic_title": "Designing Observation-based Learning"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Assessment, Inclusion, Safety, and Community Partnerships",
+        "topics": [
+          {
+            "topic_id": 637,
+            "topic_title": "Assessment for Learning"
+          },
+          {
+            "topic_id": 638,
+            "topic_title": "Universal Design for Learning (UDL) and Multilingual Pedagogies"
+          },
+          {
+            "topic_id": 639,
+            "topic_title": "Gender, Equity and Cultural Sensitivity"
+          },
+          {
+            "topic_id": 640,
+            "topic_title": "Safety Integration"
+          },
+          {
+            "topic_id": 641,
+            "topic_title": "Community and Resource Persons"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Capstone: Designing, Microteaching and Reflection",
+        "topics": [
+          {
+            "topic_id": 642,
+            "topic_title": "Micro-unit Design"
+          },
+          {
+            "topic_id": 643,
+            "topic_title": "Resource Creation"
+          },
+          {
+            "topic_id": 644,
+            "topic_title": "Microteaching and Feedback"
+          },
+          {
+            "topic_id": 645,
+            "topic_title": "Action Research Starter"
+          },
+          {
+            "topic_id": 646,
+            "topic_title": "Reflective Practice and Next Steps"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "course_id": 12,
+    "course_title": "Class 12th NCERT Psychology book",
+    "weeks": [
+      {
+        "week_number": null,
+        "week_title": "Orientation, Scientific Approach, and Individual Differences",
+        "topics": [
+          {
+            "topic_id": 647,
+            "topic_title": "Course orientation and expectations"
+          },
+          {
+            "topic_id": 648,
+            "topic_title": "Psychology as an empirical discipline"
+          },
+          {
+            "topic_id": 649,
+            "topic_title": "Individual differences vs. situationism"
+          },
+          {
+            "topic_id": 650,
+            "topic_title": "Overview of psychological assessment"
+          },
+          {
+            "topic_id": 651,
+            "topic_title": "Ethics in testing and confidentiality"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Variations in Psychological Attributes I: Intelligence and Measurement",
+        "topics": [
+          {
+            "topic_id": 652,
+            "topic_title": "Defining intelligence"
+          },
+          {
+            "topic_id": 653,
+            "topic_title": "Classical psychometric theories"
+          },
+          {
+            "topic_id": 654,
+            "topic_title": "Measuring intelligence"
+          },
+          {
+            "topic_id": 655,
+            "topic_title": "Types of intelligence tests"
+          },
+          {
+            "topic_id": 656,
+            "topic_title": "Culture-fair vs. culture-biased testing"
+          },
+          {
+            "topic_id": 657,
+            "topic_title": "Indian contributions to intelligence testing"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Variations in Psychological Attributes II: Contemporary Models, EI, Aptitude, Creativity",
+        "topics": [
+          {
+            "topic_id": 658,
+            "topic_title": "Multiple Intelligences (Gardner)"
+          },
+          {
+            "topic_id": 659,
+            "topic_title": "Triarchic Theory (Sternberg)"
+          },
+          {
+            "topic_id": 660,
+            "topic_title": "PASS Model (Das, Naglieri, Kirby)"
+          },
+          {
+            "topic_id": 661,
+            "topic_title": "Nature–nurture and culture in intelligence"
+          },
+          {
+            "topic_id": 662,
+            "topic_title": "Emotional Intelligence (EQ)"
+          },
+          {
+            "topic_id": 663,
+            "topic_title": "Aptitude and its assessment"
+          },
+          {
+            "topic_id": 664,
+            "topic_title": "Creativity and its relation to intelligence"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Self: Concepts, Processes, and Culture",
+        "topics": [
+          {
+            "topic_id": 665,
+            "topic_title": "Concept of self"
+          },
+          {
+            "topic_id": 666,
+            "topic_title": "Self-concept and measurement"
+          },
+          {
+            "topic_id": 667,
+            "topic_title": "Self-esteem, self-efficacy, and behavior"
+          },
+          {
+            "topic_id": 668,
+            "topic_title": "Self-regulation and self-control"
+          },
+          {
+            "topic_id": 669,
+            "topic_title": "Culture and self"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Personality I: Types and Traits",
+        "topics": [
+          {
+            "topic_id": 670,
+            "topic_title": "What is personality?"
+          },
+          {
+            "topic_id": 671,
+            "topic_title": "Type approaches"
+          },
+          {
+            "topic_id": 672,
+            "topic_title": "Trait approaches (Allport)"
+          },
+          {
+            "topic_id": 673,
+            "topic_title": "Trait approaches (Cattell and Eysenck)"
+          },
+          {
+            "topic_id": 674,
+            "topic_title": "Five-Factor Model overview"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Personality II: Major Theories, Assessment, and Healthy Personality",
+        "topics": [
+          {
+            "topic_id": 675,
+            "topic_title": "Psychodynamic approaches"
+          },
+          {
+            "topic_id": 676,
+            "topic_title": "Behavioral and cultural approaches"
+          },
+          {
+            "topic_id": 677,
+            "topic_title": "Humanistic approaches"
+          },
+          {
+            "topic_id": 678,
+            "topic_title": "Personality assessment methods"
+          },
+          {
+            "topic_id": 679,
+            "topic_title": "Who is a healthy person?"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Meeting Life Challenges I: Stress and Appraisal",
+        "topics": [
+          {
+            "topic_id": 680,
+            "topic_title": "Understanding stress"
+          },
+          {
+            "topic_id": 681,
+            "topic_title": "General Adaptation Syndrome (GAS)"
+          },
+          {
+            "topic_id": 682,
+            "topic_title": "Psychoneuroimmunology"
+          },
+          {
+            "topic_id": 683,
+            "topic_title": "Effects of stress"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Meeting Life Challenges II: Coping, Positive Health, and Life Skills",
+        "topics": [
+          {
+            "topic_id": 684,
+            "topic_title": "Coping strategies"
+          },
+          {
+            "topic_id": 685,
+            "topic_title": "Resilience and hardiness"
+          },
+          {
+            "topic_id": 686,
+            "topic_title": "Positive health and lifestyle"
+          },
+          {
+            "topic_id": 687,
+            "topic_title": "Relaxation and meditation"
+          },
+          {
+            "topic_id": 688,
+            "topic_title": "Life skills education"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Psychological Disorders I: Foundations and Internalizing Disorders",
+        "topics": [
+          {
+            "topic_id": 689,
+            "topic_title": "Conceptualizing abnormality"
+          },
+          {
+            "topic_id": 690,
+            "topic_title": "Classification overview"
+          },
+          {
+            "topic_id": 691,
+            "topic_title": "Anxiety and related disorders"
+          },
+          {
+            "topic_id": 692,
+            "topic_title": "Trauma- and stressor-related disorders"
+          },
+          {
+            "topic_id": 693,
+            "topic_title": "Somatic and dissociative disorders"
+          },
+          {
+            "topic_id": 694,
+            "topic_title": "Depressive disorders"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Psychological Disorders II: Severe Mental Illness and Other Categories",
+        "topics": [
+          {
+            "topic_id": 695,
+            "topic_title": "Bipolar and related disorders"
+          },
+          {
+            "topic_id": 696,
+            "topic_title": "Schizophrenia spectrum"
+          },
+          {
+            "topic_id": 697,
+            "topic_title": "Neurodevelopmental disorders"
+          },
+          {
+            "topic_id": 698,
+            "topic_title": "Substance-related disorders"
+          },
+          {
+            "topic_id": 699,
+            "topic_title": "Cultural considerations in diagnosis"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Therapeutic Approaches and Rehabilitation",
+        "topics": [
+          {
+            "topic_id": 700,
+            "topic_title": "Foundations of psychotherapy"
+          },
+          {
+            "topic_id": 701,
+            "topic_title": "Psychodynamic therapies"
+          },
+          {
+            "topic_id": 702,
+            "topic_title": "Behavioral therapies"
+          },
+          {
+            "topic_id": 703,
+            "topic_title": "Cognitive and cognitive–behavioral therapies"
+          },
+          {
+            "topic_id": 704,
+            "topic_title": "Humanistic and experiential therapies"
+          },
+          {
+            "topic_id": 705,
+            "topic_title": "Biomedical, deinstitutionalization, and rehabilitation"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Attitude and Social Cognition",
+        "topics": [
+          {
+            "topic_id": 706,
+            "topic_title": "Structure of attitudes"
+          },
+          {
+            "topic_id": 707,
+            "topic_title": "Attitude formation and change"
+          },
+          {
+            "topic_id": 708,
+            "topic_title": "Social perception and attribution"
+          },
+          {
+            "topic_id": 709,
+            "topic_title": "Stereotypes, prejudice, and discrimination"
+          },
+          {
+            "topic_id": 710,
+            "topic_title": "Applications"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Social Influence and Group Processes",
+        "topics": [
+          {
+            "topic_id": 711,
+            "topic_title": "Social influence"
+          },
+          {
+            "topic_id": 712,
+            "topic_title": "Group processes"
+          },
+          {
+            "topic_id": 713,
+            "topic_title": "Performance in groups"
+          },
+          {
+            "topic_id": 714,
+            "topic_title": "Intergroup relations and conflict"
+          },
+          {
+            "topic_id": 715,
+            "topic_title": "Leadership and communication"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Integrated Practicals and Capstone",
+        "topics": [
+          {
+            "topic_id": 716,
+            "topic_title": "Psychological testing practicum"
+          },
+          {
+            "topic_id": 717,
+            "topic_title": "Test administration skills"
+          },
+          {
+            "topic_id": 718,
+            "topic_title": "Case profile preparation"
+          },
+          {
+            "topic_id": 719,
+            "topic_title": "Reporting and ethical feedback"
+          },
+          {
+            "topic_id": 720,
+            "topic_title": "Course review and synthesis"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "course_id": 13,
+    "course_title": "Arabic to English Translation book ",
+    "weeks": [
+      {
+        "week_number": null,
+        "week_title": "Course Orientation and Foundations",
+        "topics": [
+          {
+            "topic_id": 721,
+            "topic_title": "Course aims, outcomes, assessment, and the bidirectional approach"
+          },
+          {
+            "topic_id": 722,
+            "topic_title": "Where this coursebook fits in Translation Studies"
+          },
+          {
+            "topic_id": 723,
+            "topic_title": "Phraseology and its importance in translation quality"
+          },
+          {
+            "topic_id": 724,
+            "topic_title": "Diagnostic translation task (EN<>AR)"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Lexical Collocations: Core Concepts and Recognition",
+        "topics": [
+          {
+            "topic_id": 725,
+            "topic_title": "Defining collocation and collocational range"
+          },
+          {
+            "topic_id": 726,
+            "topic_title": "English vs Arabic patterns"
+          },
+          {
+            "topic_id": 727,
+            "topic_title": "Binomials and couplets"
+          },
+          {
+            "topic_id": 728,
+            "topic_title": "Practice: recognizing and classifying collocations"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Grammatical Collocation and Phrasal/Prepositional Verbs",
+        "topics": [
+          {
+            "topic_id": 729,
+            "topic_title": "Grammatical collocations"
+          },
+          {
+            "topic_id": 730,
+            "topic_title": "Phrasal vs prepositional verbs in English"
+          },
+          {
+            "topic_id": 731,
+            "topic_title": "Arabic verb–preposition combinations"
+          },
+          {
+            "topic_id": 732,
+            "topic_title": "Translation strategies for phrasal and prepositional verbs"
+          },
+          {
+            "topic_id": 733,
+            "topic_title": "Applied practice"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Lexico-grammatical Collocation and Corpus-informed Decisions",
+        "topics": [
+          {
+            "topic_id": 734,
+            "topic_title": "Lexicogrammatical collocations"
+          },
+          {
+            "topic_id": 735,
+            "topic_title": "Recognition–comprehension–reproduction workflow"
+          },
+          {
+            "topic_id": 736,
+            "topic_title": "Using concordancers and corpora"
+          },
+          {
+            "topic_id": 737,
+            "topic_title": "Lab: building micro-glossaries"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Idioms: Types, Variability, and Culture",
+        "topics": [
+          {
+            "topic_id": 738,
+            "topic_title": "Idiom typology and constraints"
+          },
+          {
+            "topic_id": 739,
+            "topic_title": "Culture-loaded mapping and false friends"
+          },
+          {
+            "topic_id": 740,
+            "topic_title": "Strategy toolkit for idioms"
+          },
+          {
+            "topic_id": 741,
+            "topic_title": "Workshop: idiom bank"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Similes and Proverbs in EN<>AR",
+        "topics": [
+          {
+            "topic_id": 742,
+            "topic_title": "Similes"
+          },
+          {
+            "topic_id": 743,
+            "topic_title": "Proverbs"
+          },
+          {
+            "topic_id": 744,
+            "topic_title": "Translation strategies for proverbs"
+          },
+          {
+            "topic_id": 745,
+            "topic_title": "Practice set"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Compounds in English and Arabic",
+        "topics": [
+          {
+            "topic_id": 746,
+            "topic_title": "English compounding"
+          },
+          {
+            "topic_id": 747,
+            "topic_title": "Arabic compounds and iḍāfa"
+          },
+          {
+            "topic_id": 748,
+            "topic_title": "Translating compounds"
+          },
+          {
+            "topic_id": 749,
+            "topic_title": "Applied decomposition"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Language Variety, Register, and Diglossia",
+        "topics": [
+          {
+            "topic_id": 750,
+            "topic_title": "Dialects, accents, jargon, slang, and register"
+          },
+          {
+            "topic_id": 751,
+            "topic_title": "Arabic diglossia: models and critiques"
+          },
+          {
+            "topic_id": 752,
+            "topic_title": "Implications for translators"
+          },
+          {
+            "topic_id": 753,
+            "topic_title": "Workshop: register shifts"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Cross-MSA Variation and Term Choice",
+        "topics": [
+          {
+            "topic_id": 754,
+            "topic_title": "Regional variation in MSA lexis"
+          },
+          {
+            "topic_id": 755,
+            "topic_title": "Standardization vs localization"
+          },
+          {
+            "topic_id": 756,
+            "topic_title": "Building term choices and usage notes"
+          },
+          {
+            "topic_id": 757,
+            "topic_title": "Practical task"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Legal Translation I: Systems, Genres, and Features",
+        "topics": [
+          {
+            "topic_id": 758,
+            "topic_title": "Functions and features of legal language"
+          },
+          {
+            "topic_id": 759,
+            "topic_title": "Legal genres and structures"
+          },
+          {
+            "topic_id": 760,
+            "topic_title": "Shall, may, and modality management"
+          },
+          {
+            "topic_id": 761,
+            "topic_title": "Terminology and collocation in legal texts"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Legal Translation II: Documents and Practice",
+        "topics": [
+          {
+            "topic_id": 762,
+            "topic_title": "Personal and academic documents"
+          },
+          {
+            "topic_id": 763,
+            "topic_title": "Contracts and corporate texts"
+          },
+          {
+            "topic_id": 764,
+            "topic_title": "Quality assurance for legal translation"
+          },
+          {
+            "topic_id": 765,
+            "topic_title": "Simulated legal project"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Translation Technology and Capstone",
+        "topics": [
+          {
+            "topic_id": 766,
+            "topic_title": "CAT tools and alignment"
+          },
+          {
+            "topic_id": 767,
+            "topic_title": "Online resources and corpora"
+          },
+          {
+            "topic_id": 768,
+            "topic_title": "Concordancing and term extraction"
+          },
+          {
+            "topic_id": 769,
+            "topic_title": "Capstone EN<>AR translation"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "course_id": 14,
+    "course_title": "Class 12th NCERT - Political Science -  Politics in India Since Independence",
+    "weeks": [
+      {
+        "week_number": null,
+        "week_title": "Approaching Post-1947 Indian Politics",
+        "topics": [
+          {
+            "topic_id": 770,
+            "topic_title": "Course orientation: scope, timelines, and themes"
+          },
+          {
+            "topic_id": 771,
+            "topic_title": "Reading the text: non-partisan norms and sources"
+          },
+          {
+            "topic_id": 772,
+            "topic_title": "Conceptual toolkit"
+          },
+          {
+            "topic_id": 773,
+            "topic_title": "Method and evidence"
+          },
+          {
+            "topic_id": 774,
+            "topic_title": "Assessment design"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Challenges of Nation-Building I: Partition and Secular Republic",
+        "topics": [
+          {
+            "topic_id": 775,
+            "topic_title": "Partition: process and principles"
+          },
+          {
+            "topic_id": 776,
+            "topic_title": "Human costs and displacement"
+          },
+          {
+            "topic_id": 777,
+            "topic_title": "State response and rehabilitation"
+          },
+          {
+            "topic_id": 778,
+            "topic_title": "Secularism as statecraft"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Challenges of Nation-Building II: Integrating the Princely States",
+        "topics": [
+          {
+            "topic_id": 779,
+            "topic_title": "Paramountcy lapse and the accession dilemma"
+          },
+          {
+            "topic_id": 780,
+            "topic_title": "Patel’s strategy and Instruments of Accession"
+          },
+          {
+            "topic_id": 781,
+            "topic_title": "Contentious accessions"
+          },
+          {
+            "topic_id": 782,
+            "topic_title": "Federal implications"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Challenges of Nation-Building III: Reorganisation of States",
+        "topics": [
+          {
+            "topic_id": 783,
+            "topic_title": "Language and the nation"
+          },
+          {
+            "topic_id": 784,
+            "topic_title": "Andhra moment and SRC (1953–56)"
+          },
+          {
+            "topic_id": 785,
+            "topic_title": "Subsequent reorganisations"
+          },
+          {
+            "topic_id": 786,
+            "topic_title": "Democracy, diversity, and unity"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Founding Elections and the Architecture of Democracy",
+        "topics": [
+          {
+            "topic_id": 787,
+            "topic_title": "Universal franchise and the Election Commission"
+          },
+          {
+            "topic_id": 788,
+            "topic_title": "Voting methods and infrastructure"
+          },
+          {
+            "topic_id": 789,
+            "topic_title": "The ‘biggest gamble’ and its validation"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Era of One-Party Dominance and the Opposition’s Role",
+        "topics": [
+          {
+            "topic_id": 790,
+            "topic_title": "Mapping Congress dominance (1952–62)"
+          },
+          {
+            "topic_id": 791,
+            "topic_title": "Congress as a social and ideological coalition"
+          },
+          {
+            "topic_id": 792,
+            "topic_title": "Opposition parties and critical events"
+          },
+          {
+            "topic_id": 793,
+            "topic_title": "Democratic value of opposition"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Politics of Planned Development I: Ideas, Institutions, First Plan",
+        "topics": [
+          {
+            "topic_id": 794,
+            "topic_title": "Contesting ‘development’"
+          },
+          {
+            "topic_id": 795,
+            "topic_title": "Planning architecture"
+          },
+          {
+            "topic_id": 796,
+            "topic_title": "First Five-Year Plan (1951–56)"
+          },
+          {
+            "topic_id": 797,
+            "topic_title": "Savings, investment, and constraints"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Politics of Planned Development II: Industrial Strategy and Critiques",
+        "topics": [
+          {
+            "topic_id": 798,
+            "topic_title": "Second Plan and Mahalanobis strategy"
+          },
+          {
+            "topic_id": 799,
+            "topic_title": "Balancing agriculture and industry"
+          },
+          {
+            "topic_id": 800,
+            "topic_title": "Crisis and ‘plan holiday’"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "External Relations I: Non-Alignment, Asia–Africa, and China",
+        "topics": [
+          {
+            "topic_id": 801,
+            "topic_title": "Nehru’s foreign policy objectives and context"
+          },
+          {
+            "topic_id": 802,
+            "topic_title": "Non-Alignment as strategy"
+          },
+          {
+            "topic_id": 803,
+            "topic_title": "China: Panchsheel to 1962 war"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "External Relations II: Pakistan, Bangladesh, Defence, and Nuclear Policy",
+        "topics": [
+          {
+            "topic_id": 804,
+            "topic_title": "India–Pakistan: cooperation and conflict"
+          },
+          {
+            "topic_id": 805,
+            "topic_title": "Bangladesh War (1971)"
+          },
+          {
+            "topic_id": 806,
+            "topic_title": "Defence and planning implications"
+          },
+          {
+            "topic_id": 807,
+            "topic_title": "Nuclear policy and treaties"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Political Transition: From Nehru to Restoration of the Congress System",
+        "topics": [
+          {
+            "topic_id": 808,
+            "topic_title": "Succession after Nehru"
+          },
+          {
+            "topic_id": 809,
+            "topic_title": "Opposition unity and Congress split"
+          },
+          {
+            "topic_id": 810,
+            "topic_title": "Indira Gandhi’s consolidation"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "From Crisis to Contemporary: Regional Aspirations and Recent Developments",
+        "topics": [
+          {
+            "topic_id": 811,
+            "topic_title": "Crisis of democratic order"
+          },
+          {
+            "topic_id": 812,
+            "topic_title": "Regional aspirations and federal accommodation"
+          },
+          {
+            "topic_id": 813,
+            "topic_title": "Post-1977 shifts and coalitions"
+          },
+          {
+            "topic_id": 814,
+            "topic_title": "Security flashpoints and reforms"
+          },
+          {
+            "topic_id": 815,
+            "topic_title": "Synthesis and review"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "course_id": 15,
+    "course_title": "Virtual Reality",
+    "weeks": [
+      {
+        "week_number": null,
+        "week_title": "Foundations of Virtual Reality",
+        "topics": [
+          {
+            "topic_id": 816,
+            "topic_title": "What is Virtual Reality?"
+          },
+          {
+            "topic_id": 817,
+            "topic_title": "Modern VR Experiences"
+          },
+          {
+            "topic_id": 818,
+            "topic_title": "History and Terminology"
+          },
+          {
+            "topic_id": 819,
+            "topic_title": "Open-loop vs. Closed-loop VR"
+          },
+          {
+            "topic_id": 820,
+            "topic_title": "First- vs. Third-person Perspectives"
+          },
+          {
+            "topic_id": 821,
+            "topic_title": "Health & Safety Overview"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Bird’s-Eye View: Systems, Signals, and Users",
+        "topics": [
+          {
+            "topic_id": 822,
+            "topic_title": "System Model of VR"
+          },
+          {
+            "topic_id": 823,
+            "topic_title": "Displays and Sensors at a Glance"
+          },
+          {
+            "topic_id": 824,
+            "topic_title": "Computing for VR"
+          },
+          {
+            "topic_id": 825,
+            "topic_title": "Virtual World Generator (VWG)"
+          },
+          {
+            "topic_id": 826,
+            "topic_title": "Human Physiology and Perception Primer"
+          },
+          {
+            "topic_id": 827,
+            "topic_title": "Lab: System Familiarization"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Geometry of Virtual Worlds I: Modeling",
+        "topics": [
+          {
+            "topic_id": 828,
+            "topic_title": "Coordinate Systems and Units"
+          },
+          {
+            "topic_id": 829,
+            "topic_title": "Primitives and Meshes"
+          },
+          {
+            "topic_id": 830,
+            "topic_title": "Model Coherence"
+          },
+          {
+            "topic_id": 831,
+            "topic_title": "Mesh Data Structures"
+          },
+          {
+            "topic_id": 832,
+            "topic_title": "Stationary vs. Movable Models"
+          },
+          {
+            "topic_id": 833,
+            "topic_title": "Lab: Import and Inspect a Mesh"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Geometry of Virtual Worlds II: Transformations and Rotations",
+        "topics": [
+          {
+            "topic_id": 834,
+            "topic_title": "Translations and Relativity of Transforms"
+          },
+          {
+            "topic_id": 835,
+            "topic_title": "2D Linear Transforms as Intuition"
+          },
+          {
+            "topic_id": 836,
+            "topic_title": "3D Rotation Matrices"
+          },
+          {
+            "topic_id": 837,
+            "topic_title": "Yaw, Pitch, Roll and Order of Operations"
+          },
+          {
+            "topic_id": 838,
+            "topic_title": "Homogeneous Transforms and Inverses"
+          },
+          {
+            "topic_id": 839,
+            "topic_title": "Axis-Angle, Singularities, and Quaternions (Intro)"
+          },
+          {
+            "topic_id": 840,
+            "topic_title": "Lab: Camera and Object Transforms"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Light and Optics for VR",
+        "topics": [
+          {
+            "topic_id": 841,
+            "topic_title": "Basic Behavior of Light"
+          },
+          {
+            "topic_id": 842,
+            "topic_title": "Lenses and Optical Systems"
+          },
+          {
+            "topic_id": 843,
+            "topic_title": "Optical Aberrations"
+          },
+          {
+            "topic_id": 844,
+            "topic_title": "The Human Eye"
+          },
+          {
+            "topic_id": 845,
+            "topic_title": "Cameras and Displays"
+          },
+          {
+            "topic_id": 846,
+            "topic_title": "Lab: Lens Distortion Mapping"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Physiology of Human Vision",
+        "topics": [
+          {
+            "topic_id": 847,
+            "topic_title": "From Cornea to Photoreceptors"
+          },
+          {
+            "topic_id": 848,
+            "topic_title": "From Photoreceptors to Visual Cortex"
+          },
+          {
+            "topic_id": 849,
+            "topic_title": "Eye Movements"
+          },
+          {
+            "topic_id": 850,
+            "topic_title": "Implications for VR"
+          },
+          {
+            "topic_id": 851,
+            "topic_title": "Lab: Eye-Tracked Gaze Experiment (Demo/Data)"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Visual Perception: Depth, Motion, and Color",
+        "topics": [
+          {
+            "topic_id": 852,
+            "topic_title": "Depth Perception"
+          },
+          {
+            "topic_id": 853,
+            "topic_title": "Motion Perception"
+          },
+          {
+            "topic_id": 854,
+            "topic_title": "Color Perception"
+          },
+          {
+            "topic_id": 855,
+            "topic_title": "Cue Combination"
+          },
+          {
+            "topic_id": 856,
+            "topic_title": "Lab: Depth and Motion Illusions"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Visual Rendering for VR",
+        "topics": [
+          {
+            "topic_id": 857,
+            "topic_title": "Ray Tracing and Shading Models"
+          },
+          {
+            "topic_id": 858,
+            "topic_title": "Rasterization Pipeline"
+          },
+          {
+            "topic_id": 859,
+            "topic_title": "Correcting Optical Distortions"
+          },
+          {
+            "topic_id": 860,
+            "topic_title": "Improving Latency and Frame Rates"
+          },
+          {
+            "topic_id": 861,
+            "topic_title": "Immersive Photos and Videos"
+          },
+          {
+            "topic_id": 862,
+            "topic_title": "Lab: VR Render Path"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Motion in Real and Virtual Worlds",
+        "topics": [
+          {
+            "topic_id": 863,
+            "topic_title": "Velocities and Accelerations"
+          },
+          {
+            "topic_id": 864,
+            "topic_title": "The Vestibular System"
+          },
+          {
+            "topic_id": 865,
+            "topic_title": "Physics in the Virtual World"
+          },
+          {
+            "topic_id": 866,
+            "topic_title": "Mismatched Motion and Vection"
+          },
+          {
+            "topic_id": 867,
+            "topic_title": "Lab: Locomotion Comfort Study (Pilot)"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Tracking and Environmental Capture",
+        "topics": [
+          {
+            "topic_id": 868,
+            "topic_title": "Tracking 2D and 3D Orientation"
+          },
+          {
+            "topic_id": 869,
+            "topic_title": "Tracking Position and Orientation"
+          },
+          {
+            "topic_id": 870,
+            "topic_title": "Tracking Attached Bodies"
+          },
+          {
+            "topic_id": 871,
+            "topic_title": "3D Scanning of Environments"
+          },
+          {
+            "topic_id": 872,
+            "topic_title": "Lab: Pose Estimation Pipeline"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Interaction in VR",
+        "topics": [
+          {
+            "topic_id": 873,
+            "topic_title": "Motor Programs and Remapping"
+          },
+          {
+            "topic_id": 874,
+            "topic_title": "Locomotion Techniques"
+          },
+          {
+            "topic_id": 875,
+            "topic_title": "Manipulation"
+          },
+          {
+            "topic_id": 876,
+            "topic_title": "Social Interaction"
+          },
+          {
+            "topic_id": 877,
+            "topic_title": "Additional Interaction Mechanisms"
+          },
+          {
+            "topic_id": 878,
+            "topic_title": "Lab: Interaction Prototypes"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Audio for Virtual Reality",
+        "topics": [
+          {
+            "topic_id": 879,
+            "topic_title": "Physics of Sound"
+          },
+          {
+            "topic_id": 880,
+            "topic_title": "Physiology of Human Hearing"
+          },
+          {
+            "topic_id": 881,
+            "topic_title": "Auditory Perception"
+          },
+          {
+            "topic_id": 882,
+            "topic_title": "Auditory Rendering"
+          },
+          {
+            "topic_id": 883,
+            "topic_title": "Lab: Spatial Audio Integration"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Evaluating VR Systems and Experiences",
+        "topics": [
+          {
+            "topic_id": 884,
+            "topic_title": "Perceptual Training"
+          },
+          {
+            "topic_id": 885,
+            "topic_title": "Recommendations for Developers"
+          },
+          {
+            "topic_id": 886,
+            "topic_title": "Comfort and VR Sickness"
+          },
+          {
+            "topic_id": 887,
+            "topic_title": "Experiments on Human Subjects"
+          },
+          {
+            "topic_id": 888,
+            "topic_title": "Lab: User Study Design"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Frontiers and Capstone",
+        "topics": [
+          {
+            "topic_id": 889,
+            "topic_title": "Touch and Proprioception"
+          },
+          {
+            "topic_id": 890,
+            "topic_title": "Smell and Taste"
+          },
+          {
+            "topic_id": 891,
+            "topic_title": "Robotic Interfaces"
+          },
+          {
+            "topic_id": 892,
+            "topic_title": "Brain–Machine Interfaces"
+          },
+          {
+            "topic_id": 893,
+            "topic_title": "Capstone Demos and Critique"
+          },
+          {
+            "topic_id": 894,
+            "topic_title": "Course Synthesis"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "course_id": 16,
+    "course_title": "Class 12th - NCERT - Business Studies Part - 2",
+    "weeks": [
+      {
+        "week_number": null,
+        "week_title": "Orientation and the Role of Finance and Marketing in the Firm",
+        "topics": [
+          {
+            "topic_id": 895,
+            "topic_title": "Course Overview and Expectations"
+          },
+          {
+            "topic_id": 896,
+            "topic_title": "Business Finance: Meaning and Scope"
+          },
+          {
+            "topic_id": 897,
+            "topic_title": "Financial Management and Its Importance"
+          },
+          {
+            "topic_id": 898,
+            "topic_title": "Marketing as a Social and Managerial Process"
+          },
+          {
+            "topic_id": 899,
+            "topic_title": "Case Lens: Tata Steel–Corus Acquisition"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Objectives of Financial Management and Decision Framework",
+        "topics": [
+          {
+            "topic_id": 900,
+            "topic_title": "Wealth Maximisation vs Profit Maximisation"
+          },
+          {
+            "topic_id": 901,
+            "topic_title": "Investment, Financing, and Dividend Decisions"
+          },
+          {
+            "topic_id": 902,
+            "topic_title": "Financial Risk and Return Trade-offs"
+          },
+          {
+            "topic_id": 903,
+            "topic_title": "Impact of Financial Decisions on Statements"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Investment Decisions: Capital Budgeting and Working Capital",
+        "topics": [
+          {
+            "topic_id": 904,
+            "topic_title": "Capital Budgeting Basics"
+          },
+          {
+            "topic_id": 905,
+            "topic_title": "Project Cash Flows and Required Return"
+          },
+          {
+            "topic_id": 906,
+            "topic_title": "Investment Criteria and Techniques"
+          },
+          {
+            "topic_id": 907,
+            "topic_title": "Short-term Investment Decisions"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Financing Decisions: Sources, Cost, and Risk",
+        "topics": [
+          {
+            "topic_id": 908,
+            "topic_title": "Sources of Long-term Finance"
+          },
+          {
+            "topic_id": 909,
+            "topic_title": "Cost of Capital and Floatation Costs"
+          },
+          {
+            "topic_id": 910,
+            "topic_title": "Financial Risk and Cash Flow Adequacy"
+          },
+          {
+            "topic_id": 911,
+            "topic_title": "Factors Affecting Financing Choices"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Capital Structure and Financial Leverage",
+        "topics": [
+          {
+            "topic_id": 912,
+            "topic_title": "Capital Structure Concepts and Metrics"
+          },
+          {
+            "topic_id": 913,
+            "topic_title": "EBIT–EPS Analysis and Trading on Equity"
+          },
+          {
+            "topic_id": 914,
+            "topic_title": "Optimal Capital Structure"
+          },
+          {
+            "topic_id": 915,
+            "topic_title": "Determinants of Capital Structure"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Dividend Decision and Financial Planning",
+        "topics": [
+          {
+            "topic_id": 916,
+            "topic_title": "Dividend Policy Trade-offs"
+          },
+          {
+            "topic_id": 917,
+            "topic_title": "Factors Influencing Dividend"
+          },
+          {
+            "topic_id": 918,
+            "topic_title": "Financial Planning and Budgets"
+          },
+          {
+            "topic_id": 919,
+            "topic_title": "Sales Forecasting and Cash Budgets"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Fixed and Working Capital Management",
+        "topics": [
+          {
+            "topic_id": 920,
+            "topic_title": "Fixed Capital: Nature and Determinants"
+          },
+          {
+            "topic_id": 921,
+            "topic_title": "Working Capital: Concepts and Measures"
+          },
+          {
+            "topic_id": 922,
+            "topic_title": "Determinants of Working Capital Needs"
+          },
+          {
+            "topic_id": 923,
+            "topic_title": "Operating Cycle and Policy Choices"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Foundations of Marketing and Market Orientation",
+        "topics": [
+          {
+            "topic_id": 924,
+            "topic_title": "What is Marketing"
+          },
+          {
+            "topic_id": 925,
+            "topic_title": "Markets, Needs, Wants, and Customer Value"
+          },
+          {
+            "topic_id": 926,
+            "topic_title": "Exchange Mechanism and Preconditions"
+          },
+          {
+            "topic_id": 927,
+            "topic_title": "Marketing Management and Demand States"
+          },
+          {
+            "topic_id": 928,
+            "topic_title": "Marketing Philosophies"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Marketing Functions and Product Decisions",
+        "topics": [
+          {
+            "topic_id": 929,
+            "topic_title": "Market Information and Planning"
+          },
+          {
+            "topic_id": 930,
+            "topic_title": "Product Design and Development"
+          },
+          {
+            "topic_id": 931,
+            "topic_title": "Standardisation and Grading"
+          },
+          {
+            "topic_id": 932,
+            "topic_title": "Branding Fundamentals"
+          },
+          {
+            "topic_id": 933,
+            "topic_title": "Packaging and Labelling"
+          },
+          {
+            "topic_id": 934,
+            "topic_title": "Product Classification"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Price and Place: Setting Prices and Moving Goods",
+        "topics": [
+          {
+            "topic_id": 935,
+            "topic_title": "Pricing: Role and Objectives"
+          },
+          {
+            "topic_id": 936,
+            "topic_title": "Determinants of Price"
+          },
+          {
+            "topic_id": 937,
+            "topic_title": "Place (Distribution) Decisions"
+          },
+          {
+            "topic_id": 938,
+            "topic_title": "Physical Distribution Components"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Promotion Mix and Integrated Communication",
+        "topics": [
+          {
+            "topic_id": 939,
+            "topic_title": "Promotion Mix Overview"
+          },
+          {
+            "topic_id": 940,
+            "topic_title": "Advertising"
+          },
+          {
+            "topic_id": 941,
+            "topic_title": "Personal Selling"
+          },
+          {
+            "topic_id": 942,
+            "topic_title": "Sales Promotion"
+          },
+          {
+            "topic_id": 943,
+            "topic_title": "Public Relations and Publicity"
+          },
+          {
+            "topic_id": 944,
+            "topic_title": "Word of Mouth in the Indian Context"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Consumer Protection and Ethical Marketing",
+        "topics": [
+          {
+            "topic_id": 945,
+            "topic_title": "Rationale for Consumer Protection"
+          },
+          {
+            "topic_id": 946,
+            "topic_title": "Consumer Rights and Responsibilities"
+          },
+          {
+            "topic_id": 947,
+            "topic_title": "Redressal Mechanisms and Stakeholders"
+          },
+          {
+            "topic_id": 948,
+            "topic_title": "Ethical Issues in Marketing"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Integration and Applications: Finance–Marketing Alignment",
+        "topics": [
+          {
+            "topic_id": 949,
+            "topic_title": "Linking Capital Structure to Market Strategy"
+          },
+          {
+            "topic_id": 950,
+            "topic_title": "Working Capital and Physical Distribution"
+          },
+          {
+            "topic_id": 951,
+            "topic_title": "Capstone Case Analyses"
+          },
+          {
+            "topic_id": 952,
+            "topic_title": "Review and Exam Preparation"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "course_id": 17,
+    "course_title": "Teacher Training Certificate Programme for AI Awareness",
+    "weeks": [
+      {
+        "week_number": null,
+        "week_title": "Foundations of Artificial Intelligence",
+        "topics": [
+          {
+            "topic_id": 953,
+            "topic_title": "What is AI?"
+          },
+          {
+            "topic_id": 954,
+            "topic_title": "Everyday AI"
+          },
+          {
+            "topic_id": 955,
+            "topic_title": "Core AI Capabilities"
+          },
+          {
+            "topic_id": 956,
+            "topic_title": "Myths vs. Reality"
+          },
+          {
+            "topic_id": 957,
+            "topic_title": "AI in Education"
+          },
+          {
+            "topic_id": 958,
+            "topic_title": "Reflection"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Types and Levels of AI",
+        "topics": [
+          {
+            "topic_id": 959,
+            "topic_title": "AI by Capability"
+          },
+          {
+            "topic_id": 960,
+            "topic_title": "AI by Function"
+          },
+          {
+            "topic_id": 961,
+            "topic_title": "Sector Applications"
+          },
+          {
+            "topic_id": 962,
+            "topic_title": "Classroom Connections"
+          },
+          {
+            "topic_id": 963,
+            "topic_title": "Learning Impact"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Generative AI: Creating with Machines",
+        "topics": [
+          {
+            "topic_id": 964,
+            "topic_title": "Generative AI Basics"
+          },
+          {
+            "topic_id": 965,
+            "topic_title": "Key Models and Tools"
+          },
+          {
+            "topic_id": 966,
+            "topic_title": "Applications Across Domains"
+          },
+          {
+            "topic_id": 967,
+            "topic_title": "Benefits and Opportunities"
+          },
+          {
+            "topic_id": 968,
+            "topic_title": "Limitations and Risks"
+          },
+          {
+            "topic_id": 969,
+            "topic_title": "Practice"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Natural Language Processing and GPT",
+        "topics": [
+          {
+            "topic_id": 970,
+            "topic_title": "NLP Fundamentals"
+          },
+          {
+            "topic_id": 971,
+            "topic_title": "GPT Architecture and Training"
+          },
+          {
+            "topic_id": 972,
+            "topic_title": "Real-World Applications"
+          },
+          {
+            "topic_id": 973,
+            "topic_title": "Educational Impact"
+          },
+          {
+            "topic_id": 974,
+            "topic_title": "Ethical Considerations"
+          },
+          {
+            "topic_id": 975,
+            "topic_title": "Mini-Lab"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Anomaly Detection with Variational Autoencoders",
+        "topics": [
+          {
+            "topic_id": 976,
+            "topic_title": "VAE Conceptual Model"
+          },
+          {
+            "topic_id": 977,
+            "topic_title": "Training and Inference"
+          },
+          {
+            "topic_id": 978,
+            "topic_title": "Industry Use Cases"
+          },
+          {
+            "topic_id": 979,
+            "topic_title": "Education Use Cases"
+          },
+          {
+            "topic_id": 980,
+            "topic_title": "Human-in-the-Loop"
+          },
+          {
+            "topic_id": 981,
+            "topic_title": "Design Task"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Democratization and Wider Adoption of Generative AI",
+        "topics": [
+          {
+            "topic_id": 982,
+            "topic_title": "From Exclusive to Inclusive"
+          },
+          {
+            "topic_id": 983,
+            "topic_title": "Mobile Integration"
+          },
+          {
+            "topic_id": 984,
+            "topic_title": "Economic and Cultural Impact"
+          },
+          {
+            "topic_id": 985,
+            "topic_title": "Education Transformation"
+          },
+          {
+            "topic_id": 986,
+            "topic_title": "Case Studies"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "From Technical Demos to Professional Productions",
+        "topics": [
+          {
+            "topic_id": 987,
+            "topic_title": "Technology Transition"
+          },
+          {
+            "topic_id": 988,
+            "topic_title": "Professional Toolchains"
+          },
+          {
+            "topic_id": 989,
+            "topic_title": "Workflow Acceleration"
+          },
+          {
+            "topic_id": 990,
+            "topic_title": "Human–AI Co-Creation"
+          },
+          {
+            "topic_id": 991,
+            "topic_title": "Project-Based Learning"
+          },
+          {
+            "topic_id": 992,
+            "topic_title": "Integrity and Originality"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Future of Jobs and Moral Leadership",
+        "topics": [
+          {
+            "topic_id": 993,
+            "topic_title": "Changing Landscape of Work"
+          },
+          {
+            "topic_id": 994,
+            "topic_title": "Emerging Roles"
+          },
+          {
+            "topic_id": 995,
+            "topic_title": "Principles of Moral Leadership"
+          },
+          {
+            "topic_id": 996,
+            "topic_title": "Education for Responsible Innovation"
+          },
+          {
+            "topic_id": 997,
+            "topic_title": "Case Examples"
+          },
+          {
+            "topic_id": 998,
+            "topic_title": "Leadership Exercise"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Legal Frameworks and Intellectual Property",
+        "topics": [
+          {
+            "topic_id": 999,
+            "topic_title": "IP in the AI Era"
+          },
+          {
+            "topic_id": 1000,
+            "topic_title": "Comparative Regulations"
+          },
+          {
+            "topic_id": 1001,
+            "topic_title": "Key Legal Risks"
+          },
+          {
+            "topic_id": 1002,
+            "topic_title": "Education and Compliance"
+          },
+          {
+            "topic_id": 1003,
+            "topic_title": "Case Studies"
+          },
+          {
+            "topic_id": 1004,
+            "topic_title": "Practice"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Productivity with LLMs: APIs and Real-Time Interactions",
+        "topics": [
+          {
+            "topic_id": 1005,
+            "topic_title": "APIs as the Integration Layer"
+          },
+          {
+            "topic_id": 1006,
+            "topic_title": "Multimodal and Real-Time AI"
+          },
+          {
+            "topic_id": 1007,
+            "topic_title": "Industry Workflows"
+          },
+          {
+            "topic_id": 1008,
+            "topic_title": "Educational Integrations"
+          },
+          {
+            "topic_id": 1009,
+            "topic_title": "Risks and Governance"
+          },
+          {
+            "topic_id": 1010,
+            "topic_title": "Hands-On Design"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "PIQPACC: A Critical Thinking Framework for Generative AI",
+        "topics": [
+          {
+            "topic_id": 1011,
+            "topic_title": "PIQPACC Overview"
+          },
+          {
+            "topic_id": 1012,
+            "topic_title": "Purpose"
+          },
+          {
+            "topic_id": 1013,
+            "topic_title": "Information and Verification"
+          },
+          {
+            "topic_id": 1014,
+            "topic_title": "Questions and Perspectives"
+          },
+          {
+            "topic_id": 1015,
+            "topic_title": "Assumptions and Concepts"
+          },
+          {
+            "topic_id": 1016,
+            "topic_title": "Consequences and Ethics"
+          },
+          {
+            "topic_id": 1017,
+            "topic_title": "Application"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Capstone: Designing an AI-Enhanced Learning Artifact and Responsible Use Plan",
+        "topics": [
+          {
+            "topic_id": 1018,
+            "topic_title": "Capstone Brief"
+          },
+          {
+            "topic_id": 1019,
+            "topic_title": "Technical Design"
+          },
+          {
+            "topic_id": 1020,
+            "topic_title": "Learning Analytics and Monitoring"
+          },
+          {
+            "topic_id": 1021,
+            "topic_title": "Ethical, Legal, and IP Plan"
+          },
+          {
+            "topic_id": 1022,
+            "topic_title": "Moral Leadership and PIQPACC"
+          },
+          {
+            "topic_id": 1023,
+            "topic_title": "Evaluation and Reflection"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "course_id": 18,
+    "course_title": "Class 12th - NCERT - Chemistry Part - 1",
+    "weeks": [
+      {
+        "week_number": null,
+        "week_title": "Mathematical and Measurement Foundations for Solution and Electrochemistry",
+        "topics": [
+          {
+            "topic_id": 1024,
+            "topic_title": "Common Units and Conversions (mass, volume, energy, pressure, temperature)"
+          },
+          {
+            "topic_id": 1025,
+            "topic_title": "Logarithms and Antilogarithms for Chemical Calculations"
+          },
+          {
+            "topic_id": 1026,
+            "topic_title": "Using Data Tables"
+          },
+          {
+            "topic_id": 1027,
+            "topic_title": "Calculation Hygiene"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Solutions: Types and Concentration Measures",
+        "topics": [
+          {
+            "topic_id": 1028,
+            "topic_title": "Types of solutions (gas, liquid, solid combinations)"
+          },
+          {
+            "topic_id": 1029,
+            "topic_title": "Qualitative vs quantitative concentration descriptions"
+          },
+          {
+            "topic_id": 1030,
+            "topic_title": "Mass %, Volume %, Mass/Volume %"
+          },
+          {
+            "topic_id": 1031,
+            "topic_title": "Parts per million (ppm)"
+          },
+          {
+            "topic_id": 1032,
+            "topic_title": "Mole fraction (x)"
+          },
+          {
+            "topic_id": 1033,
+            "topic_title": "Molarity (M) vs Molality (m)"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Solubility and Gas–Liquid Solutions",
+        "topics": [
+          {
+            "topic_id": 1034,
+            "topic_title": "Solubility and saturation"
+          },
+          {
+            "topic_id": 1035,
+            "topic_title": "Solubility of solids in liquids"
+          },
+          {
+            "topic_id": 1036,
+            "topic_title": "Solubility of gases in liquids"
+          },
+          {
+            "topic_id": 1037,
+            "topic_title": "Henry’s Law and constants (KH)"
+          },
+          {
+            "topic_id": 1038,
+            "topic_title": "Applications of Henry’s Law"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Vapor Pressure and Ideal Solutions",
+        "topics": [
+          {
+            "topic_id": 1039,
+            "topic_title": "Vapor pressure of pure liquids"
+          },
+          {
+            "topic_id": 1040,
+            "topic_title": "Raoult’s Law for liquid–liquid solutions"
+          },
+          {
+            "topic_id": 1041,
+            "topic_title": "Vapor vs liquid composition"
+          },
+          {
+            "topic_id": 1042,
+            "topic_title": "Gas-in-liquid as special case of Raoult/Henry"
+          },
+          {
+            "topic_id": 1043,
+            "topic_title": "Ideal solutions"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Non-Ideal Solutions, Azeotropes, and Vapor Pressure Lowering",
+        "topics": [
+          {
+            "topic_id": 1044,
+            "topic_title": "Positive and negative deviations from Raoult’s Law"
+          },
+          {
+            "topic_id": 1045,
+            "topic_title": "Azeotropes"
+          },
+          {
+            "topic_id": 1046,
+            "topic_title": "Solutions of nonvolatile solutes"
+          },
+          {
+            "topic_id": 1047,
+            "topic_title": "Relative lowering of vapor pressure"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Colligative Properties and Abnormal Molar Masses",
+        "topics": [
+          {
+            "topic_id": 1048,
+            "topic_title": "Elevation of boiling point (ΔTb = Kb m)"
+          },
+          {
+            "topic_id": 1049,
+            "topic_title": "Depression of freezing point (ΔTf = Kf m)"
+          },
+          {
+            "topic_id": 1050,
+            "topic_title": "Osmosis and osmotic pressure (π = CRT)"
+          },
+          {
+            "topic_id": 1051,
+            "topic_title": "Reverse osmosis and desalination"
+          },
+          {
+            "topic_id": 1052,
+            "topic_title": "Association/dissociation and van’t Hoff factor (i)"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Electrochemical Cells and Electrode Potentials",
+        "topics": [
+          {
+            "topic_id": 1053,
+            "topic_title": "Galvanic vs electrolytic cells"
+          },
+          {
+            "topic_id": 1054,
+            "topic_title": "Daniell cell anatomy and operation"
+          },
+          {
+            "topic_id": 1055,
+            "topic_title": "Electrode potential and standard electrode potential"
+          },
+          {
+            "topic_id": 1056,
+            "topic_title": "Standard Hydrogen Electrode (SHE)"
+          },
+          {
+            "topic_id": 1057,
+            "topic_title": "Cell emf and sign conventions"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Nernst Equation, Equilibria, and Thermodynamics of Cells",
+        "topics": [
+          {
+            "topic_id": 1058,
+            "topic_title": "Nernst equation for half-cells and full cells"
+          },
+          {
+            "topic_id": 1059,
+            "topic_title": "Predicting feasibility using E° values"
+          },
+          {
+            "topic_id": 1060,
+            "topic_title": "Equilibrium constants from emf"
+          },
+          {
+            "topic_id": 1061,
+            "topic_title": "Gibbs energy and electrical work"
+          },
+          {
+            "topic_id": 1062,
+            "topic_title": "Concentration cells (overview and examples)"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Conductivity: Concepts and Measurement",
+        "topics": [
+          {
+            "topic_id": 1063,
+            "topic_title": "Electronic vs ionic conduction"
+          },
+          {
+            "topic_id": 1064,
+            "topic_title": "Resistance, resistivity (ρ), conductance (G), conductivity (κ)"
+          },
+          {
+            "topic_id": 1065,
+            "topic_title": "Conductivity cells and cell constant (G*)"
+          },
+          {
+            "topic_id": 1066,
+            "topic_title": "Wheatstone bridge with AC source"
+          },
+          {
+            "topic_id": 1067,
+            "topic_title": "Best practices and sources of error"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Molar Conductivity and Kohlrausch’s Law",
+        "topics": [
+          {
+            "topic_id": 1068,
+            "topic_title": "Molar conductivity (Λm) and its units"
+          },
+          {
+            "topic_id": 1069,
+            "topic_title": "Variation of κ and Λm with concentration"
+          },
+          {
+            "topic_id": 1070,
+            "topic_title": "Limiting molar conductivity (Λm°)"
+          },
+          {
+            "topic_id": 1071,
+            "topic_title": "Kohlrausch’s law of independent ion migration"
+          },
+          {
+            "topic_id": 1072,
+            "topic_title": "Weak electrolytes and degree of dissociation"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Electrolysis and Quantitative Aspects",
+        "topics": [
+          {
+            "topic_id": 1073,
+            "topic_title": "Electrolytic cells and overviews"
+          },
+          {
+            "topic_id": 1074,
+            "topic_title": "Faraday’s laws of electrolysis"
+          },
+          {
+            "topic_id": 1075,
+            "topic_title": "Current efficiency and side reactions"
+          },
+          {
+            "topic_id": 1076,
+            "topic_title": "Electroplating and industrial electrolysis"
+          }
+        ]
+      },
+      {
+        "week_number": null,
+        "week_title": "Batteries, Fuel Cells, and Corrosion",
+        "topics": [
+          {
+            "topic_id": 1077,
+            "topic_title": "Primary batteries"
+          },
+          {
+            "topic_id": 1078,
+            "topic_title": "Secondary batteries"
+          },
+          {
+            "topic_id": 1079,
+            "topic_title": "Fuel cells"
+          },
+          {
+            "topic_id": 1080,
+            "topic_title": "Corrosion as an electrochemical process"
+          },
+          {
+            "topic_id": 1081,
+            "topic_title": "Course integration and review"
+          }
+        ]
+      }
+    ]
+  }
+]

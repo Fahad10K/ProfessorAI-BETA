@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prof_AI - Interactive Teaching Mode</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 1000px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.2em;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1em;
+        }
+
+        .status-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .status-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .status-label {
+            font-weight: 600;
+            color: #555;
+        }
+
+        .status-value {
+            color: #333;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-indicator.connected {
+            background: #10b981;
+            box-shadow: 0 0 10px #10b981;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.disconnected {
+            background: #ef4444;
+        }
+
+        .status-indicator.listening {
+            background: #3b82f6;
+            box-shadow: 0 0 10px #3b82f6;
+            animation: pulse 1s infinite;
+        }
+
+        .status-indicator.speaking {
+            background: #f59e0b;
+            box-shadow: 0 0 10px #f59e0b;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .course-selector {
+            margin-bottom: 20px;
+        }
+
+        .course-selector label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .course-selector select,
+        .course-selector input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 1em;
+            background: white;
+            margin-bottom: 10px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            flex: 1;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-start {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-start:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-continue {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-continue:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(16, 185, 129, 0.4);
+        }
+
+        .btn-end {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-end:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(239, 68, 68, 0.4);
+        }
+
+        .vad-indicator {
+            margin-bottom: 20px;
+        }
+
+        .vad-label {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .vad-bar-container {
+            width: 100%;
+            height: 20px;
+            background: #e5e7eb;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .vad-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981 0%, #3b82f6 50%, #f59e0b 100%);
+            width: 0%;
+            transition: width 0.1s ease;
+        }
+
+        .conversation-log {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            height: 400px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 12px;
+            border-radius: 8px;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.user {
+            background: #e0e7ff;
+            border-left: 4px solid #667eea;
+        }
+
+        .message.agent {
+            background: #d1fae5;
+            border-left: 4px solid #10b981;
+        }
+
+        .message.system {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            text-align: center;
+            font-style: italic;
+        }
+
+        .message-label {
+            font-weight: 600;
+            font-size: 0.85em;
+            margin-bottom: 5px;
+            color: #555;
+        }
+
+        .message-text {
+            color: #333;
+            line-height: 1.5;
+        }
+
+        .info-box {
+            background: #e0e7ff;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+            border-left: 4px solid #667eea;
+        }
+
+        .info-box h3 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .info-box ul {
+            margin-left: 20px;
+            color: #555;
+        }
+
+        .info-box li {
+            margin-bottom: 5px;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid #667eea;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎓 Prof_AI Interactive Teaching</h1>
+        <p class="subtitle">Two-way voice conversation with intelligent interruption support</p>
+
+        <div class="status-card">
+            <div class="status-row">
+                <span class="status-label">Connection:</span>
+                <span class="status-value">
+                    <span class="status-indicator disconnected" id="connectionIndicator"></span>
+                    <span id="connectionStatus">Disconnected</span>
+                </span>
+            </div>
+            <div class="status-row">
+                <span class="status-label">Microphone:</span>
+                <span class="status-value">
+                    <span class="status-indicator" id="micIndicator"></span>
+                    <span id="micStatus">Inactive</span>
+                </span>
+            </div>
+            <div class="status-row">
+                <span class="status-label">Teaching State:</span>
+                <span class="status-value" id="teachingState">Idle</span>
+            </div>
+        </div>
+
+        <div class="course-selector">
+            <label>Course ID:</label>
+            <input type="number" id="courseId" value="1" min="1">
+            
+            <label>Module Index:</label>
+            <input type="number" id="moduleIndex" value="0" min="0" title="0-indexed module number">
+            
+            <label>Sub-topic Index:</label>
+            <input type="number" id="subTopicIndex" value="0" min="0" title="0-indexed sub-topic number">
+            
+            <label>User ID:</label>
+            <input type="text" id="userId" value="167" placeholder="Enter your user ID">
+        </div>
+
+        <div class="controls">
+            <button class="btn-start" id="startBtn" onclick="startTeaching()">
+                🎙️ Start Interactive Teaching
+            </button>
+            <button class="btn-continue" id="continueBtn" onclick="continueTeaching()" disabled>
+                ▶️ Continue Lesson
+            </button>
+            <button class="btn-end" id="endBtn" onclick="endTeaching()" disabled>
+                ⏹️ End Teaching
+            </button>
+        </div>
+
+        <div class="vad-indicator">
+            <div class="vad-label">Voice Activity: <span id="vadStatus">Idle</span></div>
+            <div class="vad-bar-container">
+                <div class="vad-bar" id="vadBar"></div>
+            </div>
+        </div>
+
+        <div class="conversation-log" id="conversationLog">
+            <div class="message system">
+                <div class="message-text">
+                    Click "Start Interactive Teaching" to begin. You can interrupt and ask questions anytime during the lesson!
+                </div>
+            </div>
+        </div>
+
+        <div class="info-box">
+            <h3>💡 How to Use:</h3>
+            <ul>
+                <li>🎤 <strong>Speak naturally</strong> - The system will detect your voice automatically</li>
+                <li>🛑 <strong>Interrupt anytime</strong> - Just start speaking to pause the lesson</li>
+                <li>❓ <strong>Ask questions</strong> - Your questions will be answered in context</li>
+                <li>▶️ <strong>Continue</strong> - Click continue or wait for the lesson to resume</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const WS_URL = 'ws://localhost:8765';
+        const VAD_THRESHOLD = 0.015;        // RMS threshold for client-side VAD
+        const VAD_SILENCE_DURATION = 1200;  // ms of silence before stopping
+        const MIN_SPEECH_DURATION = 600;    // Minimum speech duration to process
+        const NOISE_GATE = 0.007;           // Ignore very quiet sounds
+        const SPEECH_CONFIRMATION_FRAMES = 2; // Require N consecutive frames above threshold (reduced from 3)
+
+        // State
+        let websocket = null;
+        let audioContext = null;
+        let mediaStream = null;
+        let processor = null;
+        let isConnected = false;
+        let isSpeaking = false;
+        let silenceTimer = null;
+        let audioChunks = [];
+        let speechStartTime = null;
+        let isTeaching = false;
+        let isAgentSpeaking = false;
+        let audioQueue = [];
+        let lastAudioStopTime = null;  // Track when audio playback stopped
+        let consecutiveSpeechFrames = 0; // Count consecutive frames above threshold
+        let isPlayingAudio = false;
+        let currentAudio = null;  // Track currently playing audio
+        let lastInterruptedChunkId = null;  // Track which chunk was interrupted
+        let bargeInTimestamp = null;  // Track barge-in timing for metrics
+        let lastPartialUpdate = 0;  // Throttle partial transcript updates
+
+        // DOM Elements
+        const startBtn = document.getElementById('startBtn');
+        const continueBtn = document.getElementById('continueBtn');
+        const endBtn = document.getElementById('endBtn');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const connectionIndicator = document.getElementById('connectionIndicator');
+        const micStatus = document.getElementById('micStatus');
+        const micIndicator = document.getElementById('micIndicator');
+        const teachingState = document.getElementById('teachingState');
+        const vadStatus = document.getElementById('vadStatus');
+        const vadBar = document.getElementById('vadBar');
+        const conversationLog = document.getElementById('conversationLog');
+
+        // Update status indicators
+        function updateStatus(connection, mic, teaching) {
+            if (connection !== undefined) {
+                connectionStatus.textContent = connection;
+                connectionIndicator.className = 'status-indicator ' + 
+                    (connection === 'Connected' ? 'connected' : 'disconnected');
+            }
+            if (mic !== undefined) {
+                micStatus.textContent = mic;
+                micIndicator.className = 'status-indicator ' + 
+                    (mic === 'Speaking' ? 'speaking' : mic === 'Listening' ? 'listening' : '');
+            }
+            if (teaching !== undefined) {
+                teachingState.textContent = teaching;
+            }
+        }
+
+        // Add message to conversation log
+        function addMessage(role, text) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+            
+            if (role === 'system') {
+                messageDiv.innerHTML = `<div class="message-text">${text}</div>`;
+            } else {
+                messageDiv.innerHTML = `
+                    <div class="message-label">${role === 'agent' ? '🤖 Professor' : '👤 You'}</div>
+                    <div class="message-text">${text}</div>
+                `;
+            }
+            
+            conversationLog.appendChild(messageDiv);
+            conversationLog.scrollTop = conversationLog.scrollHeight;
+        }
+
+        // Start teaching session
+        async function startTeaching() {
+            try {
+                startBtn.disabled = true;
+                startBtn.innerHTML = '<span class="loading"></span> Connecting...';
+
+                // Connect to WebSocket
+                websocket = new WebSocket(WS_URL);
+
+                websocket.onopen = async () => {
+                    updateStatus('Connected', undefined, 'Initializing');
+                    console.log('✅ WebSocket connected');
+
+                    // Request microphone access
+                    try {
+                        mediaStream = await navigator.mediaDevices.getUserMedia({
+                            audio: {
+                                sampleRate: 16000,
+                                channelCount: 1,
+                                echoCancellation: true,
+                                noiseSuppression: true,
+                                autoGainControl: true
+                            }
+                        });
+
+                        console.log('✅ Microphone access granted');
+
+                        // Start audio processing
+                        await startAudioProcessing();
+
+                        // Send interactive teaching request
+                        const teachingRequest = {
+                            type: 'interactive_teaching',
+                            course_id: parseInt(document.getElementById('courseId').value),
+                            module_index: parseInt(document.getElementById('moduleIndex').value),
+                            sub_topic_index: parseInt(document.getElementById('subTopicIndex').value),
+                            user_id: document.getElementById('userId').value,
+                            language: 'en-IN'
+                        };
+
+                        console.log('📤 Sending teaching request:', teachingRequest);
+                        websocket.send(JSON.stringify(teachingRequest));
+
+                        updateStatus('Connected', 'Listening', 'Starting');
+                        startBtn.innerHTML = '✓ Connected';
+                        endBtn.disabled = false;
+                        isConnected = true;
+                        isTeaching = true;
+
+                    } catch (error) {
+                        console.error('❌ Microphone access denied:', error);
+                        addMessage('system', '⚠️ Microphone access denied. Please allow microphone access.');
+                        websocket.close();
+                    }
+                };
+
+                websocket.onmessage = handleServerMessage;
+
+                websocket.onerror = (error) => {
+                    console.error('❌ WebSocket error:', error);
+                    updateStatus('Error', 'Inactive', 'Error');
+                };
+
+                websocket.onclose = () => {
+                    console.log('🔌 WebSocket closed');
+                    updateStatus('Disconnected', 'Inactive', 'Idle');
+                    startBtn.disabled = false;
+                    startBtn.innerHTML = '🎙️ Start Interactive Teaching';
+                    continueBtn.disabled = true;
+                    endBtn.disabled = true;
+                    isConnected = false;
+                    isTeaching = false;
+
+                    if (mediaStream) {
+                        mediaStream.getTracks().forEach(track => track.stop());
+                    }
+                    if (audioContext) {
+                        audioContext.close();
+                    }
+                };
+
+            } catch (error) {
+                console.error('❌ Connection error:', error);
+                addMessage('system', `❌ Failed to connect: ${error.message}`);
+                startBtn.disabled = false;
+                startBtn.innerHTML = '🎙️ Start Interactive Teaching';
+            }
+        }
+
+        // Start audio processing with VAD
+        async function startAudioProcessing() {
+            audioContext = new AudioContext({ sampleRate: 16000 });
+            const source = audioContext.createMediaStreamSource(mediaStream);
+            processor = audioContext.createScriptProcessor(1024, 1, 1);
+
+            processor.onaudioprocess = (e) => {
+                const inputData = e.inputBuffer.getChannelData(0);
+
+                // Calculate RMS for VAD
+                let sum = 0;
+                for (let i = 0; i < inputData.length; i++) {
+                    sum += inputData[i] * inputData[i];
+                }
+                const rms = Math.sqrt(sum / inputData.length);
+
+                // Apply noise gate
+                if (rms < NOISE_GATE) {
+                    vadBar.style.width = '0%';
+                    return;
+                }
+
+                // Update VAD indicator
+                const level = Math.min(100, rms * 1000);
+                vadBar.style.width = level + '%';
+
+                // Voice Activity Detection
+                if (rms > VAD_THRESHOLD) {
+                    consecutiveSpeechFrames++;
+                    
+                    // Only trigger speech if we have enough consecutive frames
+                    if (!isSpeaking && consecutiveSpeechFrames >= SPEECH_CONFIRMATION_FRAMES) {
+                        isSpeaking = true;
+                        speechStartTime = Date.now();
+                        vadStatus.textContent = 'SPEAKING';
+                        updateStatus(undefined, 'Speaking', undefined);
+                        audioChunks = [];
+                        console.log('🎤 User started speaking');
+                        
+                        // CLIENT-SIDE BARGE-IN: Stop audio immediately (no server round-trip)
+                        if (isAgentSpeaking || isPlayingAudio) {
+                            bargeInTimestamp = Date.now();
+                            console.log('🛑 CLIENT-SIDE BARGE-IN: Stopping audio immediately');
+                            
+                            // Stop current audio
+                            if (currentAudio) {
+                                const interruptTime = currentAudio.currentTime;
+                                console.log(`⏸️ Interrupted at ${interruptTime.toFixed(2)}s`);
+                                currentAudio.pause();
+                                currentAudio.currentTime = 0;
+                                currentAudio = null;
+                            }
+                            
+                            // Clear queue (track how many chunks were dropped)
+                            const droppedChunks = audioQueue.length;
+                            audioQueue = [];
+                            isPlayingAudio = false;
+                            isAgentSpeaking = false;
+                            
+                            console.log(`✅ Audio stopped via client-side VAD (dropped ${droppedChunks} queued chunks)`);
+                            
+                            // Visual feedback
+                            vadStatus.textContent = '🛑 BARGE-IN DETECTED';
+                            vadStatus.style.color = '#ff4444';
+                            setTimeout(() => {
+                                vadStatus.style.color = '';
+                            }, 500);
+                        }
+                    }
+
+                    // Clear silence timer
+                    if (silenceTimer) {
+                        clearTimeout(silenceTimer);
+                        silenceTimer = null;
+                    }
+
+                    // Collect audio chunk
+                    audioChunks.push(new Float32Array(inputData));
+
+                    // Send audio chunk to server (continuous streaming)
+                    const pcm16 = float32ToPCM16(inputData);
+                    const audioBase64 = btoa(String.fromCharCode.apply(null, new Uint8Array(pcm16.buffer)));
+                    
+                    if (websocket && websocket.readyState === WebSocket.OPEN) {
+                        websocket.send(JSON.stringify({
+                            type: 'stt_audio_chunk',
+                            audio: audioBase64
+                        }));
+                    }
+
+                } else {
+                    // Below threshold - reset consecutive frames counter
+                    consecutiveSpeechFrames = 0;
+                    
+                    if (isSpeaking) {
+                        // Silence detected while speaking
+                        if (!silenceTimer) {
+                            silenceTimer = setTimeout(() => {
+                                const speechDuration = Date.now() - speechStartTime;
+
+                                if (speechDuration < MIN_SPEECH_DURATION) {
+                                    console.log('⚠️ Speech too short, ignoring:', speechDuration + 'ms');
+                                    isSpeaking = false;
+                                    vadStatus.textContent = 'Idle';
+                                    updateStatus(undefined, 'Listening', undefined);
+                                    audioChunks = [];
+                                    silenceTimer = null;
+                                    return;
+                                }
+
+                                // End of speech
+                                isSpeaking = false;
+                                vadStatus.textContent = 'Idle';
+                                updateStatus(undefined, 'Listening', undefined);
+                                console.log('🔇 User stopped speaking');
+
+                                silenceTimer = null;
+                            }, VAD_SILENCE_DURATION);
+                        }
+                    }
+                }
+            };
+
+            source.connect(processor);
+            processor.connect(audioContext.destination);
+            console.log('✅ Audio processing started');
+        }
+
+        // Convert Float32 to PCM16
+        function float32ToPCM16(float32Array) {
+            const pcm16 = new Int16Array(float32Array.length);
+            for (let i = 0; i < float32Array.length; i++) {
+                const s = Math.max(-1, Math.min(1, float32Array[i]));
+                pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+            }
+            return pcm16;
+        }
+
+        // Handle messages from server
+        async function handleServerMessage(event) {
+            try {
+                const data = JSON.parse(event.data);
+                console.log('📨 Received:', data.type);
+
+                switch(data.type) {
+                    case 'connection_ready':
+                        console.log('✅ Connection ready:', data.message);
+                        break;
+
+                    case 'interactive_teaching_init':
+                        addMessage('system', '📚 Loading course content...');
+                        break;
+
+                    case 'interactive_teaching_started':
+                        addMessage('system', `✅ Teaching Started: ${data.module_title} → ${data.sub_topic_title}`);
+                        updateStatus(undefined, 'Listening', 'Teaching Active');
+                        break;
+
+                    case 'teaching_audio_chunk':
+                        // Queue audio chunk for playback
+                        audioQueue.push(data.audio_data);
+                        if (!isPlayingAudio) {
+                            playAudioQueue();
+                        }
+                        isAgentSpeaking = true;
+                        updateStatus(undefined, 'Listening', 'Professor Speaking');
+                        break;
+
+                    case 'teaching_segment_complete':
+                        addMessage('system', '✅ Section complete. You can ask questions or continue.');
+                        continueBtn.disabled = false;
+                        isAgentSpeaking = false;
+                        updateStatus(undefined, 'Listening', 'Waiting');
+                        break;
+
+                    case 'user_interrupt_detected':
+                        console.log('🛑 User interrupt - stopping audio playback');
+                        
+                        // Stop current audio immediately
+                        if (currentAudio) {
+                            currentAudio.pause();
+                            currentAudio.currentTime = 0;
+                            currentAudio = null;
+                        }
+                        
+                        // Clear audio queue
+                        audioQueue = [];
+                        isPlayingAudio = false;
+                        isAgentSpeaking = false;
+                        
+                        addMessage('system', '👂 Listening to your question...');
+                        updateStatus(undefined, 'Speaking', 'Listening');
+                        break;
+
+                    case 'partial_transcript':
+                        // Throttle partial updates to avoid spam (max once per 500ms)
+                        const now = Date.now();
+                        if (now - lastPartialUpdate > 500) {
+                            vadStatus.textContent = `"${data.text}"...`;
+                            lastPartialUpdate = now;
+                        }
+                        break;
+
+                    case 'user_question':
+                        addMessage('user', data.text);
+                        updateStatus(undefined, 'Listening', 'Processing');
+                        break;
+
+                    case 'teaching_question_answer':
+                        addMessage('agent', data.text);
+                        updateStatus(undefined, 'Listening', 'Answering');
+                        break;
+
+                    case 'answer_audio_chunk':
+                        audioQueue.push(data.audio_data);
+                        if (!isPlayingAudio) {
+                            playAudioQueue();
+                        }
+                        isAgentSpeaking = true;
+                        break;
+
+                    case 'answer_complete':
+                        addMessage('system', data.message);
+                        continueBtn.disabled = false;
+                        isAgentSpeaking = false;
+                        updateStatus(undefined, 'Listening', 'Waiting');
+                        break;
+
+                    case 'teaching_interrupted':
+                        console.log('🛑 Teaching interrupted');
+                        break;
+
+                    case 'teaching_resumed':
+                        addMessage('system', '▶️ Continuing the lesson...');
+                        continueBtn.disabled = true;
+                        updateStatus(undefined, 'Listening', 'Teaching Active');
+                        break;
+
+                    case 'teaching_ended':
+                        addMessage('system', '✅ Teaching session ended');
+                        updateStatus(undefined, 'Inactive', 'Ended');
+                        startBtn.disabled = false;
+                        endBtn.disabled = true;
+                        continueBtn.disabled = true;
+                        break;
+
+                    case 'stt_unavailable':
+                        addMessage('system', `⚠️ ${data.message}`);
+                        break;
+
+                    case 'error':
+                        addMessage('system', `❌ Error: ${data.error}`);
+                        console.error('Server error:', data.error);
+                        break;
+
+                    default:
+                        console.log('Unknown message type:', data.type);
+                }
+            } catch (error) {
+                console.error('❌ Error parsing message:', error);
+            }
+        }
+
+        // Play audio queue
+        async function playAudioQueue() {
+            if (audioQueue.length === 0 || isPlayingAudio) {
+                return;
+            }
+
+            isPlayingAudio = true;
+
+            while (audioQueue.length > 0) {
+                const audioBase64 = audioQueue.shift();
+                await playAudio(audioBase64);
+            }
+
+            isPlayingAudio = false;
+        }
+
+        // Play single audio chunk
+        function playAudio(audioBase64) {
+            return new Promise((resolve, reject) => {
+                try {
+                    const audioData = atob(audioBase64);
+                    const audioBytes = new Uint8Array(audioData.length);
+                    for (let i = 0; i < audioData.length; i++) {
+                        audioBytes[i] = audioData.charCodeAt(i);
+                    }
+
+                    const blob = new Blob([audioBytes], { type: 'audio/mp3' });
+                    const url = URL.createObjectURL(blob);
+                    const audio = new Audio(url);
+                    
+                    // Track currently playing audio globally
+                    currentAudio = audio;
+
+                    audio.onended = () => {
+                        URL.revokeObjectURL(url);
+                        if (currentAudio === audio) {
+                            currentAudio = null;
+                        }
+                        // Track when audio stopped for silence requirement
+                        lastAudioStopTime = Date.now();
+                        console.log('🔇 Audio playback ended - 5s silence period started');
+                        resolve();
+                    };
+
+                    audio.onerror = (error) => {
+                        console.error('Audio playback error:', error);
+                        URL.revokeObjectURL(url);
+                        if (currentAudio === audio) {
+                            currentAudio = null;
+                        }
+                        reject(error);
+                    };
+
+                    audio.play();
+                } catch (error) {
+                    console.error('Error creating audio:', error);
+                    reject(error);
+                }
+            });
+        }
+
+        // Continue teaching
+        function continueTeaching() {
+            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                websocket.send(JSON.stringify({ type: 'continue_teaching' }));
+                continueBtn.disabled = true;
+            }
+        }
+
+        // End teaching
+        function endTeaching() {
+            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                websocket.send(JSON.stringify({ type: 'end_teaching' }));
+            }
+            if (websocket) {
+                websocket.close();
+            }
+        }
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (websocket) {
+                websocket.close();
+            }
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,399 @@
+# EC2 Optimized Configuration for t3.large (2 vCPU, 8GB RAM)
+# Using Redis Labs Cloud and Neon PostgreSQL (no local Redis/DB)
+# 5 Lightweight Workers for Parallel PDF Processing (5 PDFs at once)
+# Each worker handles 1 PDF at a time to prevent memory spikes
+
+services:
+  # API Server - Handles HTTP requests and WebSocket
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    container_name: profai-api
+    ports:
+      - "5001:5001"
+      - "8765:8765"
+    environment:
+      # Local Redis Container
+      REDIS_URL: redis://redis:6379/0
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_USERNAME: default
+      REDIS_PASSWORD: ""
+      REDIS_DB: 0
+      REDIS_USE_SSL: "False"
+      
+      # Server
+      HOST: 0.0.0.0
+      PORT: 5001
+      DEBUG: "False"
+      
+      # API Keys
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      SARVAM_API_KEY: ${SARVAM_API_KEY}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      
+      # ChromaDB Cloud
+      USE_CHROMA_CLOUD: "True"
+      CHROMA_CLOUD_API_KEY: ${CHROMA_CLOUD_API_KEY:-}
+      CHROMA_CLOUD_TENANT: ${CHROMA_CLOUD_TENANT:-}
+      CHROMA_CLOUD_DATABASE: ${CHROMA_CLOUD_DATABASE:-}
+      
+      # Deepgram (STT)
+      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
+      
+      # Database (Neon PostgreSQL)
+      USE_DATABASE: "True"
+      DATABASE_URL: ${DATABASE_URL:-}
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: python run_profai_websocket_celery.py
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - profai-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.4'
+          memory: 1200M
+        reservations:
+          cpus: '0.2'
+          memory: 800M
+
+  # Worker 1 - PDF Processing (concurrency=1)
+  worker-1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    container_name: profai-worker-1
+    environment:
+      # Worker identification
+      WORKER_NUM: "1"
+      
+      # Local Redis Container
+      REDIS_URL: redis://redis:6379/0
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_USERNAME: default
+      REDIS_PASSWORD: ""
+      REDIS_DB: 0
+      REDIS_USE_SSL: "False"
+      
+      # API Keys
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      SARVAM_API_KEY: ${SARVAM_API_KEY}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
+      
+      # ChromaDB Cloud
+      USE_CHROMA_CLOUD: "True"
+      CHROMA_CLOUD_API_KEY: ${CHROMA_CLOUD_API_KEY:-}
+      CHROMA_CLOUD_TENANT: ${CHROMA_CLOUD_TENANT:-}
+      CHROMA_CLOUD_DATABASE: ${CHROMA_CLOUD_DATABASE:-}
+      
+      # Database (Neon PostgreSQL)
+      USE_DATABASE: "True"
+      DATABASE_URL: ${DATABASE_URL:-}
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: python worker.py
+    networks:
+      - profai-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 1300M
+        reservations:
+          cpus: '0.2'
+          memory: 1000M
+
+  # Worker 2 - PDF Processing (concurrency=1)
+  worker-2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    container_name: profai-worker-2
+    environment:
+      # Worker identification
+      WORKER_NUM: "2"
+      
+      # Local Redis Container
+      REDIS_URL: redis://redis:6379/0
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_USERNAME: default
+      REDIS_PASSWORD: ""
+      REDIS_DB: 0
+      REDIS_USE_SSL: "False"
+      
+      # API Keys
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      SARVAM_API_KEY: ${SARVAM_API_KEY}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
+      
+      # ChromaDB Cloud
+      USE_CHROMA_CLOUD: "True"
+      CHROMA_CLOUD_API_KEY: ${CHROMA_CLOUD_API_KEY:-}
+      CHROMA_CLOUD_TENANT: ${CHROMA_CLOUD_TENANT:-}
+      CHROMA_CLOUD_DATABASE: ${CHROMA_CLOUD_DATABASE:-}
+      
+      # Database (Neon PostgreSQL)
+      USE_DATABASE: "True"
+      DATABASE_URL: ${DATABASE_URL:-}
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: python worker.py
+    networks:
+      - profai-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 1300M
+        reservations:
+          cpus: '0.2'
+          memory: 1000M
+
+#   # Worker 3 - PDF Processing (concurrency=1)
+#   worker-3:
+#     build:
+#       context: .
+#       dockerfile: Dockerfile
+#     container_name: profai-worker-3
+#     environment:
+#       # Worker identification
+#       WORKER_NUM: "3"
+      
+#       # Redis Labs Cloud
+#       REDIS_URL: ${REDIS_URL}
+#       REDIS_HOST: redis-10925.crce206.ap-south-1-1.ec2.cloud.redislabs.com
+#       REDIS_PORT: 10925
+#       REDIS_USERNAME: default
+#       REDIS_PASSWORD: ${REDIS_PASSWORD}
+#       REDIS_DB: 0
+#       REDIS_USE_SSL: "False"
+      
+#       # API Keys
+#       OPENAI_API_KEY: ${OPENAI_API_KEY}
+#       SARVAM_API_KEY: ${SARVAM_API_KEY}
+#       GROQ_API_KEY: ${GROQ_API_KEY}
+#       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+#       DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
+      
+#       # ChromaDB Cloud
+#       USE_CHROMA_CLOUD: "True"
+#       CHROMA_CLOUD_API_KEY: ${CHROMA_CLOUD_API_KEY:-}
+#       CHROMA_CLOUD_TENANT: ${CHROMA_CLOUD_TENANT:-}
+#       CHROMA_CLOUD_DATABASE: ${CHROMA_CLOUD_DATABASE:-}
+      
+#       # Database (Neon PostgreSQL)
+#       USE_DATABASE: "True"
+#       DATABASE_URL: ${DATABASE_URL:-}
+#     volumes:
+#       - ./data:/app/data
+#     command: python worker.py
+#     networks:
+#       - profai-network
+#     restart: unless-stopped
+#     deploy:
+#       resources:
+#         limits:
+#           cpus: '0.3'
+#           memory: 1300M
+#         reservations:
+#           cpus: '0.2'
+#           memory: 1000M
+
+#   # Worker 4 - PDF Processing (concurrency=1)
+#   worker-4:
+#     build:
+#       context: .
+#       dockerfile: Dockerfile
+#     container_name: profai-worker-4
+#     environment:
+#       # Worker identification
+#       WORKER_NUM: "4"
+      
+#       # Redis Labs Cloud
+#       REDIS_URL: ${REDIS_URL}
+#       REDIS_HOST: redis-10925.crce206.ap-south-1-1.ec2.cloud.redislabs.com
+#       REDIS_PORT: 10925
+#       REDIS_USERNAME: default
+#       REDIS_PASSWORD: ${REDIS_PASSWORD}
+#       REDIS_DB: 0
+#       REDIS_USE_SSL: "False"
+      
+#       # API Keys
+#       OPENAI_API_KEY: ${OPENAI_API_KEY}
+#       SARVAM_API_KEY: ${SARVAM_API_KEY}
+#       GROQ_API_KEY: ${GROQ_API_KEY}
+#       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+#       DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
+      
+#       # ChromaDB Cloud
+#       USE_CHROMA_CLOUD: "True"
+#       CHROMA_CLOUD_API_KEY: ${CHROMA_CLOUD_API_KEY:-}
+#       CHROMA_CLOUD_TENANT: ${CHROMA_CLOUD_TENANT:-}
+#       CHROMA_CLOUD_DATABASE: ${CHROMA_CLOUD_DATABASE:-}
+      
+#       # Database (Neon PostgreSQL)
+#       USE_DATABASE: "True"
+#       DATABASE_URL: ${DATABASE_URL:-}
+#     volumes:
+#       - ./data:/app/data
+#     command: python worker.py
+#     networks:
+#       - profai-network
+#     restart: unless-stopped
+#     deploy:
+#       resources:
+#         limits:
+#           cpus: '0.3'
+#           memory: 1300M
+#         reservations:
+#           cpus: '0.2'
+#           memory: 1000M
+
+#   # Worker 5 - PDF Processing (concurrency=1)
+#   worker-5:
+#     build:
+#       context: .
+#       dockerfile: Dockerfile
+#     container_name: profai-worker-5
+#     environment:
+#       # Worker identification
+#       WORKER_NUM: "5"
+      
+#       # Redis Labs Cloud
+#       REDIS_URL: ${REDIS_URL}
+#       REDIS_HOST: redis-10925.crce206.ap-south-1-1.ec2.cloud.redislabs.com
+#       REDIS_PORT: 10925
+#       REDIS_USERNAME: default
+#       REDIS_PASSWORD: ${REDIS_PASSWORD}
+#       REDIS_DB: 0
+#       REDIS_USE_SSL: "False"
+      
+#       # API Keys
+#       OPENAI_API_KEY: ${OPENAI_API_KEY}
+#       SARVAM_API_KEY: ${SARVAM_API_KEY}
+#       GROQ_API_KEY: ${GROQ_API_KEY}
+#       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+#       DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
+      
+#       # ChromaDB Cloud
+#       USE_CHROMA_CLOUD: "True"
+#       CHROMA_CLOUD_API_KEY: ${CHROMA_CLOUD_API_KEY:-}
+#       CHROMA_CLOUD_TENANT: ${CHROMA_CLOUD_TENANT:-}
+#       CHROMA_CLOUD_DATABASE: ${CHROMA_CLOUD_DATABASE:-}
+      
+#       # Database (Neon PostgreSQL)
+#       USE_DATABASE: "True"
+#       DATABASE_URL: ${DATABASE_URL:-}
+#     volumes:
+#       - ./data:/app/data
+#     command: python worker.py
+#     networks:
+#       - profai-network
+#     restart: unless-stopped
+#     deploy:
+#       resources:
+#         limits:
+#           cpus: '0.3'
+#           memory: 1300M
+#         reservations:
+#           cpus: '0.2'
+#           memory: 1000M
+
+  # Redis Service (Local - No SSL issues)
+  redis:
+    image: redis:7-alpine
+    container_name: profai-redis
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - profai-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  redis-data:
+    driver: local
+
+networks:
+  profai-network:
+    driver: bridge
+
+# ============================================
+# # USAGE INSTRUCTIONS
+# # ============================================
+# #
+# # 1. Create .env file with your API keys
+# # 2. Build: docker-compose -f docker-compose-production.yml build
+# # 3. Start: docker-compose -f docker-compose-production.yml up -d
+# # 4. Logs: docker-compose -f docker-compose-production.yml logs -f
+# # 5. Stop: docker-compose -f docker-compose-production.yml down
+# #
+# # Access:
+# # - API: http://localhost:5001 or http://YOUR_EC2_IP:5001
+# # - WebSocket: ws://localhost:8765 or ws://YOUR_EC2_IP:8765
+# # - Health: http://localhost:5001/health
+# #
+# # Resource Usage (t3.large: 2 vCPU, 8GB RAM):
+# # - API: ~0.2-0.4 CPU, ~0.8-1.2GB RAM
+# # - Worker-1: ~0.2-0.3 CPU, ~1.0-1.3GB RAM (concurrency=1)
+# # - Worker-2: ~0.2-0.3 CPU, ~1.0-1.3GB RAM (concurrency=1)
+# # - Worker-3: ~0.2-0.3 CPU, ~1.0-1.3GB RAM (concurrency=1)
+# # - Worker-4: ~0.2-0.3 CPU, ~1.0-1.3GB RAM (concurrency=1)
+# # - Worker-5: ~0.2-0.3 CPU, ~1.0-1.3GB RAM (concurrency=1)
+# # - Total: ~1.9 CPU, ~7.7GB RAM (5 parallel PDFs!)
+# #
+# # Performance:
+# # - Can process 5 PDFs simultaneously (66% faster than 3 workers!)
+# # - 30-60 PDFs per hour (vs 18-36 with 3 workers)
+# # - Prevents memory spikes with concurrency=1 per worker
+# # - Better CPU utilization with prefork pool
+# # - 500-2,000 concurrent users

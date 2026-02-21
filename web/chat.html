@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProfessorAI - Chat Only</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+        }
+
+        .message-bubble {
+            padding: 0.75rem 1rem;
+            border-radius: 18px;
+            margin-bottom: 0.75rem;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+
+        .user-bubble {
+            background-color: #dbeafe;
+            align-self: flex-end;
+            margin-left: auto;
+            border-bottom-right-radius: 4px;
+        }
+
+        .ai-bubble {
+            background-color: #e0f2fe;
+            align-self: flex-start;
+            margin-right: auto;
+            border-bottom-left-radius: 4px;
+        }
+
+        .system-message {
+            background-color: #fef3c7;
+            color: #78350f;
+            font-size: 0.8rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 10px;
+            align-self: flex-start;
+            margin-left: 1rem;
+            margin-top: -0.5rem;
+        }
+
+        .chat-scroll-area {
+            height: calc(100vh - 200px);
+            overflow-y: auto;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen">
+    <!-- Navigation Bar -->
+    <nav class="bg-white shadow-lg border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <h1 class="text-2xl font-bold text-gray-800">ProfessorAI</h1>
+                </div>
+                <div class="flex space-x-6">
+                    <a href="index.html" class="text-gray-700 px-3 py-2 rounded-md hover:bg-gray-100 transition-colors">Home</a>
+                    <a href="upload.html" class="text-gray-700 px-3 py-2 rounded-md hover:bg-gray-100 transition-colors">Generate Course Content</a>
+                    <a href="courses.html" class="text-gray-700 px-3 py-2 rounded-md hover:bg-gray-100 transition-colors">Courses</a>
+                    <a href="chat.html" class="text-blue-600 font-semibold px-3 py-2 rounded-md hover:bg-blue-50 transition-colors">Chat Only</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Chat Container -->
+    <div class="max-w-4xl mx-auto p-6">
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+            <!-- Chat Header -->
+            <div class="p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-800">AI Chat Assistant</h2>
+                        <p class="text-gray-600 mt-1">Ask questions about your course content or anything else</p>
+                    </div>
+                    <select id="languageSelect" class="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <!-- Languages will be populated here -->
+                    </select>
+                </div>
+            </div>
+
+            <!-- Chat History -->
+            <div id="chatHistory" class="chat-scroll-area flex flex-col space-y-4 p-6 bg-gray-50">
+                <div class="ai-bubble">
+                    Hello! I am ProfessorAI, your dedicated educational assistant. I'm here to help you with any questions about your course content, explain complex topics, or assist with your studies. How can I help you today?
+                </div>
+            </div>
+
+            <!-- Chat Input Area -->
+            <div class="p-6 border-t border-gray-200 bg-white">
+                <div class="flex flex-col gap-4">
+                    <textarea id="textInput" 
+                        class="w-full p-4 border rounded-lg focus:ring-2 focus:ring-blue-500 resize-none" 
+                        rows="3"
+                        placeholder="Type your question here... (Press Enter to send, Shift+Enter for new line)"></textarea>
+                    
+                    <div class="flex flex-wrap justify-center gap-4">
+                        <button id="sendTextButton"
+                            class="px-8 py-3 bg-blue-600 text-white rounded-lg font-semibold shadow-md hover:bg-blue-700 transition-colors">
+                            Send Text
+                        </button>
+                        <button id="startVoiceButton"
+                            class="px-8 py-3 bg-green-600 text-white rounded-lg font-semibold shadow-md hover:bg-green-700 transition-colors">
+                            Start Voice
+                        </button>
+                        <button id="stopVoiceButton"
+                            class="px-8 py-3 bg-red-500 text-white rounded-lg font-semibold shadow-md hover:bg-red-600 transition-colors"
+                            disabled>
+                            Stop Voice
+                        </button>
+                        <button id="clearChatButton"
+                            class="px-8 py-3 bg-gray-500 text-white rounded-lg font-semibold shadow-md hover:bg-gray-600 transition-colors">
+                            Clear Chat
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="statusMessage" class="text-center mt-4 text-sm text-gray-600 h-5"></div>
+            </div>
+        </div>
+    </div>
+
+    <audio id="audioPlayback" class="hidden"></audio>
+
+    <script>
+        // API Configuration
+        const isSecure = window.location.protocol === 'https:';
+        const API_BASE_URL = isSecure ? `https://${window.location.host}` : `http://${window.location.host}`;
+
+        // DOM Elements
+        const textInput = document.getElementById('textInput');
+        const sendTextButton = document.getElementById('sendTextButton');
+        const startVoiceButton = document.getElementById('startVoiceButton');
+        const stopVoiceButton = document.getElementById('stopVoiceButton');
+        const clearChatButton = document.getElementById('clearChatButton');
+        const chatHistory = document.getElementById('chatHistory');
+        const statusMessage = document.getElementById('statusMessage');
+        const audioPlayback = document.getElementById('audioPlayback');
+        const languageSelect = document.getElementById('languageSelect');
+
+        // State
+        let mediaRecorder, audioChunks = [], isRecording = false;
+
+        // Supported Languages
+        const SUPPORTED_LANGUAGES = [
+            { "code": "en-IN", "name": "English" },
+            { "code": "hi-IN", "name": "Hindi" },
+            { "code": "bn-IN", "name": "Bengali" },
+            { "code": "mr-IN", "name": "Marathi" },
+            { "code": "ta-IN", "name": "Tamil" },
+            { "code": "te-IN", "name": "Telugu" },
+            { "code": "kn-IN", "name": "Kannada" },
+            { "code": "ml-IN", "name": "Malayalam" },
+            { "code": "gu-IN", "name": "Gujarati" },
+            { "code": "pa-IN", "name": "Punjabi" },
+            { "code": "ur-IN", "name": "Urdu" }
+        ];
+
+        // Initialize
+        function init() {
+            populateLanguages();
+        }
+
+        function populateLanguages() {
+            SUPPORTED_LANGUAGES.forEach(lang => {
+                const option = document.createElement('option');
+                option.value = lang.code;
+                option.textContent = lang.name;
+                languageSelect.appendChild(option);
+            });
+            languageSelect.value = "en-IN";
+        }
+
+        function toggleButtons(isProcessing) {
+            sendTextButton.disabled = isProcessing;
+            startVoiceButton.disabled = isRecording || isProcessing;
+            stopVoiceButton.disabled = !isRecording || isProcessing;
+            textInput.disabled = isProcessing;
+        }
+
+        function addMessage(text, sender, sources = []) {
+            const messageContainer = document.createElement('div');
+            messageContainer.classList.add('flex', 'flex-col', sender === 'user' ? 'items-end' : 'items-start');
+
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message-bubble', sender === 'user' ? 'user-bubble' : 'ai-bubble');
+            messageDiv.textContent = text;
+            messageContainer.appendChild(messageDiv);
+
+            if (sources.length > 0 && sender === 'ai') {
+                const sourceDiv = document.createElement('div');
+                sourceDiv.classList.add('system-message');
+                sourceDiv.textContent = `Sources: ${sources.join(', ')}`;
+                messageContainer.appendChild(sourceDiv);
+            }
+            
+            chatHistory.appendChild(messageContainer);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        async function handleSendText() {
+            const query = textInput.value.trim();
+            if (!query) return;
+            
+            addMessage(query, 'user');
+            textInput.value = '';
+            statusMessage.textContent = 'ProfessorAI is thinking...';
+            toggleButtons(true);
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        message: query, 
+                        language: languageSelect.value 
+                    })
+                });
+                
+                if (!response.ok) throw new Error('Failed to get response');
+                const data = await response.json();
+                addMessage(data.response, 'ai', data.sources || []);
+
+                // Play audio response if available
+                if (data.audio_url) {
+                    playAudio(data.audio_url);
+                }
+            } catch (err) {
+                addMessage('Sorry, an error occurred. Please try again.', 'ai');
+                console.error(err);
+            } finally {
+                statusMessage.textContent = '';
+                toggleButtons(false);
+            }
+        }
+
+        function clearChat() {
+            chatHistory.innerHTML = `
+                <div class="ai-bubble">
+                    Hello! I am ProfessorAI, your dedicated educational assistant. I'm here to help you with any questions about your course content, explain complex topics, or assist with your studies. How can I help you today?
+                </div>
+            `;
+        }
+
+        function playAudio(audioUrl) {
+            const audio = new Audio(audioUrl);
+            audio.play().catch(error => {
+                console.error('Error playing audio:', error);
+            });
+        }
+
+        // Voice functionality
+        startVoiceButton.addEventListener('click', async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                isRecording = true;
+                audioChunks = [];
+                toggleButtons(false);
+                statusMessage.textContent = 'Recording... Speak now!';
+                mediaRecorder = new MediaRecorder(stream);
+                mediaRecorder.start();
+                mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                mediaRecorder.onstop = handleVoiceStop;
+            } catch (err) {
+                statusMessage.textContent = 'Microphone access denied.';
+                console.error(err);
+            }
+        });
+
+        async function handleVoiceStop() {
+            statusMessage.textContent = 'Processing audio...';
+            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            audioChunks = [];
+            const formData = new FormData();
+            formData.append('audio_file', audioBlob);
+            formData.append('language', languageSelect.value);
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/transcribe`, { 
+                    method: 'POST', 
+                    body: formData 
+                });
+                if (!response.ok) throw new Error(`Server error: ${response.statusText}`);
+                const data = await response.json();
+                
+                if (data.transcribed_text) {
+                    addMessage(`You said: "${data.transcribed_text}"`, 'user');
+                    textInput.value = data.transcribed_text;
+                    handleSendText();
+                }
+            } catch (err) {
+                addMessage('Sorry, could not process audio.', 'ai');
+                console.error(err);
+            } finally {
+                statusMessage.textContent = '';
+                toggleButtons(false);
+            }
+        }
+
+        stopVoiceButton.addEventListener('click', () => {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                isRecording = false;
+                mediaRecorder.stop();
+                toggleButtons(false);
+            }
+        });
+
+        async function playAudioResponse(text, language) {
+            statusMessage.textContent = 'Generating audio response...';
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/text-to-speech`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text, language })
+                });
+                if (!response.ok) throw new Error('Failed to generate audio');
+                const audioBlob = await response.blob();
+                audioPlayback.src = URL.createObjectURL(audioBlob);
+                audioPlayback.play();
+                statusMessage.textContent = 'Playing response...';
+                audioPlayback.onended = () => statusMessage.textContent = '';
+            } catch (err) {
+                statusMessage.textContent = 'Could not play audio.';
+                console.error(err);
+            }
+        }
+
+        // Event Listeners
+        sendTextButton.addEventListener('click', handleSendText);
+        clearChatButton.addEventListener('click', clearChat);
+        
+        textInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSendText();
+            }
+        });
+
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+
+</html>

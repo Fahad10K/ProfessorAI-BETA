@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProfAi - Upload PDFs</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f0f4f8; }
+        .upload-area {
+            border: 2px dashed #d1d5db;
+            transition: all 0.3s ease;
+        }
+        .upload-area.dragover {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
+        .file-item {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 8px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- Navigation Bar -->
+    <nav class="bg-white shadow-lg border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <h1 class="text-2xl font-bold text-gray-800">ProfessorAI</h1>
+                </div>
+                <div class="flex space-x-6">
+                    <a href="index.html" class="text-gray-700 px-3 py-2 rounded-md hover:bg-gray-100 transition-colors">Home</a>
+                    <a href="upload.html" class="text-blue-600 font-semibold px-3 py-2 rounded-md hover:bg-blue-50 transition-colors">Generate Course Content</a>
+                    <a href="courses.html" class="text-gray-700 px-3 py-2 rounded-md hover:bg-gray-100 transition-colors">Courses</a>
+                    <a href="chat.html" class="text-gray-700 px-3 py-2 rounded-md hover:bg-gray-100 transition-colors">Chat Only</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="p-8">
+    <div class="max-w-4xl mx-auto">
+        <div class="bg-white rounded-lg shadow-lg p-8">
+            <div class="text-center mb-8">
+                <h1 class="text-4xl font-bold text-gray-800 mb-4">Upload PDF Documents</h1>
+                <p class="text-lg text-gray-600">Upload your PDF documents to generate an AI-powered course</p>
+            </div>
+
+            <form id="uploadForm" class="space-y-6">
+                <!-- Course Title Input -->
+                <div>
+                    <label for="courseTitle" class="block text-sm font-medium text-gray-700 mb-2">
+                        Course Title (Optional)
+                    </label>
+                    <input 
+                        type="text" 
+                        id="courseTitle" 
+                        name="courseTitle"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Enter a custom course title..."
+                    >
+                </div>
+
+                <!-- File Upload Area -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        PDF Documents
+                    </label>
+                    <div 
+                        id="uploadArea" 
+                        class="upload-area p-8 text-center rounded-lg cursor-pointer"
+                    >
+                        <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                            <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                        <p class="text-lg text-gray-600 mb-2">
+                            <span class="font-semibold">Click to upload</span> or drag and drop
+                        </p>
+                        <p class="text-sm text-gray-500">PDF files only</p>
+                        <input 
+                            type="file" 
+                            id="fileInput" 
+                            multiple 
+                            accept=".pdf"
+                            class="hidden"
+                        >
+                    </div>
+                </div>
+
+                <!-- Selected Files Display -->
+                <div id="fileList" class="hidden">
+                    <h3 class="text-lg font-medium text-gray-700 mb-3">Selected Files:</h3>
+                    <div id="fileItems"></div>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="text-center">
+                    <button 
+                        type="submit" 
+                        id="submitBtn"
+                        class="px-8 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        disabled
+                    >
+                        Generate Course
+                    </button>
+                </div>
+            </form>
+
+            <!-- Progress Section -->
+            <div id="progressSection" class="hidden mt-8">
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                    <h3 class="text-lg font-semibold text-blue-800 mb-3">Processing Your Documents...</h3>
+                    <div class="w-full bg-blue-200 rounded-full h-2 mb-4">
+                        <div id="progressBar" class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                    <p id="progressText" class="text-sm text-blue-700">Starting processing...</p>
+                </div>
+            </div>
+
+            <!-- Result Section -->
+            <div id="resultSection" class="hidden mt-8">
+                <div class="bg-green-50 border border-green-200 rounded-lg p-6">
+                    <h3 class="text-lg font-semibold text-green-800 mb-3">Course Generated Successfully!</h3>
+                    <p id="resultText" class="text-green-700 mb-4"></p>
+                    <a 
+                        id="viewCourseBtn" 
+                        href="#" 
+                        class="inline-block px-6 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                        View Course
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Detect if we're running from file:// or web server
+        const isFileProtocol = window.location.protocol === 'file:';
+        const isSecure = window.location.protocol === 'https:';
+        const API_BASE_URL = isFileProtocol ? 'http://127.0.0.1:5001' : (isSecure ? `https://${window.location.host}` : `http://${window.location.host}`);
+        
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const fileItems = document.getElementById('fileItems');
+        const submitBtn = document.getElementById('submitBtn');
+        const uploadForm = document.getElementById('uploadForm');
+        const progressSection = document.getElementById('progressSection');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        const resultSection = document.getElementById('resultSection');
+        const resultText = document.getElementById('resultText');
+        const viewCourseBtn = document.getElementById('viewCourseBtn');
+
+        let selectedFiles = [];
+
+        // Upload area click handler
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        // Drag and drop handlers
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        // File input change handler
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+
+        function handleFiles(files) {
+            selectedFiles = Array.from(files).filter(file => file.type === 'application/pdf');
+            
+            if (selectedFiles.length === 0) {
+                alert('Please select PDF files only.');
+                return;
+            }
+
+            displayFiles();
+            submitBtn.disabled = false;
+        }
+
+        function displayFiles() {
+            fileItems.innerHTML = '';
+            
+            selectedFiles.forEach((file, index) => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                fileItem.innerHTML = `
+                    <div>
+                        <span class="font-medium">${file.name}</span>
+                        <span class="text-sm text-gray-500 ml-2">(${(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+                    </div>
+                    <button type="button" onclick="removeFile(${index})" class="text-red-500 hover:text-red-700">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                `;
+                fileItems.appendChild(fileItem);
+            });
+
+            fileList.classList.remove('hidden');
+        }
+
+        function removeFile(index) {
+            selectedFiles.splice(index, 1);
+            if (selectedFiles.length === 0) {
+                fileList.classList.add('hidden');
+                submitBtn.disabled = true;
+            } else {
+                displayFiles();
+            }
+        }
+
+        // Form submission
+        uploadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            if (selectedFiles.length === 0) {
+                alert('Please select at least one PDF file.');
+                return;
+            }
+
+            const formData = new FormData();
+            selectedFiles.forEach(file => {
+                formData.append('files', file);
+            });
+
+            const courseTitle = document.getElementById('courseTitle').value;
+            if (courseTitle) {
+                formData.append('course_title', courseTitle);
+            }
+
+            // Show progress
+            progressSection.classList.remove('hidden');
+            resultSection.classList.add('hidden');
+            submitBtn.disabled = true;
+
+            // Simulate progress
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += Math.random() * 15;
+                if (progress > 90) progress = 90;
+                progressBar.style.width = progress + '%';
+                
+                if (progress < 30) {
+                    progressText.textContent = 'Extracting text from PDFs...';
+                } else if (progress < 60) {
+                    progressText.textContent = 'Generating curriculum structure...';
+                } else {
+                    progressText.textContent = 'Creating course content...';
+                }
+            }, 1000);
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/upload-pdfs`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                clearInterval(progressInterval);
+                progressBar.style.width = '100%';
+                progressText.textContent = 'Processing complete!';
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'Upload failed');
+                }
+
+                const result = await response.json();
+                
+                // Show success
+                setTimeout(() => {
+                    progressSection.classList.add('hidden');
+                    resultSection.classList.remove('hidden');
+                    resultText.textContent = `Course "${result.course_title}" has been generated with ${result.modules_count} modules.`;
+                    
+                    if (isFileProtocol) {
+                        const currentDir = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
+                        viewCourseBtn.href = `${currentDir}/course.html?course_id=${result.course_id}`;
+                    } else {
+                        viewCourseBtn.href = `course.html?course_id=${result.course_id}`;
+                    }
+                    
+                    submitBtn.disabled = false;
+                }, 1000);
+
+            } catch (error) {
+                clearInterval(progressInterval);
+                progressSection.classList.add('hidden');
+                alert('Error: ' + error.message);
+                submitBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  profai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: profai-local
+    image: profai:latest
+    
+    ports:
+      - "5001:5001"  # FastAPI REST API
+      - "8765:8765"  # WebSocket Server
+    
+    # Load environment variables from .env file
+    env_file:
+      - .env
+    
+    # Additional environment overrides
+    environment:
+      - HOST=0.0.0.0
+      - PORT=5001
+      - WEBSOCKET_HOST=0.0.0.0
+      - WEBSOCKET_PORT=8765
+      - DEBUG=True
+    
+    # Mount data directories for persistence
+    volumes:
+      - ./data:/app/data
+      - ./data/documents:/app/data/documents
+      - ./data/vectorstore:/app/data/vectorstore
+      - ./data/courses:/app/data/courses
+      - ./data/quizzes:/app/data/quizzes
+      - ./data/quiz_answers:/app/data/quiz_answers
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    # Resource limits (adjust based on your machine)
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+    
+    networks:
+      - profai-network
+
+networks:
+  profai-network:
+    driver: bridge

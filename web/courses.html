@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProfAi - Available Courses</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen">
+    <!-- Navigation Bar -->
+    <nav class="bg-white shadow-lg border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <h1 class="text-2xl font-bold text-gray-800">ProfessorAI</h1>
+                </div>
+                <div class="flex space-x-6">
+                    <a href="index.html" class="text-gray-700 px-3 py-2 rounded-md hover:bg-gray-100 transition-colors">Home</a>
+                    <a href="upload.html" class="text-gray-700 px-3 py-2 rounded-md hover:bg-gray-100 transition-colors">Generate Course Content</a>
+                    <a href="courses.html" class="text-blue-600 font-semibold px-3 py-2 rounded-md hover:bg-blue-50 transition-colors">Courses</a>
+                    <a href="chat.html" class="text-gray-700 px-3 py-2 rounded-md hover:bg-gray-100 transition-colors">Chat Only</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="p-8">
+    <div class="max-w-4xl mx-auto">
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800 mb-4">Available Courses</h1>
+            <p class="text-lg text-gray-600">Browse and select a course to start learning</p>
+        </div>
+        <div id="loadingState" class="text-center text-gray-600">
+            <p>Loading available courses...</p>
+        </div>
+        <div id="coursesContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Course cards will be inserted here -->
+        </div>
+    </div>
+
+    <script>
+        // Detect if we're running from file:// or web server
+        const isFileProtocol = window.location.protocol === 'file:';
+        const isSecure = window.location.protocol === 'https:';
+        const API_BASE_URL = isFileProtocol ? 'http://127.0.0.1:5001' : (isSecure ? `https://${window.location.host}` : `http://${window.location.host}`);
+        const coursesContainer = document.getElementById('coursesContainer');
+        const loadingState = document.getElementById('loadingState');
+
+        async function fetchAndRenderCourses() {
+            try {
+                console.log('Fetching courses from:', `${API_BASE_URL}/api/courses`);
+
+                const response = await fetch(`${API_BASE_URL}/api/courses`);
+                console.log('Courses response status:', response.status);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('API Error:', errorText);
+                    throw new Error(`Failed to fetch course list. Status: ${response.status}`);
+                }
+
+                const courses = await response.json();
+                console.log('Courses data:', courses);
+
+                loadingState.classList.add('hidden');
+
+                if (courses.length === 0) {
+                    coursesContainer.innerHTML = `<p class="text-center col-span-full text-gray-500">No courses have been generated yet. Please run the generation pipeline for a course.</p>`;
+                    return;
+                }
+
+                courses.forEach(course => {
+                    const courseCard = document.createElement('a');
+                    let courseUrl;
+                    
+                    if (isFileProtocol) {
+                        // If running from file://, link to the course.html file directly
+                        const currentDir = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
+                        courseUrl = `${currentDir}/course.html?course_id=${encodeURIComponent(course.course_id)}`;
+                    } else {
+                        // If running from web server, use relative URL
+                        courseUrl = `course.html?course_id=${encodeURIComponent(course.course_id)}`;
+                    }
+                    console.log('Creating course link:', courseUrl);
+
+                    courseCard.href = courseUrl;
+                    courseCard.className = 'block p-6 bg-white rounded-lg shadow-md hover:shadow-xl hover:-translate-y-1 transition-all';
+                    courseCard.innerHTML = `
+                        <h2 class="text-xl font-bold text-gray-800">${course.course_title}</h2>
+                        <p class="text-sm text-gray-500 mt-2">ID: ${course.course_id}</p>
+                        <div class="mt-4">
+                            <span class="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">View Course</span>
+                        </div>
+                    `;
+                    coursesContainer.appendChild(courseCard);
+                });
+
+            } catch (error) {
+                loadingState.innerHTML = `<p class="text-red-500 font-semibold">${error.message}</p>`;
+                console.error("Error fetching courses:", error);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', fetchAndRenderCourses);
+    </script>
+</body>
+
+</html>

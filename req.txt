@@ -1,0 +1,26 @@
+# Core Framework
+fastapi
+uvicorn[standard]
+pydantic
+
+# AI & ML
+openai
+langchain
+langchain-community
+langchain-core
+langchain-openai
+chromadb
+sentens
+
+# Document Processing
+PyPDF2
+python-multipart
+
+# Audio Processing
+sarvamai
+
+# Utilities
+python-dotenv
+requests
+aiofiles
+websockets

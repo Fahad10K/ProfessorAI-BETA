@@ -1,0 +1,90 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+# MANIFEST
+
+# Virtual Environments
+venv/
+.venv/
+env/
+.env/
+ENV/
+env.bak/
+venv.bak/
+
+# Environment variables
+.env
+
+# Temporary files
+*.log
+*.swp
+*~
+*.tmp
+
+# IDE / Editor specific files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+*.zip
+
+# Data directories
+data/documents/*
+!data/documents/.gitkeep
+data/vectorstore/*
+!data/vectorstore/.gitkeep
+data/courses/*
+!data/courses/.gitkeep
+data/quizzes/*
+!data/quizzes/.gitkeep
+data/quiz_answers/*
+!data/quiz_answers/.gitkeep
+Temporary files
+temp_downloads/
+
+data.zip
+Contelligence/*
+
+*.DS_Store
+
+test_upload.pdf
+
+*.pdf
+
+k8s
+*.key
+*.pem
+.env
+k8s/*-secrets
+
+docs/*
+
+migrations
+test_upload.pdf
+__pycache__

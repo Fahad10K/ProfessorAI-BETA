@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-time Audio Streaming Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        input,
+        textarea,
+        select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+
+        button {
+            background: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .status {
+            margin: 20px 0;
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .metric {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+
+        .metric-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .response-text {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            border-left: 4px solid #007bff;
+        }
+
+        .audio-controls {
+            margin: 15px 0;
+        }
+
+        audio {
+            width: 100%;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🌊 Real-time Audio Streaming Test</h1>
+        <p>Test WebSocket-based audio streaming for sub-900ms latency</p>
+
+        <div class="input-group">
+            <label for="message">Message or Text:</label>
+            <textarea id="message"
+                placeholder="Enter your message or text to convert to audio...">Hello! This is a test of real-time audio streaming. The system should start playing audio within 900 milliseconds of sending this message.</textarea>
+        </div>
+
+        <div class="input-group">
+            <label for="language">Language:</label>
+            <select id="language">
+                <option value="en-IN">English (India)</option>
+                <option value="hi-IN">Hindi</option>
+                <option value="ta-IN">Tamil</option>
+                <option value="te-IN">Telugu</option>
+                <option value="bn-IN">Bengali</option>
+            </select>
+        </div>
+
+        <div class="input-group">
+            <button id="serviceTestBtn" onclick="testServices()">⚙️ Test Services</button>
+            <button id="simpleTestBtn" onclick="testSimpleWebSocket()">🧪 Simple WebSocket Test</button>
+            <button id="testBtn" onclick="testConnection()">� Test Audio Chonnection</button>
+            <button id="chatBtn" onclick="startChatWithAudio()">�d Chat with Audio</button>
+            <button id="audioBtn" onclick="startAudioOnly()">🔊 Audio Only</button>
+            <button id="stopBtn" onclick="stopStreaming()" disabled>⏹️ Stop</button>
+        </div>
+
+        <div id="status" class="status" style="display: none;"></div>
+
+        <div class="metrics">
+            <div class="metric">
+                <div class="metric-value" id="latency">-</div>
+                <div class="metric-label">First Audio (ms)</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="chunks">-</div>
+                <div class="metric-label">Audio Chunks</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="totalTime">-</div>
+                <div class="metric-label">Total Time (s)</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="dataSize">-</div>
+                <div class="metric-label">Audio Size (KB)</div>
+            </div>
+        </div>
+
+        <div id="responseText" class="response-text" style="display: none;"></div>
+
+        <div class="audio-controls">
+            <audio id="audioPlayer" controls style="display: none;"></audio>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let startTime = null;
+        let firstAudioTime = null;
+        let chunkCount = 0;
+        let totalAudioSize = 0;
+        let audioChunks = [];
+        let isStreaming = false;
+
+        function showStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.style.display = 'block';
+        }
+
+        function updateMetric(id, value) {
+            document.getElementById(id).textContent = value;
+        }
+
+        function resetMetrics() {
+            updateMetric('latency', '-');
+            updateMetric('chunks', '-');
+            updateMetric('totalTime', '-');
+            updateMetric('dataSize', '-');
+            chunkCount = 0;
+            totalAudioSize = 0;
+            audioChunks = [];
+        }
+
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/audio-stream`;
+
+            console.log('Connecting to WebSocket:', wsUrl);
+            showStatus('Connecting to WebSocket...', 'info');
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = function () {
+                console.log('WebSocket connected');
+                showStatus('WebSocket connected successfully', 'success');
+            };
+
+            ws.onmessage = function (event) {
+                console.log('WebSocket message received:', event.data);
+                try {
+                    const data = JSON.parse(event.data);
+                    handleWebSocketMessage(data);
+                } catch (e) {
+                    console.error('Error parsing WebSocket message:', e);
+                    showStatus('Error parsing message: ' + e.message, 'error');
+                }
+            };
+
+            ws.onclose = function (event) {
+                console.log('WebSocket closed:', event.code, event.reason);
+                showStatus(`WebSocket closed (${event.code}): ${event.reason || 'No reason provided'}`, 'info');
+                setButtonsEnabled(true);
+                isStreaming = false;
+            };
+
+            ws.onerror = function (error) {
+                console.error('WebSocket error:', error);
+                showStatus('WebSocket error - check console for details', 'error');
+                setButtonsEnabled(true);
+                isStreaming = false;
+            };
+        }
+
+        function handleWebSocketMessage(data) {
+            console.log('Handling message type:', data.type);
+
+            switch (data.type) {
+                case 'connection_ready':
+                    showStatus(data.message, 'success');
+                    break;
+
+                case 'processing_started':
+                    showStatus(data.message, 'info');
+                    break;
+
+                case 'text_response':
+                    const responseDiv = document.getElementById('responseText');
+                    responseDiv.innerHTML = `<strong>Response:</strong><br>${data.text}`;
+                    responseDiv.style.display = 'block';
+                    break;
+
+                case 'audio_stream_start':
+                    showStatus(data.message, 'info');
+                    break;
+
+                case 'audio_chunk':
+                    handleAudioChunk(data);
+                    break;
+
+                case 'audio_stream_complete':
+                    handleStreamComplete(data);
+                    break;
+
+                case 'pong':
+                    console.log('Received pong:', data.message);
+                    break;
+
+                case 'error':
+                    console.error('WebSocket error:', data.error);
+                    showStatus('Error: ' + data.error, 'error');
+                    setButtonsEnabled(true);
+                    isStreaming = false;
+                    break;
+
+                default:
+                    console.warn('Unknown message type:', data.type);
+                    break;
+            }
+        }
+
+        function handleAudioChunk(data) {
+            chunkCount++;
+            totalAudioSize += data.size;
+
+            // Record first audio latency
+            if (!firstAudioTime) {
+                firstAudioTime = Date.now();
+                const latency = firstAudioTime - startTime;
+                updateMetric('latency', latency);
+
+                if (latency < 900) {
+                    showStatus(`🎉 First audio in ${latency}ms - Target achieved!`, 'success');
+                } else {
+                    showStatus(`⚠️ First audio in ${latency}ms - Above 900ms target`, 'info');
+                }
+            }
+
+            // Update metrics
+            updateMetric('chunks', chunkCount);
+            updateMetric('dataSize', Math.round(totalAudioSize / 1024));
+
+            // Convert base64 to audio blob and add to chunks
+            const audioData = atob(data.audio_data);
+            const audioArray = new Uint8Array(audioData.length);
+            for (let i = 0; i < audioData.length; i++) {
+                audioArray[i] = audioData.charCodeAt(i);
+            }
+            audioChunks.push(audioArray);
+
+            // Play audio immediately if it's the first chunk
+            if (chunkCount === 1) {
+                playAudioChunk(audioArray);
+            }
+        }
+
+        function handleStreamComplete(data) {
+            const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+            updateMetric('totalTime', totalTime);
+
+            showStatus(`✅ Stream complete! ${data.total_chunks} chunks in ${totalTime}s`, 'success');
+
+            // Combine all audio chunks and create downloadable audio
+            combineAudioChunks();
+
+            setButtonsEnabled(true);
+            isStreaming = false;
+        }
+
+        function playAudioChunk(audioArray) {
+            // Create blob and play immediately
+            const blob = new Blob([audioArray], { type: 'audio/mpeg' });
+            const audioUrl = URL.createObjectURL(blob);
+            const audio = new Audio(audioUrl);
+            audio.play().catch(e => console.log('Audio play failed:', e));
+        }
+
+        function combineAudioChunks() {
+            if (audioChunks.length === 0) return;
+
+            // Calculate total size
+            let totalSize = 0;
+            audioChunks.forEach(chunk => totalSize += chunk.length);
+
+            // Combine chunks
+            const combinedArray = new Uint8Array(totalSize);
+            let offset = 0;
+            audioChunks.forEach(chunk => {
+                combinedArray.set(chunk, offset);
+                offset += chunk.length;
+            });
+
+            // Create audio element
+            const blob = new Blob([combinedArray], { type: 'audio/mpeg' });
+            const audioUrl = URL.createObjectURL(blob);
+            const audioPlayer = document.getElementById('audioPlayer');
+            audioPlayer.src = audioUrl;
+            audioPlayer.style.display = 'block';
+        }
+
+        function setButtonsEnabled(enabled) {
+            document.getElementById('chatBtn').disabled = !enabled;
+            document.getElementById('audioBtn').disabled = !enabled;
+            document.getElementById('stopBtn').disabled = enabled;
+        }
+
+        function testSimpleWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/test`;
+
+            console.log('Testing simple WebSocket:', wsUrl);
+            showStatus('Testing simple WebSocket...', 'info');
+
+            const testWs = new WebSocket(wsUrl);
+
+            testWs.onopen = function () {
+                console.log('Simple WebSocket connected');
+                showStatus('Simple WebSocket connected!', 'success');
+
+                // Send a ping
+                testWs.send(JSON.stringify({ type: 'ping' }));
+            };
+
+            testWs.onmessage = function (event) {
+                console.log('Simple WebSocket message:', event.data);
+                const data = JSON.parse(event.data);
+                showStatus(`Simple WebSocket: ${data.type} - ${data.message}`, 'success');
+
+                if (data.type === 'pong') {
+                    setTimeout(() => testWs.close(), 1000);
+                }
+            };
+
+            testWs.onclose = function (event) {
+                console.log('Simple WebSocket closed:', event.code, event.reason);
+                showStatus(`Simple WebSocket test complete (${event.code})`, 'info');
+            };
+
+            testWs.onerror = function (error) {
+                console.error('Simple WebSocket error:', error);
+                showStatus('Simple WebSocket test failed', 'error');
+            };
+        }
+
+        function testConnection() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                showStatus('Audio WebSocket not connected', 'error');
+                return;
+            }
+
+            ws.send(JSON.stringify({
+                type: 'ping'
+            }));
+            showStatus('Ping sent to test audio connection', 'info');
+        }
+
+        function startChatWithAudio() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                showStatus('Connecting to WebSocket...', 'info');
+                connectWebSocket();
+                setTimeout(startChatWithAudio, 2000);
+                return;
+            }
+
+            const message = document.getElementById('message').value.trim();
+            const language = document.getElementById('language').value;
+
+            if (!message) {
+                showStatus('Please enter a message', 'error');
+                return;
+            }
+
+            resetMetrics();
+            startTime = Date.now();
+            firstAudioTime = null;
+            isStreaming = true;
+            setButtonsEnabled(false);
+
+            document.getElementById('responseText').style.display = 'none';
+            document.getElementById('audioPlayer').style.display = 'none';
+
+            ws.send(JSON.stringify({
+                type: 'chat_with_audio',
+                message: message,
+                language: language
+            }));
+
+            showStatus('Sending chat request...', 'info');
+        }
+
+        function startAudioOnly() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                showStatus('Connecting to WebSocket...', 'info');
+                connectWebSocket();
+                setTimeout(startAudioOnly, 2000);
+                return;
+            }
+
+            const text = document.getElementById('message').value.trim();
+            const language = document.getElementById('language').value;
+
+            if (!text) {
+                showStatus('Please enter text', 'error');
+                return;
+            }
+
+            resetMetrics();
+            startTime = Date.now();
+            firstAudioTime = null;
+            isStreaming = true;
+            setButtonsEnabled(false);
+
+            document.getElementById('responseText').style.display = 'none';
+            document.getElementById('audioPlayer').style.display = 'none';
+
+            ws.send(JSON.stringify({
+                type: 'audio_only',
+                text: text,
+                language: language
+            }));
+
+            showStatus('Generating audio...', 'info');
+        }
+
+        function stopStreaming() {
+            if (ws) {
+                ws.close();
+            }
+            isStreaming = false;
+            setButtonsEnabled(true);
+            showStatus('Streaming stopped', 'info');
+        }
+
+        function testServices() {
+            showStatus('Testing services...', 'info');
+
+            fetch('/test-services')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Service test results:', data);
+
+                    let statusMsg = 'Service Test Results:\n';
+                    for (const [service, result] of Object.entries(data.test_results)) {
+                        statusMsg += `${service}: ${result.status}\n`;
+                        if (result.error) {
+                            statusMsg += `  Error: ${result.error}\n`;
+                        }
+                    }
+
+                    showStatus(statusMsg, data.services_available ? 'success' : 'error');
+                })
+                .catch(error => {
+                    console.error('Service test error:', error);
+                    showStatus('Service test failed: ' + error.message, 'error');
+                });
+        }
+
+        // Initialize WebSocket connection on page load
+        window.onload = function () {
+            // Don't auto-connect, let user test step by step
+            showStatus('Ready for testing. Start with Service Test or Simple WebSocket Test.', 'info');
+        };
+    </script>
+</body>
+
+</html>

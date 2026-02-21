@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple WebSocket Test</title>
+</head>
+<body>
+    <h1>Simple WebSocket Test</h1>
+    <div id="status">Not connected</div>
+    <button onclick="connect()">Connect</button>
+    <button onclick="ping()">Ping</button>
+    <button onclick="disconnect()">Disconnect</button>
+    
+    <div id="log" style="margin-top: 20px; padding: 10px; background: #f0f0f0; height: 300px; overflow-y: scroll;"></div>
+
+    <script>
+        let ws = null;
+        
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `[${timestamp}] ${message}<br>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+        
+        function updateStatus(status) {
+            document.getElementById('status').textContent = status;
+        }
+        
+        function connect() {
+            if (ws) {
+                log('Already connected or connecting');
+                return;
+            }
+            
+            const wsUrl = 'ws://localhost:8765';
+            log(`Connecting to ${wsUrl}...`);
+            updateStatus('Connecting...');
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = function() {
+                log('✅ WebSocket connected!');
+                updateStatus('Connected');
+            };
+            
+            ws.onmessage = function(event) {
+                log(`📨 Received: ${event.data}`);
+                
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'connection_ready') {
+                        log(`🎉 Server ready: ${data.message}`);
+                        log(`Services: ${JSON.stringify(data.services)}`);
+                    } else if (data.type === 'pong') {
+                        log(`🏓 Pong received: ${data.message}`);
+                    }
+                } catch (e) {
+                    log(`❌ Error parsing message: ${e}`);
+                }
+            };
+            
+            ws.onclose = function(event) {
+                log(`🔌 WebSocket closed: ${event.code} - ${event.reason}`);
+                updateStatus('Disconnected');
+                ws = null;
+            };
+            
+            ws.onerror = function(error) {
+                log(`❌ WebSocket error: ${error}`);
+                updateStatus('Error');
+            };
+        }
+        
+        function ping() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                log('❌ Not connected');
+                return;
+            }
+            
+            log('📤 Sending ping...');
+            ws.send(JSON.stringify({type: 'ping'}));
+        }
+        
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+                log('🔌 Disconnected');
+                updateStatus('Disconnected');
+            }
+        }
+        
+        // Auto-connect on page load
+        window.onload = function() {
+            log('Page loaded - ready to test');
+        };
+    </script>
+</body>
+</html>
