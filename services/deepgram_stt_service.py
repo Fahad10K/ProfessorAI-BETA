@@ -34,6 +34,7 @@ class DeepgramSTTService:
         self._recv_task: Optional[asyncio.Task] = None
         self._queue: asyncio.Queue = asyncio.Queue()
         self._closed = False
+        self._audio_received = False  # Track if real audio has been sent
 
     @property
     def enabled(self) -> bool:
@@ -46,22 +47,17 @@ class DeepgramSTTService:
             logger.warning("❌ Deepgram STT disabled: missing DEEPGRAM_API_KEY")
             return False
 
-        # Deepgram Flux v2 WebSocket URL with optimized parameters for turn-taking
+        # Deepgram Flux v2 — proper turn-taking model (matches AUM reference)
+        # Flux v2 emits TurnInfo events (StartOfTurn, EndOfTurn, EagerEndOfTurn)
+        # which are far more reliable than v1's basic SpeechStarted VAD
         params = {
             "encoding": "linear16",
             "sample_rate": str(self.sample_rate),
             "model": "flux-general-en",
-            # VAD tuning to reduce false positives and partials
-            "interim_results": "false",        # Disable excessive partials at source (90% spam reduction)
-            "endpointing": "500",              # Wait 500ms of silence before finalizing turn
-            "vad_turnoff": "400",              # Ignore sounds <400ms (filters fan noise)
-            "smart_format": "true",            # Auto punctuation for better readability
-            # Optional EOT tuning (uncomment to adjust sensitivity)
-            # "eot_threshold": "0.8",          # EndOfTurn confidence threshold (0.5-0.9)
-            # "eager_eot_threshold": "0.6",    # EagerEndOfTurn threshold (0.3-0.9)
         }
         
         url = "wss://api.deepgram.com/v2/listen?" + "&".join([f"{k}={v}" for k, v in params.items()])
+        logger.info(f"🔗 Deepgram URL: {url}")
 
         try:
             self.ws = await websockets.connect(
@@ -104,6 +100,26 @@ class DeepgramSTTService:
         finally:
             await self._queue.put({"type": "closed"})
 
+    def _is_noise_transcript(self, text: str) -> bool:
+        """Filter out transcripts that are likely noise, not real speech."""
+        cleaned = text.strip().lower()
+        if not cleaned:
+            return True
+        # Reject single-char transcripts — likely noise artifacts
+        if len(cleaned) <= 1:
+            logger.debug(f"🔇 Noise filter: too short '{cleaned}'")
+            return True
+        # Only filter actual filler sounds / noise artifacts
+        # Do NOT filter valid words like 'yes', 'no', 'ok', 'continue'
+        noise_sounds = {
+            'um', 'uh', 'hmm', 'hm', 'mm', 'mhm', 'ah', 'eh',
+        }
+        words = cleaned.split()
+        if len(words) == 1 and words[0].rstrip('.!?,') in noise_sounds:
+            logger.debug(f"🔇 Noise filter: filler sound '{cleaned}'")
+            return True
+        return False
+
     async def _process_message(self, data: dict):
         """Process different types of messages from Deepgram."""
         message_type = data.get("type")
@@ -116,21 +132,23 @@ class DeepgramSTTService:
 
             if event == "StartOfTurn":
                 await self._queue.put({"type": "speech_started"})
-                logger.debug("🗣️ StartOfTurn (VAD)")
+                logger.info("🗣️ StartOfTurn")
             elif event == "EagerEndOfTurn":
                 # Medium-confidence end; surface as partial-final to start LLM early if desired
-                if transcript.strip():
+                if transcript.strip() and not self._is_noise_transcript(transcript):
                     await self._queue.put({"type": "partial", "text": transcript, "language": self.language})
-                    logger.debug(f"⚡ EagerEndOfTurn partial: '{transcript}'")
+                    logger.info(f"⚡ EagerEndOfTurn partial: '{transcript}'")
             elif event == "TurnResumed":
                 # User kept talking; nothing to emit besides a debug
                 logger.debug("🔄 TurnResumed")
             elif event == "EndOfTurn":
-                if transcript.strip():
+                if transcript.strip() and not self._is_noise_transcript(transcript):
                     await self._queue.put({"type": "final", "text": transcript, "language": self.language})
-                    logger.debug(f"✅ EndOfTurn final: '{transcript}'")
+                    logger.info(f"✅ EndOfTurn final: '{transcript}'")
+                elif transcript.strip():
+                    logger.debug(f"🔇 Filtered noise transcript: '{transcript}'")
                 await self._queue.put({"type": "utterance_end"})
-                logger.debug("🔇 Utterance ended (EndOfTurn)")
+                logger.info("🔇 Utterance ended (EndOfTurn)")
             elif event == "Update":
                 if transcript.strip():
                     await self._queue.put({"type": "partial", "text": transcript, "language": self.language})
@@ -138,7 +156,17 @@ class DeepgramSTTService:
             else:
                 logger.debug(f"📨 TurnInfo: {event}")
 
-        elif message_type == "Metadata":
+        # v1 SpeechStarted event (vad_events=true)
+        elif message_type == "SpeechStarted":
+            await self._queue.put({"type": "speech_started"})
+            logger.info("🗣️ SpeechStarted (VAD v1)")
+
+        # v1 UtteranceEnd event (utterance_end_ms param)
+        elif message_type == "UtteranceEnd":
+            await self._queue.put({"type": "utterance_end"})
+            logger.debug("🔇 UtteranceEnd (v1)")
+
+        elif message_type in ("Connected", "Metadata"):
             request_id = data.get("request_id")
             logger.info(f"✅ Deepgram session started: {request_id}")
 
@@ -146,20 +174,28 @@ class DeepgramSTTService:
             error_msg = data.get("description", data)
             logger.error(f"❌ Deepgram error: {error_msg}")
 
+        # v1 Results messages (primary format for nova-2)
+        elif message_type == "Results":
+            channel = data.get("channel", {})
+            alternatives = channel.get("alternatives", [])
+            if alternatives:
+                alternative = alternatives[0]
+                transcript = alternative.get("transcript", "")
+                is_final = data.get("is_final", False)
+                speech_final = data.get("speech_final", False)
+                
+                if transcript.strip() and not self._is_noise_transcript(transcript):
+                    if is_final or speech_final:
+                        await self._queue.put({"type": "final", "text": transcript, "language": self.language})
+                        logger.info(f"✅ v1 final: '{transcript}'")
+                    else:
+                        await self._queue.put({"type": "partial", "text": transcript, "language": self.language})
+                        logger.info(f"📝 v1 partial: '{transcript}'")
+                elif transcript.strip():
+                    logger.info(f"🔇 v1 noise filtered: '{transcript}'")
+
         else:
-            # Back-compat: older v1 style
-            if message_type == "Results":
-                channel = data.get("channel", {})
-                alternatives = channel.get("alternatives", [])
-                if alternatives:
-                    alternative = alternatives[0]
-                    transcript = alternative.get("transcript", "")
-                    is_final = channel.get("is_final", False)
-                    if transcript.strip():
-                        await self._queue.put({"type": "final" if is_final else "partial", "text": transcript, "language": self.language})
-                        logger.debug(f"🎤 v1 {('final' if is_final else 'partial')}: '{transcript}'")
-            else:
-                logger.debug(f"📨 Unknown Deepgram message: {data}")
+            logger.info(f"📨 Unknown Deepgram message type: {message_type} — keys: {list(data.keys())}")
 
     async def recv(self) -> AsyncGenerator[dict, None]:
         """Yield events from Deepgram STT (partial/final/VAD events)."""

@@ -301,6 +301,92 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+
+        /* Current topic banner */
+        .topic-banner {
+            display: none;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+            padding: 14px 20px;
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        .topic-banner.visible { display: block; }
+        .topic-banner .topic-label {
+            font-size: 0.75em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.85;
+            margin-bottom: 4px;
+        }
+        .topic-banner .topic-module {
+            font-size: 1.1em;
+            font-weight: 700;
+        }
+        .topic-banner .topic-sub {
+            font-size: 0.95em;
+            font-weight: 400;
+            opacity: 0.9;
+        }
+        .topic-banner .topic-progress {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255,255,255,0.2);
+            border-radius: 6px;
+            padding: 4px 12px;
+            font-size: 0.8em;
+            font-weight: 600;
+        }
+
+        /* Topic change notification in conversation log */
+        .message.topic-change {
+            background: linear-gradient(135deg, #e0e7ff 0%, #ede9fe 100%);
+            border-left: 4px solid #764ba2;
+            text-align: center;
+            padding: 16px;
+        }
+        .message.topic-change .tc-icon { font-size: 1.5em; }
+        .message.topic-change .tc-title { font-weight: 700; color: #4c1d95; margin: 4px 0; }
+        .message.topic-change .tc-sub { color: #6d28d9; }
+
+        .message.course-done {
+            background: linear-gradient(135deg, #d1fae5 0%, #fef3c7 100%);
+            border-left: 4px solid #10b981;
+            text-align: center;
+            padding: 20px;
+        }
+        .message.course-done .cd-icon { font-size: 2em; }
+        .message.course-done .cd-text { font-weight: 700; color: #065f46; margin-top: 6px; }
+
+        /* Thinking indicator */
+        .message.thinking {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border-left: 4px solid #f59e0b;
+            text-align: center;
+            padding: 12px;
+        }
+        .thinking-dots {
+            display: inline-block;
+        }
+        .thinking-dots span {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            margin: 0 3px;
+            background: #f59e0b;
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+        .thinking-dots span:nth-child(1) { animation-delay: -0.32s; }
+        .thinking-dots span:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
     </style>
 </head>
 <body>
@@ -329,6 +415,14 @@
             </div>
         </div>
 
+        <!-- Current topic banner (shown during teaching) -->
+        <div class="topic-banner" id="topicBanner">
+            <div class="topic-label">📖 Currently Teaching</div>
+            <div class="topic-module" id="topicModuleTitle">—</div>
+            <div class="topic-sub" id="topicSubTitle">—</div>
+            <div class="topic-progress" id="topicProgress"></div>
+        </div>
+
         <div class="course-selector">
             <label>Course ID:</label>
             <input type="number" id="courseId" value="1" min="1">
@@ -341,6 +435,20 @@
             
             <label>User ID:</label>
             <input type="text" id="userId" value="167" placeholder="Enter your user ID">
+
+            <label>Language:</label>
+            <select id="language">
+                <option value="en-IN" selected>English (India)</option>
+                <option value="hi-IN">Hindi</option>
+                <option value="ta-IN">Tamil</option>
+                <option value="te-IN">Telugu</option>
+                <option value="bn-IN">Bengali</option>
+                <option value="gu-IN">Gujarati</option>
+                <option value="kn-IN">Kannada</option>
+                <option value="ml-IN">Malayalam</option>
+                <option value="mr-IN">Marathi</option>
+                <option value="pa-IN">Punjabi</option>
+            </select>
         </div>
 
         <div class="controls">
@@ -359,6 +467,33 @@
             <div class="vad-label">Voice Activity: <span id="vadStatus">Idle</span></div>
             <div class="vad-bar-container">
                 <div class="vad-bar" id="vadBar"></div>
+            </div>
+        </div>
+
+        <!-- Real-time Latency Metrics -->
+        <div id="latencyPanel" class="status-card" style="display:none; border-left-color: #10b981;">
+            <div style="font-weight: 700; margin-bottom: 10px; color: #333;">📊 Real-Time Metrics</div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+                <div style="text-align: center;">
+                    <div id="metricAnswerSource" style="font-size: 1.2em; font-weight: 700; color: #667eea;">-</div>
+                    <div style="font-size: 0.75em; color: #888; text-transform: uppercase;">Answer Source</div>
+                </div>
+                <div style="text-align: center;">
+                    <div id="metricBargeIn" style="font-size: 1.2em; font-weight: 700; color: #f59e0b;">-</div>
+                    <div style="font-size: 0.75em; color: #888; text-transform: uppercase;">Barge-In (ms)</div>
+                </div>
+                <div style="text-align: center;">
+                    <div id="metricAnswerTime" style="font-size: 1.2em; font-weight: 700; color: #10b981;">-</div>
+                    <div style="font-size: 0.75em; color: #888; text-transform: uppercase;">Answer Gen (ms)</div>
+                </div>
+                <div style="text-align: center;">
+                    <div id="metricFirstAudio" style="font-size: 1.2em; font-weight: 700; color: #3b82f6;">-</div>
+                    <div style="font-size: 0.75em; color: #888; text-transform: uppercase;">First Audio (ms)</div>
+                </div>
+                <div style="text-align: center;">
+                    <div id="metricTotalChunks" style="font-size: 1.2em; font-weight: 700; color: #8b5cf6;">0</div>
+                    <div style="font-size: 0.75em; color: #888; text-transform: uppercase;">Audio Chunks</div>
+                </div>
             </div>
         </div>
 
@@ -384,11 +519,6 @@
     <script>
         // Configuration
         const WS_URL = 'ws://localhost:8765';
-        const VAD_THRESHOLD = 0.015;        // RMS threshold for client-side VAD
-        const VAD_SILENCE_DURATION = 1200;  // ms of silence before stopping
-        const MIN_SPEECH_DURATION = 600;    // Minimum speech duration to process
-        const NOISE_GATE = 0.007;           // Ignore very quiet sounds
-        const SPEECH_CONFIRMATION_FRAMES = 2; // Require N consecutive frames above threshold (reduced from 3)
 
         // State
         let websocket = null;
@@ -397,19 +527,17 @@
         let processor = null;
         let isConnected = false;
         let isSpeaking = false;
-        let silenceTimer = null;
-        let audioChunks = [];
-        let speechStartTime = null;
         let isTeaching = false;
         let isAgentSpeaking = false;
         let audioQueue = [];
-        let lastAudioStopTime = null;  // Track when audio playback stopped
-        let consecutiveSpeechFrames = 0; // Count consecutive frames above threshold
         let isPlayingAudio = false;
         let currentAudio = null;  // Track currently playing audio
-        let lastInterruptedChunkId = null;  // Track which chunk was interrupted
         let bargeInTimestamp = null;  // Track barge-in timing for metrics
         let lastPartialUpdate = 0;  // Throttle partial transcript updates
+        let answerStartTime = null;  // Track when question was sent for answer gen timing
+        let totalChunkCount = 0;    // Total audio chunks received
+        let firstAnswerAudioTime = null; // Track first audio chunk after a question
+        let audioPlaybackGen = 0;  // Incremented by stopAllAudio to abort playback loops
 
         // DOM Elements
         const startBtn = document.getElementById('startBtn');
@@ -423,6 +551,18 @@
         const vadStatus = document.getElementById('vadStatus');
         const vadBar = document.getElementById('vadBar');
         const conversationLog = document.getElementById('conversationLog');
+
+        // Stop all audio playback and clear the queue
+        function stopAllAudio() {
+            audioPlaybackGen++;  // abort any running playAudioQueue loop
+            if (currentAudio) {
+                currentAudio.pause();  // triggers onpause → resolves playPrepared Promise
+                // playPrepared's done() sets currentAudio = null
+            }
+            audioQueue = [];
+            isPlayingAudio = false;
+            isAgentSpeaking = false;
+        }
 
         // Update status indicators
         function updateStatus(connection, mic, teaching) {
@@ -496,7 +636,7 @@
                             module_index: parseInt(document.getElementById('moduleIndex').value),
                             sub_topic_index: parseInt(document.getElementById('subTopicIndex').value),
                             user_id: document.getElementById('userId').value,
-                            language: 'en-IN'
+                            language: document.getElementById('language').value
                         };
 
                         console.log('📤 Sending teaching request:', teachingRequest);
@@ -548,7 +688,9 @@
             }
         }
 
-        // Start audio processing with VAD
+        // Start audio processing — simple continuous streaming like reference impl
+        // Browser echoCancellation + noiseSuppression handles feedback/noise
+        // Deepgram server-side VAD handles speech detection + endpointing
         async function startAudioProcessing() {
             audioContext = new AudioContext({ sampleRate: 16000 });
             const source = audioContext.createMediaStreamSource(mediaStream);
@@ -557,123 +699,52 @@
             processor.onaudioprocess = (e) => {
                 const inputData = e.inputBuffer.getChannelData(0);
 
-                // Calculate RMS for VAD
+                // Calculate RMS for visual VAD indicator only
                 let sum = 0;
                 for (let i = 0; i < inputData.length; i++) {
                     sum += inputData[i] * inputData[i];
                 }
                 const rms = Math.sqrt(sum / inputData.length);
 
-                // Apply noise gate
-                if (rms < NOISE_GATE) {
-                    vadBar.style.width = '0%';
-                    return;
+                // Visual VAD indicator + client-side barge-in
+                const level = Math.min(100, rms * 500);
+                vadBar.style.width = level + '%';
+                if (rms > 0.02) {
+                    vadStatus.textContent = 'SPEAKING';
+                    if (!isSpeaking) {
+                        isSpeaking = true;
+                        // ── Client-side barge-in: stop audio IMMEDIATELY ──
+                        // Don't wait for server's user_interrupt_detected —
+                        // the user needs instant silence + visual feedback.
+                        if (isAgentSpeaking) {
+                            console.log('🗣️ Client VAD: user speaking → stopping audio');
+                            stopAllAudio();
+                            updateStatus(undefined, 'Speaking', 'Listening');
+                            vadStatus.textContent = 'SPEAKING — listening to you...';
+                        }
+                    }
+                } else if (isSpeaking && rms < 0.01) {
+                    vadStatus.textContent = 'Listening';
+                    isSpeaking = false;
                 }
 
-                // Update VAD indicator
-                const level = Math.min(100, rms * 1000);
-                vadBar.style.width = level + '%';
-
-                // Voice Activity Detection
-                if (rms > VAD_THRESHOLD) {
-                    consecutiveSpeechFrames++;
-                    
-                    // Only trigger speech if we have enough consecutive frames
-                    if (!isSpeaking && consecutiveSpeechFrames >= SPEECH_CONFIRMATION_FRAMES) {
-                        isSpeaking = true;
-                        speechStartTime = Date.now();
-                        vadStatus.textContent = 'SPEAKING';
-                        updateStatus(undefined, 'Speaking', undefined);
-                        audioChunks = [];
-                        console.log('🎤 User started speaking');
-                        
-                        // CLIENT-SIDE BARGE-IN: Stop audio immediately (no server round-trip)
-                        if (isAgentSpeaking || isPlayingAudio) {
-                            bargeInTimestamp = Date.now();
-                            console.log('🛑 CLIENT-SIDE BARGE-IN: Stopping audio immediately');
-                            
-                            // Stop current audio
-                            if (currentAudio) {
-                                const interruptTime = currentAudio.currentTime;
-                                console.log(`⏸️ Interrupted at ${interruptTime.toFixed(2)}s`);
-                                currentAudio.pause();
-                                currentAudio.currentTime = 0;
-                                currentAudio = null;
-                            }
-                            
-                            // Clear queue (track how many chunks were dropped)
-                            const droppedChunks = audioQueue.length;
-                            audioQueue = [];
-                            isPlayingAudio = false;
-                            isAgentSpeaking = false;
-                            
-                            console.log(`✅ Audio stopped via client-side VAD (dropped ${droppedChunks} queued chunks)`);
-                            
-                            // Visual feedback
-                            vadStatus.textContent = '🛑 BARGE-IN DETECTED';
-                            vadStatus.style.color = '#ff4444';
-                            setTimeout(() => {
-                                vadStatus.style.color = '';
-                            }, 500);
-                        }
-                    }
-
-                    // Clear silence timer
-                    if (silenceTimer) {
-                        clearTimeout(silenceTimer);
-                        silenceTimer = null;
-                    }
-
-                    // Collect audio chunk
-                    audioChunks.push(new Float32Array(inputData));
-
-                    // Send audio chunk to server (continuous streaming)
+                // ALWAYS send audio to Deepgram — continuously, like reference impl
+                // Browser echoCancellation handles TTS feedback
+                // Deepgram handles VAD + endpointing (600ms silence → final transcript)
+                if (websocket && websocket.readyState === WebSocket.OPEN) {
                     const pcm16 = float32ToPCM16(inputData);
                     const audioBase64 = btoa(String.fromCharCode.apply(null, new Uint8Array(pcm16.buffer)));
-                    
-                    if (websocket && websocket.readyState === WebSocket.OPEN) {
-                        websocket.send(JSON.stringify({
-                            type: 'stt_audio_chunk',
-                            audio: audioBase64
-                        }));
-                    }
-
-                } else {
-                    // Below threshold - reset consecutive frames counter
-                    consecutiveSpeechFrames = 0;
-                    
-                    if (isSpeaking) {
-                        // Silence detected while speaking
-                        if (!silenceTimer) {
-                            silenceTimer = setTimeout(() => {
-                                const speechDuration = Date.now() - speechStartTime;
-
-                                if (speechDuration < MIN_SPEECH_DURATION) {
-                                    console.log('⚠️ Speech too short, ignoring:', speechDuration + 'ms');
-                                    isSpeaking = false;
-                                    vadStatus.textContent = 'Idle';
-                                    updateStatus(undefined, 'Listening', undefined);
-                                    audioChunks = [];
-                                    silenceTimer = null;
-                                    return;
-                                }
-
-                                // End of speech
-                                isSpeaking = false;
-                                vadStatus.textContent = 'Idle';
-                                updateStatus(undefined, 'Listening', undefined);
-                                console.log('🔇 User stopped speaking');
-
-                                silenceTimer = null;
-                            }, VAD_SILENCE_DURATION);
-                        }
-                    }
+                    websocket.send(JSON.stringify({
+                        type: 'stt_audio_chunk',
+                        audio: audioBase64
+                    }));
                 }
             };
 
             source.connect(processor);
             processor.connect(audioContext.destination);
-            console.log('✅ Audio processing started');
+            vadStatus.textContent = 'Listening';
+            console.log('✅ Audio processing started (continuous streaming)');
         }
 
         // Convert Float32 to PCM16
@@ -684,6 +755,27 @@
                 pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
             }
             return pcm16;
+        }
+
+        // Answer source helpers for hybrid architecture display
+        function getSourceBadge(source) {
+            const badges = {
+                'langgraph_pedagogical': '<span style="background:#667eea;color:white;padding:2px 8px;border-radius:4px;font-size:0.75em;font-weight:600;">LangGraph</span>',
+                'rag': '<span style="background:#10b981;color:white;padding:2px 8px;border-radius:4px;font-size:0.75em;font-weight:600;">RAG</span>',
+                'general_llm': '<span style="background:#f59e0b;color:white;padding:2px 8px;border-radius:4px;font-size:0.75em;font-weight:600;">LLM</span>',
+                'fallback': '<span style="background:#ef4444;color:white;padding:2px 8px;border-radius:4px;font-size:0.75em;font-weight:600;">Fallback</span>',
+            };
+            return badges[source] || '';
+        }
+
+        function getSourceLabel(source) {
+            const labels = {
+                'langgraph_pedagogical': 'LangGraph',
+                'rag': 'RAG',
+                'general_llm': 'LLM',
+                'fallback': 'Fallback',
+            };
+            return labels[source] || source;
         }
 
         // Handle messages from server
@@ -703,7 +795,18 @@
 
                     case 'interactive_teaching_started':
                         addMessage('system', `✅ Teaching Started: ${data.module_title} → ${data.sub_topic_title}`);
+                        // Show & populate topic banner
+                        {
+                            const banner = document.getElementById('topicBanner');
+                            banner.classList.add('visible');
+                            document.getElementById('topicModuleTitle').textContent = data.module_title || '';
+                            document.getElementById('topicSubTitle').textContent = data.sub_topic_title || '';
+                            document.getElementById('topicProgress').textContent =
+                                `Module ${(parseInt(document.getElementById('moduleIndex').value) || 0) + 1} · Topic ${(parseInt(document.getElementById('subTopicIndex').value) || 0) + 1}`;
+                        }
                         updateStatus(undefined, 'Listening', 'Teaching Active');
+                        document.getElementById('latencyPanel').style.display = 'block';
+                        totalChunkCount = 0;
                         break;
 
                     case 'teaching_audio_chunk':
@@ -713,6 +816,8 @@
                             playAudioQueue();
                         }
                         isAgentSpeaking = true;
+                        totalChunkCount++;
+                        document.getElementById('metricTotalChunks').textContent = totalChunkCount;
                         updateStatus(undefined, 'Listening', 'Professor Speaking');
                         break;
 
@@ -725,21 +830,40 @@
 
                     case 'user_interrupt_detected':
                         console.log('🛑 User interrupt - stopping audio playback');
+                        stopAllAudio();
                         
-                        // Stop current audio immediately
-                        if (currentAudio) {
-                            currentAudio.pause();
-                            currentAudio.currentTime = 0;
-                            currentAudio = null;
+                        // Track barge-in timing
+                        if (bargeInTimestamp) {
+                            const bargeInMs = Date.now() - bargeInTimestamp;
+                            document.getElementById('metricBargeIn').textContent = bargeInMs;
+                            console.log(`⏱️ Server barge-in ack: ${bargeInMs}ms after client detection`);
                         }
-                        
-                        // Clear audio queue
-                        audioQueue = [];
-                        isPlayingAudio = false;
-                        isAgentSpeaking = false;
                         
                         addMessage('system', '👂 Listening to your question...');
                         updateStatus(undefined, 'Speaking', 'Listening');
+                        break;
+
+                    case 'thinking_acknowledgment':
+                        // Flush any remaining audio from the teaching stream
+                        stopAllAudio();
+                        // Show thinking indicator
+                        {
+                            // Remove any previous thinking message
+                            const prev = document.getElementById('thinkingMsg');
+                            if (prev) prev.remove();
+                            const div = document.createElement('div');
+                            div.className = 'message thinking';
+                            div.id = 'thinkingMsg';
+                            div.innerHTML = `
+                                <div class="message-text">
+                                    🤔 <strong>${data.message || 'Let me think about that...'}</strong>
+                                    <div class="thinking-dots"><span></span><span></span><span></span></div>
+                                </div>
+                            `;
+                            conversationLog.appendChild(div);
+                            conversationLog.scrollTop = conversationLog.scrollHeight;
+                        }
+                        updateStatus(undefined, 'Listening', 'Thinking...');
                         break;
 
                     case 'partial_transcript':
@@ -753,11 +877,32 @@
 
                     case 'user_question':
                         addMessage('user', data.text);
+                        answerStartTime = Date.now();
+                        firstAnswerAudioTime = null;
                         updateStatus(undefined, 'Listening', 'Processing');
+                        break;
+
+                    case 'agent_response':
+                        // Remove thinking indicator if present
+                        { const tm = document.getElementById('thinkingMsg'); if (tm) tm.remove(); }
+                        // Hybrid architecture: shows answer source (langgraph_pedagogical / rag / general_llm)
+                        const source = data.agent || data.source || 'unknown';
+                        const sourceBadge = getSourceBadge(source);
+                        addMessage('agent', `${sourceBadge} ${data.text}`);
+                        document.getElementById('metricAnswerSource').textContent = getSourceLabel(source);
+                        if (answerStartTime) {
+                            const answerMs = Date.now() - answerStartTime;
+                            document.getElementById('metricAnswerTime').textContent = answerMs;
+                        }
+                        updateStatus(undefined, 'Listening', 'Answering');
                         break;
 
                     case 'teaching_question_answer':
                         addMessage('agent', data.text);
+                        if (answerStartTime) {
+                            const qaMs = Date.now() - answerStartTime;
+                            document.getElementById('metricAnswerTime').textContent = qaMs;
+                        }
                         updateStatus(undefined, 'Listening', 'Answering');
                         break;
 
@@ -767,17 +912,74 @@
                             playAudioQueue();
                         }
                         isAgentSpeaking = true;
+                        totalChunkCount++;
+                        document.getElementById('metricTotalChunks').textContent = totalChunkCount;
+                        // Track first audio after question
+                        if (!firstAnswerAudioTime && answerStartTime) {
+                            firstAnswerAudioTime = Date.now() - answerStartTime;
+                            document.getElementById('metricFirstAudio').textContent = firstAnswerAudioTime;
+                            console.log(`⏱️ First answer audio: ${firstAnswerAudioTime}ms`);
+                        }
+                        break;
+
+                    case 'answer_audio_complete':
+                        if (data.duration_ms) {
+                            console.log(`✅ Answer audio complete: ${data.chunk_count} chunks in ${Math.round(data.duration_ms)}ms`);
+                        }
                         break;
 
                     case 'answer_complete':
                         addMessage('system', data.message);
                         continueBtn.disabled = false;
                         isAgentSpeaking = false;
+                        answerStartTime = null;
                         updateStatus(undefined, 'Listening', 'Waiting');
                         break;
 
+                    case 'topic_advanced':
+                        // Update topic banner
+                        document.getElementById('topicModuleTitle').textContent = data.module_title || '';
+                        document.getElementById('topicSubTitle').textContent = data.sub_topic_title || '';
+                        document.getElementById('topicProgress').textContent =
+                            `Module ${(data.module_index || 0) + 1} · Topic ${(data.sub_topic_index || 0) + 1}`;
+                        // Update input fields to reflect new position
+                        document.getElementById('moduleIndex').value = data.module_index ?? 0;
+                        document.getElementById('subTopicIndex').value = data.sub_topic_index ?? 0;
+                        // Add styled notification in conversation log
+                        {
+                            const div = document.createElement('div');
+                            div.className = 'message topic-change';
+                            div.innerHTML = `
+                                <div class="tc-icon">⏭️</div>
+                                <div class="tc-title">${data.module_title || 'Next Module'}</div>
+                                <div class="tc-sub">${data.sub_topic_title || 'Next Topic'}</div>
+                            `;
+                            conversationLog.appendChild(div);
+                            conversationLog.scrollTop = conversationLog.scrollHeight;
+                        }
+                        continueBtn.disabled = true;
+                        updateStatus(undefined, 'Listening', 'Teaching Active');
+                        break;
+
+                    case 'course_complete':
+                        {
+                            const div = document.createElement('div');
+                            div.className = 'message course-done';
+                            div.innerHTML = `
+                                <div class="cd-icon">🎉🎓</div>
+                                <div class="cd-text">${data.message || 'Congratulations! Course complete!'}</div>
+                            `;
+                            conversationLog.appendChild(div);
+                            conversationLog.scrollTop = conversationLog.scrollHeight;
+                        }
+                        document.getElementById('topicBanner').classList.remove('visible');
+                        continueBtn.disabled = true;
+                        updateStatus(undefined, 'Listening', 'Course Complete');
+                        break;
+
                     case 'teaching_interrupted':
-                        console.log('🛑 Teaching interrupted');
+                    case 'teaching_cancelled':
+                        console.log('🛑 Teaching audio stopped');
                         break;
 
                     case 'teaching_resumed':
@@ -786,12 +988,25 @@
                         updateStatus(undefined, 'Listening', 'Teaching Active');
                         break;
 
+                    case 'teaching_paused':
+                        addMessage('system', '⏸️ Lesson paused. Say "continue" or click Continue to resume.');
+                        continueBtn.disabled = false;
+                        updateStatus(undefined, 'Listening', 'Paused');
+                        break;
+
+                    case 'teaching_repeat':
+                        addMessage('system', '🔄 Repeating the current section...');
+                        updateStatus(undefined, 'Listening', 'Repeating');
+                        break;
+
                     case 'teaching_ended':
-                        addMessage('system', '✅ Teaching session ended');
+                        addMessage('system', data.message || '✅ Teaching session ended');
                         updateStatus(undefined, 'Inactive', 'Ended');
                         startBtn.disabled = false;
+                        startBtn.innerHTML = '🎙️ Start Interactive Teaching';
                         endBtn.disabled = true;
                         continueBtn.disabled = true;
+                        isTeaching = false;
                         break;
 
                     case 'stt_unavailable':
@@ -811,65 +1026,85 @@
             }
         }
 
-        // Play audio queue
-        async function playAudioQueue() {
-            if (audioQueue.length === 0 || isPlayingAudio) {
-                return;
-            }
+        // ── Seamless audio playback with pre-buffering ──
 
-            isPlayingAudio = true;
-
-            while (audioQueue.length > 0) {
-                const audioBase64 = audioQueue.shift();
-                await playAudio(audioBase64);
-            }
-
-            isPlayingAudio = false;
+        // Prepare (decode + preload) an Audio element from base64 WITHOUT playing it.
+        // Returns { audio, url } ready to .play() instantly.
+        function prepareAudio(audioBase64) {
+            const raw = atob(audioBase64);
+            const bytes = new Uint8Array(raw.length);
+            for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+            const blob = new Blob([bytes], { type: 'audio/mp3' });
+            const url = URL.createObjectURL(blob);
+            const audio = new Audio(url);
+            audio.preload = 'auto';   // browser starts decoding immediately
+            return { audio, url };
         }
 
-        // Play single audio chunk
-        function playAudio(audioBase64) {
-            return new Promise((resolve, reject) => {
-                try {
-                    const audioData = atob(audioBase64);
-                    const audioBytes = new Uint8Array(audioData.length);
-                    for (let i = 0; i < audioData.length; i++) {
-                        audioBytes[i] = audioData.charCodeAt(i);
-                    }
+        // Play a pre-built Audio element. Resolves on ended, pause, or abort
+        // so that stopAllAudio() never leaves a dangling Promise.
+        function playPrepared({ audio, url }) {
+            return new Promise((resolve) => {
+                let settled = false;
+                const done = () => {
+                    if (settled) return;
+                    settled = true;
+                    URL.revokeObjectURL(url);
+                    if (currentAudio === audio) currentAudio = null;
+                    resolve();
+                };
+                audio.onended  = done;
+                audio.onpause  = done;   // ← stopAllAudio calls .pause()
+                audio.onabort  = done;
+                audio.onerror  = (e) => { console.warn('⚠️ chunk error', e); done(); };
 
-                    const blob = new Blob([audioBytes], { type: 'audio/mp3' });
-                    const url = URL.createObjectURL(blob);
-                    const audio = new Audio(url);
-                    
-                    // Track currently playing audio globally
-                    currentAudio = audio;
-
-                    audio.onended = () => {
-                        URL.revokeObjectURL(url);
-                        if (currentAudio === audio) {
-                            currentAudio = null;
-                        }
-                        // Track when audio stopped for silence requirement
-                        lastAudioStopTime = Date.now();
-                        console.log('🔇 Audio playback ended - 5s silence period started');
-                        resolve();
-                    };
-
-                    audio.onerror = (error) => {
-                        console.error('Audio playback error:', error);
-                        URL.revokeObjectURL(url);
-                        if (currentAudio === audio) {
-                            currentAudio = null;
-                        }
-                        reject(error);
-                    };
-
-                    audio.play();
-                } catch (error) {
-                    console.error('Error creating audio:', error);
-                    reject(error);
-                }
+                currentAudio = audio;
+                audio.play().catch(done);   // autoplay-blocked → skip gracefully
             });
+        }
+
+        // Main playback loop — pre-buffers the NEXT chunk while the current
+        // one is playing so there is virtually zero gap between chunks.
+        async function playAudioQueue() {
+            if (audioQueue.length === 0 || isPlayingAudio) return;
+            isPlayingAudio = true;
+            const myGen = audioPlaybackGen;
+
+            let nextReady = null;   // pre-buffered { audio, url } for the next chunk
+
+            while (audioPlaybackGen === myGen) {
+                // Pick the chunk to play: either the pre-buffered one or decode now
+                let toPlay = nextReady;
+                nextReady = null;
+
+                if (!toPlay) {
+                    if (audioQueue.length === 0) break;
+                    toPlay = prepareAudio(audioQueue.shift());
+                }
+
+                // While this chunk plays, pre-buffer the next one
+                if (audioQueue.length > 0) {
+                    nextReady = prepareAudio(audioQueue.shift());
+                }
+
+                try {
+                    await playPrepared(toPlay);
+                } catch (_) { /* already handled inside playPrepared */ }
+
+                // If queue was empty and nothing pre-buffered, wait a tiny bit
+                // for more chunks to arrive (streaming scenario)
+                if (!nextReady && audioQueue.length === 0) {
+                    await new Promise(r => setTimeout(r, 80));
+                    if (audioQueue.length === 0) break;   // truly done
+                }
+            }
+
+            // Cleanup pre-buffered chunk if we were interrupted
+            if (nextReady) {
+                URL.revokeObjectURL(nextReady.url);
+                nextReady = null;
+            }
+            isPlayingAudio = false;
         }
 
         // Continue teaching

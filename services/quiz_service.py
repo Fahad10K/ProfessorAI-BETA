@@ -82,8 +82,9 @@ class QuizService:
                 module_week=module_week
             )
             
-            # Store quiz and answers with course_id (use 'id' field from course)
-            self._store_quiz(quiz, course_content.get('id'))
+            # Store quiz and answers with course_id (try 'id' then 'course_id')
+            cid = course_content.get('id') or course_content.get('course_id')
+            self._store_quiz(quiz, cid)
             
             logging.info(f"Generated module quiz with {len(questions)} questions")
             return quiz
@@ -133,8 +134,9 @@ class QuizService:
                 module_week=None
             )
             
-            # Store quiz and answers with course_id (use 'id' field from course)
-            self._store_quiz(quiz, course_content.get('id'))
+            # Store quiz and answers with course_id (try 'id' then 'course_id')
+            cid = course_content.get('id') or course_content.get('course_id')
+            self._store_quiz(quiz, cid)
             
             logging.info(f"Generated course quiz with {len(all_questions)} questions")
             return quiz

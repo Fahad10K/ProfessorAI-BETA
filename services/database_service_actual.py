@@ -8,7 +8,7 @@ import logging
 import uuid
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Text, ARRAY, Boolean, ForeignKey, Numeric
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Text, ARRAY, Boolean, ForeignKey, Numeric, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship, Session
@@ -67,6 +67,7 @@ class Course(Base):
     is_free = Column(Boolean, default=False, nullable=False)
     price = Column(Numeric, default=0)
     currency = Column(Text, default='INR')
+    country = Column(Text)
     course_order = Column(Integer)
     file_metadata = Column(JSONB)
     created_at = Column(DateTime, default=datetime.now)
@@ -243,6 +244,7 @@ class DatabaseService:
                 is_free=True,
                 price=0,
                 currency='INR',
+                country=course_data.get('country'),
                 created_by=teacher_id or 'system'
             )
             session.add(course)

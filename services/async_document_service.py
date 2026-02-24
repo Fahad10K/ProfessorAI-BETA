@@ -72,19 +72,35 @@ class AsyncDocumentService:
             # Execute in thread pool
             course_data = await loop.run_in_executor(executor, run_with_progress)
             
-            # Mark as completed
-            job_tracker.update_progress(job_id, 100, "Course generated successfully!")
-            
             # Handle course_id (can be INTEGER from JSON or TEXT UUID from database)
             course_id = course_data.get("course_id")
-            # Convert to string for consistent API response
             course_id_str = str(course_id) if course_id is not None else None
             
-            job_tracker.set_result(job_id, {
-                "course_id": course_id_str,  # String representation (works for both int and UUID)
+            # --- Auto-generate quiz after course creation ---
+            quiz_id = None
+            try:
+                job_tracker.update_progress(job_id, 92, "Generating course quiz...")
+                from services.quiz_service import QuizService
+                quiz_svc = QuizService()
+                quiz = await quiz_svc.generate_course_quiz(course_data)
+                quiz_id = quiz.quiz_id if quiz else None
+                if quiz_id:
+                    logging.info(f"✅ Auto-generated course quiz: {quiz_id}")
+            except Exception as qe:
+                logging.warning(f"⚠️ Auto quiz generation failed (non-fatal): {qe}")
+            
+            # Mark as completed
+            job_tracker.update_progress(job_id, 100, "Course and quiz generated successfully!")
+            
+            result_data = {
+                "course_id": course_id_str,
                 "course_title": course_data.get("course_title"),
                 "modules": len(course_data.get("modules", []))
-            })
+            }
+            if quiz_id:
+                result_data["quiz_id"] = quiz_id
+            
+            job_tracker.set_result(job_id, result_data)
             
             logging.info(f"Job {job_id} completed successfully")
             

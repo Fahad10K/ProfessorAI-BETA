@@ -302,10 +302,20 @@
             <button id="chatBtn" onclick="testChatWithAudio()" disabled>💬 Chat + Audio</button>
             <button id="audioBtn" onclick="testAudioOnly()" disabled>🔊 Audio Only</button>
             <button id="classBtn" onclick="testStartClass()" disabled>🎓 Start Class</button>
+            <button id="teachBtn" onclick="startInteractiveTeaching()" disabled style="background: linear-gradient(135deg, #38a169 0%, #2f855a 100%);">🎤 Interactive Teach</button>
+            <button id="endTeachBtn" onclick="endTeaching()" disabled style="background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%);">🛑 End Teaching</button>
             <button id="metricsBtn" onclick="getMetrics()" disabled>📊 Get Metrics</button>
             <button id="stopAudioBtn" onclick="stopAudioPlayback()" disabled>⏹️ Stop Audio</button>
             <button id="disconnectBtn" onclick="disconnectWebSocket()" disabled>🔌 Disconnect</button>
             <button id="logBtn" onclick="toggleLogs()">📋 Toggle Logs</button>
+        </div>
+
+        <!-- Interactive Teaching Panel -->
+        <div id="teachingPanel" style="display:none; margin: 20px 0; padding: 20px; border-radius: 10px; background: linear-gradient(135deg, #f0fff4 0%, #e6fffa 100%); border: 2px solid #38a169;">
+            <h3 style="margin-top:0; color: #22543d;">🎓 Interactive Teaching Mode</h3>
+            <div id="teachingStatus" style="margin-bottom: 10px; font-weight: 600; color: #2d3748;">Initializing...</div>
+            <div id="micStatus" style="margin-bottom: 10px; padding: 8px 12px; border-radius: 6px; background: #fed7d7; color: #742a2a; display: inline-block;">🔴 Mic OFF</div>
+            <div id="teachingTranscript" style="margin-top: 15px; max-height: 200px; overflow-y: auto; font-size: 14px; color: #4a5568;"></div>
         </div>
 
         <div id="status" class="status"></div>
@@ -358,7 +368,8 @@
         let audioChunks = [];
         let isConnected = false;
         let currentRequestId = null;
-        
+        let isTeaching = false;
+
         // Audio queue management for sequential playback
         let audioQueue = [];
         let isPlayingAudio = false;
@@ -373,14 +384,16 @@
         }
 
         function updateButtonStates() {
-            const buttons = ['pingBtn', 'chatBtn', 'audioBtn', 'classBtn', 'metricsBtn', 'disconnectBtn'];
+            const buttons = ['pingBtn', 'chatBtn', 'audioBtn', 'classBtn', 'teachBtn', 'metricsBtn', 'disconnectBtn'];
             buttons.forEach(id => {
                 document.getElementById(id).disabled = !isConnected;
             });
             document.getElementById('connectBtn').disabled = isConnected;
-            
-            // Stop audio button is enabled when audio is playing
             document.getElementById('stopAudioBtn').disabled = !isPlayingAudio;
+            document.getElementById('endTeachBtn').disabled = !isTeaching;
+            if (isTeaching) {
+                document.getElementById('teachBtn').disabled = true;
+            }
         }
 
         function showStatus(message, type = 'info') {
@@ -541,6 +554,88 @@
                     showStatus(`Ping response in ${pingTime}ms`, 'success');
                     break;
 
+                // ---- Interactive Teaching Messages ----
+                case 'interactive_teaching_init':
+                    showStatus(`Loading: ${data.message}`, 'info');
+                    document.getElementById('teachingPanel').style.display = 'block';
+                    document.getElementById('teachingStatus').textContent = 'Loading course content...';
+                    break;
+
+                case 'interactive_teaching_started':
+                    isTeaching = true;
+                    updateButtonStates();
+                    document.getElementById('teachingPanel').style.display = 'block';
+                    document.getElementById('teachingStatus').textContent = `📚 ${data.module_title} → ${data.sub_topic_title}`;
+                    document.getElementById('micStatus').style.background = '#c6f6d5';
+                    document.getElementById('micStatus').style.color = '#22543d';
+                    document.getElementById('micStatus').textContent = '🟢 Mic ON — Speak to ask questions';
+                    showStatus(`Teaching started: ${data.module_title} → ${data.sub_topic_title}`, 'success');
+                    break;
+
+                case 'teaching_audio_chunk':
+                case 'answer_audio_chunk':
+                    handleAudioChunk(data);
+                    break;
+
+                case 'teaching_segment_complete':
+                    addLog(`Segment complete: ${data.total_chunks} chunks`, 'success');
+                    document.getElementById('teachingStatus').textContent = '✅ Section complete — ask a question or say "continue"';
+                    break;
+
+                case 'answer_audio_complete':
+                    addLog(`Answer audio: ${data.chunk_count} chunks in ${Math.round(data.duration_ms)}ms`, 'success');
+                    break;
+
+                case 'user_interrupt_detected':
+                    stopAudioPlayback();
+                    document.getElementById('teachingStatus').textContent = '🎤 Listening...';
+                    addLog('Barge-in detected — listening to user', 'warning');
+                    break;
+
+                case 'user_question':
+                    appendTeachingTranscript('You', data.text);
+                    break;
+
+                case 'agent_response':
+                    appendTeachingTranscript(`AI [${data.agent}]`, data.text);
+                    document.getElementById('teachingStatus').textContent = `🤖 Answering (${data.agent})...`;
+                    break;
+
+                case 'teaching_resumed':
+                    document.getElementById('teachingStatus').textContent = '📖 Resuming lesson...';
+                    addLog('Teaching resumed', 'success');
+                    break;
+
+                case 'teaching_paused':
+                    document.getElementById('teachingStatus').textContent = '⏸️ Paused — say "continue" to resume';
+                    addLog('Teaching paused', 'info');
+                    break;
+
+                case 'teaching_repeat':
+                    document.getElementById('teachingStatus').textContent = '🔄 Repeating...';
+                    addLog('Repeating section', 'info');
+                    break;
+
+                case 'teaching_ended':
+                    isTeaching = false;
+                    updateButtonStates();
+                    stopMicrophone();
+                    document.getElementById('teachingStatus').textContent = '🏁 Session ended';
+                    document.getElementById('micStatus').style.background = '#fed7d7';
+                    document.getElementById('micStatus').style.color = '#742a2a';
+                    document.getElementById('micStatus').textContent = '🔴 Mic OFF';
+                    showStatus(data.message || 'Teaching session ended', 'success');
+                    break;
+
+                case 'teaching_interrupted':
+                case 'teaching_cancelled':
+                    addLog('Teaching audio stopped', 'warning');
+                    break;
+
+                case 'stt_unavailable':
+                    showStatus(data.message, 'error');
+                    break;
+
                 case 'error':
                     console.error('WebSocket error:', data.error);
                     showStatus('Error: ' + data.error, 'error');
@@ -550,6 +645,15 @@
                     addLog(`Unknown message type: ${messageType}`, 'warning');
                     break;
             }
+        }
+
+        function appendTeachingTranscript(speaker, text) {
+            const transcript = document.getElementById('teachingTranscript');
+            const entry = document.createElement('div');
+            entry.style.marginBottom = '8px';
+            entry.innerHTML = `<strong>${speaker}:</strong> ${text}`;
+            transcript.appendChild(entry);
+            transcript.scrollTop = transcript.scrollHeight;
         }
 
         function handleAudioChunk(data) {

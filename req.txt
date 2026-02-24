@@ -18,6 +18,8 @@ python-multipart
 
 # Audio Processing
 sarvamai
+elevenlabs
+deepgram-sdk
 
 # Utilities
 python-dotenv

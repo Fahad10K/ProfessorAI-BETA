@@ -100,6 +100,55 @@ SARVAM_TTS_SPEAKER = "anushka"
 ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")  # Default: Rachel
 ELEVENLABS_MODEL = "eleven_flash_v2_5"  # Fast, low-latency model
 
+# --- Professor Personas (multi-voice) ---
+PROFESSOR_PERSONAS = {
+    "prof_james": {
+        "name": "Professor James",
+        "gender": "male",
+        "voice_id": "ZQe5CZNOzWyzPSCn5a3c",   # James – calm, authoritative male
+        "style": "Socratic and analytical",
+        "personality": (
+            "A seasoned professor who loves asking thought-provoking questions. "
+            "Uses analogies from everyday life. Calm, patient and methodical."
+        ),
+        "greeting": "Good to have you here. Let's dive into today's topic.",
+    },
+    "prof_sarah": {
+        "name": "Professor Sarah",
+        "gender": "female",
+        "voice_id": "EXAVITQu4vr4xnSDxMaL",   # Sarah – soft, warm female
+        "style": "Warm and encouraging",
+        "personality": (
+            "An enthusiastic professor who makes complex topics feel approachable. "
+            "Uses storytelling and real-world examples. Supportive and energetic."
+        ),
+        "greeting": "Hey there! I'm excited to teach you something new today.",
+    },
+    "prof_daniel": {
+        "name": "Professor Daniel",
+        "gender": "male",
+        "voice_id": "onwK4e9ZLuTAKqWW03F9",   # Daniel – deep, authoritative male
+        "style": "Direct and structured",
+        "personality": (
+            "A no-nonsense professor who values clarity and precision. "
+            "Breaks concepts into clear steps. Firm but fair."
+        ),
+        "greeting": "Let's get started. I'll make sure you understand this thoroughly.",
+    },
+    "prof_emily": {
+        "name": "Professor Emily",
+        "gender": "female",
+        "voice_id": "LcfcDJNUP1GQjkzn1xUU",   # Emily – calm, clear female
+        "style": "Methodical and nurturing",
+        "personality": (
+            "A patient professor who ensures every student keeps up. "
+            "Uses step-by-step explanations and checks understanding frequently."
+        ),
+        "greeting": "Welcome! Let's take this one step at a time together.",
+    },
+}
+DEFAULT_PERSONA = os.getenv("DEFAULT_PERSONA", "prof_sarah")
+
 # Audio Provider Selection
 # Options: "deepgram" (recommended), "sarvam" (fallback)
 AUDIO_STT_PROVIDER = os.getenv("AUDIO_STT_PROVIDER", "deepgram")

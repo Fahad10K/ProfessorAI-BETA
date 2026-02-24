@@ -76,14 +76,15 @@ Contelligence/*
 test_upload.pdf
 
 *.pdf
-
+SECRETS_VERIFICATION.md
 k8s
 *.key
 *.pem
 .env
 k8s/*-secrets
-
-docs/*
+docs/EC2_DEPLOYMENT_GUIDE.md
+# docs/*
+docs/QUICK_EC2_DEPLOY.md
 
 migrations
 test_upload.pdf

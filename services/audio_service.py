@@ -121,7 +121,7 @@ class AudioService:
                 config.SARVAM_TTS_SPEAKER
             )
     
-    async def stream_audio_from_text(self, text: str, language: Optional[str] = None, websocket=None):
+    async def stream_audio_from_text(self, text: str, language: Optional[str] = None, websocket=None, voice_id: str = None):
         """
         Stream audio chunks as they're generated for real-time playback.
         Tries primary TTS provider first, falls back to Sarvam on error.
@@ -130,6 +130,7 @@ class AudioService:
             text: Text to convert to speech
             language: Language code (optional)
             websocket: WebSocket connection for error handling
+            voice_id: ElevenLabs voice ID override for multi-voice personas
             
         Yields:
             Audio chunks as bytes
@@ -139,9 +140,9 @@ class AudioService:
         # Try ElevenLabs streaming first if configured
         if self.tts_provider == "elevenlabs" and self.elevenlabs_service:
             try:
-                logger.info(f"🎙️ Streaming audio with ElevenLabs: {len(text)} chars")
+                logger.info(f"🎙️ Streaming audio with ElevenLabs: {len(text)} chars" + (f" (voice={voice_id[:8]}...)" if voice_id else ""))
                 chunk_count = 0
-                async for audio_chunk in self.elevenlabs_service.text_to_speech_stream(text):
+                async for audio_chunk in self.elevenlabs_service.text_to_speech_stream(text, voice_id=voice_id):
                     if audio_chunk and len(audio_chunk) > 0:
                         chunk_count += 1
                         logger.debug(f"📦 ElevenLabs chunk #{chunk_count}: {len(audio_chunk)} bytes")

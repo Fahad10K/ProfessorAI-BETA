@@ -5,15 +5,11 @@ Uses LangGraph for state management, Redis checkpointing, and tool-based agents
 
 import json
 from typing import Annotated, TypedDict, Literal, Optional
-from typing_extensions import TypedDict
 from datetime import datetime
 
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langgraph.checkpoint.redis.aio import AsyncRedisSaver
-
-# LangGraph v1.0+ API: create_agent from langchain.agents
-from langchain.agents import create_agent
 
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
@@ -37,6 +33,7 @@ class TeachingState(TypedDict):
     # Session metadata
     session_id: str
     user_id: str
+    user_name: str
     course_id: int
     module_index: int
     sub_topic_index: int
@@ -57,6 +54,11 @@ class TeachingState(TypedDict):
     # Flags
     is_teaching: bool
     waiting_for_continue: bool
+
+    # Persona
+    persona_name: Optional[str]
+    persona_style: Optional[str]
+    persona_personality: Optional[str]
 
 
 # ============================================================================
@@ -240,7 +242,7 @@ Respond with ONLY the intent name, nothing else."""),
     ])
     
     # Use the LLM to classify
-    llm = ChatOpenAI(model="gpt-4", temperature=0)
+    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
     chain = classification_prompt | llm
     
     try:
@@ -280,33 +282,62 @@ def teach_content(state: TeachingState) -> TeachingState:
         state["teaching_content"] = content
         teaching_content = content
     
+    raw_name = state.get("user_name", "") or ""
+    # Clean first name from username (e.g., vivek_sapra → Vivek)
+    import re as _re
+    _parts = _re.split(r'[_\-.\s]+', raw_name.strip())
+    student_name = _parts[0].capitalize() if _parts and _parts[0] else "student"
+    
+    # Persona injection
+    p_name = state.get("persona_name") or "Professor"
+    p_style = state.get("persona_style") or "Engaging, Socratic, and encouraging"
+    p_personality = state.get("persona_personality") or (
+        "An expert professor who uses storytelling, real-world examples, "
+        "and relatable analogies. Asks thought-provoking questions."
+    )
+    
     # Create pedagogical teaching prompt
     teaching_prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are an expert professor delivering an interactive lesson.
+        ("system", """You are {persona_name}, delivering an interactive lesson.
+The student's first name is {student_name}.
 
-Your teaching style is:
-- **Engaging**: Use storytelling, real-world examples, and relatable analogies
-- **Socratic**: Ask thought-provoking questions to engage critical thinking
-- **Adaptive**: Adjust explanations based on student understanding
-- **Clear**: Break complex concepts into digestible pieces
-- **Encouraging**: Provide positive reinforcement and build confidence
+Your persona and teaching style:
+- Style: {persona_style}
+- Personality: {persona_personality}
+- Clear: Break complex concepts into digestible pieces
+- Encouraging: Build confidence with positive reinforcement
+
+IMPORTANT — sound natural:
+- Use the student's first name sparingly (once or twice per response, NOT every sentence).
+- Vary your phrasing. Never repeat the same filler or transition word back-to-back.
+- Write as spoken language — short sentences, contractions, natural rhythm.
+- Stay in character as {persona_name} throughout.
+
+ASSESSMENT:
+- After finishing the explanation, end with 1-2 quick comprehension questions about the key concepts you just taught.
+- Frame them conversationally, e.g. "So tell me — what do you think is the main advantage of X?" or "Can you explain in your own words how Y works?"
+- Only ask questions for the main concepts, not trivial details.
+- This is a teaching moment, not an exam — keep the tone friendly.
 
 Current Progress: Segment {current_segment} of {total_segments}
 
-Deliver this content in a conversational, engaging manner as if you're teaching a student in a classroom.
-Keep segments concise (2-3 minutes of speaking).
-Use the "explain like I'm learning this for the first time" approach."""),
+Deliver the content conversationally, as if lecturing in a small classroom.
+Keep segments concise (2-3 minutes of speaking)."""),
         ("user", "Please teach me about:\n\n{content}")
     ])
     
-    llm = ChatOpenAI(model="gpt-4", temperature=0.7, streaming=True)
+    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7, streaming=True)
     chain = teaching_prompt | llm
     
     try:
         result = chain.invoke({
             "content": teaching_content,
             "current_segment": current_segment,
-            "total_segments": state.get("total_segments", 1)
+            "total_segments": state.get("total_segments", 1),
+            "student_name": student_name,
+            "persona_name": p_name,
+            "persona_style": p_style,
+            "persona_personality": p_personality,
         })
         
         state["messages"].append(AIMessage(content=result.content))
@@ -341,17 +372,43 @@ def answer_question(state: TeachingState) -> TeachingState:
     # Get course content for context
     course_context = state.get("teaching_content", "")
     
+    raw_name2 = state.get("user_name", "") or ""
+    import re as _re2
+    _parts2 = _re2.split(r'[_\-.\s]+', raw_name2.strip())
+    student_name = _parts2[0].capitalize() if _parts2 and _parts2[0] else "student"
+    
+    # Persona injection
+    p_name = state.get("persona_name") or "Professor"
+    p_style = state.get("persona_style") or "Engaging, Socratic, and encouraging"
+    p_personality = state.get("persona_personality") or (
+        "An expert professor who uses storytelling and real-world examples."
+    )
+    
     # Pedagogical answer prompt
     answer_prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are an expert professor answering a student's question during a lesson.
+        ("system", """You are {persona_name}, answering a student's question during a lesson.
+The student's first name is {student_name}.
+
+Your persona: {persona_style}. {persona_personality}
 
 Your approach:
-- **Directly address** the question first
-- **Connect** the answer to the broader lesson context
-- **Provide examples** to illustrate the concept
-- **Check understanding** by relating to what you've already taught
-- **Be encouraging** - there are no "dumb questions"
-- **Keep it concise** - 1-2 minutes of speaking maximum
+- Directly address the question first
+- Connect the answer to the broader lesson context
+- Provide a clear example to illustrate the concept
+- Keep it concise — 1-2 minutes of speaking maximum
+
+ASSESSMENT MODE — when the student is answering a question YOU asked:
+- Evaluate their understanding: is the answer correct, partially correct, or off-track?
+- If correct/mostly correct: praise briefly and reinforce the key point, then move on.
+- If partially correct: acknowledge what's right, gently correct what's missing, explain the gap.
+- If incorrect: don't just say "wrong" — re-explain the concept from a different angle with a new example, then ask a simpler follow-up.
+- Always end by asking if they'd like to continue or have more questions.
+
+IMPORTANT — sound natural:
+- Use the student's first name sparingly (at most once). Do NOT start every response with their name.
+- Vary your opening — don't always say "Great question!" Use different, natural transitions.
+- Write as spoken language — short sentences, contractions, conversational tone.
+- Stay in character as {persona_name}.
 
 Context from lesson:
 {course_context}
@@ -363,14 +420,18 @@ Answer the question naturally and pedagogically."""),
         ("user", "{question}")
     ])
     
-    llm = ChatOpenAI(model="gpt-4", temperature=0.7)
+    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
     chain = answer_prompt | llm
     
     try:
         result = chain.invoke({
             "question": user_question,
             "course_context": course_context[:2000],
-            "history_context": history_context
+            "history_context": history_context,
+            "student_name": student_name,
+            "persona_name": p_name,
+            "persona_style": p_style,
+            "persona_personality": p_personality,
         })
         
         state["messages"].append(AIMessage(content=result.content))

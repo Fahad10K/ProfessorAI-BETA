@@ -3,6 +3,7 @@
 # Based on Contelligence architecture with optimizations for educational content
 
 import asyncio
+import base64
 import threading
 import time
 import json
@@ -19,14 +20,14 @@ from services.teaching_service import TeachingService
 from services.session_manager import get_session_manager
 from services.database_service_v2 import get_database_service
 
-# LangGraph Supervisor Multi-Agent System (Production)
-from services.langgraph_supervisor_agent import (
-    create_supervisor_teaching_system,
-    initialize_supervisor_session,
-    process_with_supervisor,
-    SupervisorState
+# Real-time Teaching Orchestrator (replaces broken LangGraph supervisor)
+from services.realtime_orchestrator import (
+    RealtimeOrchestrator,
+    TeachingPhase,
+    UserIntent,
+    classify_intent,
+    needs_rag,
 )
-from langchain_core.messages import HumanMessage, AIMessage
 
 import config
 
@@ -211,10 +212,8 @@ class ProfAIAgent:
             self.teaching_service = None
             self.services_available["teaching"] = False
         
-        # LangGraph Supervisor Multi-Agent System (LAZY ASYNC INITIALIZATION)
-        # Will be initialized on first teaching session (async pattern)
-        self.supervisor_graph = None
-        self._supervisor_initialized = False
+        # Real-time Teaching Orchestrator (replaces broken LangGraph supervisor)
+        self.orchestrator = RealtimeOrchestrator()
         
         # Performance tracking
         self.conversation_metrics = {
@@ -238,36 +237,18 @@ class ProfAIAgent:
         self.ip_address = None
         self.user_agent = "WebSocket"
         
-        # Interactive teaching session state (managed by supervisor)
+        # Interactive teaching session state (managed by orchestrator)
         self.teaching_session = None
+        
+        # Chat audio barge-in: generation counter incremented on each new
+        # chat_with_audio request so the previous audio loop stops.
+        self._chat_audio_gen = 0
         
         log(f"ProfAI agent initialized for client {self.client_id} - Services: {self.services_available}")
 
-    async def _ensure_supervisor_initialized(self):
-        """
-        Lazy initialization of supervisor graph (async pattern).
-        Only runs once, then reuses the compiled graph for all sessions.
-        """
-        if self._supervisor_initialized and self.supervisor_graph:
-            return True
-        
-        if not config.REDIS_URL:
-            log("❌ Redis URL not configured, cannot initialize supervisor")
-            return False
-        
-        try:
-            log("🤖 Initializing Async Supervisor Multi-Agent System...")
-            self.supervisor_graph = await create_supervisor_teaching_system(
-                redis_url=config.REDIS_URL
-            )
-            self._supervisor_initialized = True
-            log("✅ Async Supervisor graph compiled and ready (will reuse for all sessions)")
-            return True
-        except Exception as e:
-            log(f"⚠️ Failed to initialize supervisor: {e}")
-            self.supervisor_graph = None
-            self._supervisor_initialized = False
-            return False
+    def _ensure_orchestrator_ready(self):
+        """Orchestrator is always ready (no async init needed)."""
+        return self.orchestrator is not None
 
     async def process_messages(self):
         """
@@ -297,7 +278,9 @@ class ProfAIAgent:
                         })
                         continue
                     
-                    log(f"Processing message type: {message_type} for client {self.client_id}")
+                    # Don't log high-frequency audio chunks (fires ~15/sec)
+                    if message_type != "stt_audio_chunk":
+                        log(f"Processing message type: {message_type} for client {self.client_id}")
                     
                     # Route messages to appropriate handlers
                     if message_type == "ping":
@@ -306,6 +289,8 @@ class ProfAIAgent:
                         await self.handle_chat_with_audio(data)
                     elif message_type == "start_class":
                         await self.handle_start_class(data)
+                    elif message_type == "start_class_interactive":
+                        await self.handle_interactive_teaching(data)
                     elif message_type == "interactive_teaching":
                         await self.handle_interactive_teaching(data)
                     elif message_type == "stt_audio_chunk":
@@ -366,6 +351,10 @@ class ProfAIAgent:
     async def handle_chat_with_audio(self, data: dict):
         """Handle chat requests with automatic audio generation - optimized for low latency."""
         request_start_time = time.time()
+        
+        # Barge-in: cancel any previous chat audio stream
+        self._chat_audio_gen += 1
+        my_gen = self._chat_audio_gen
         
         try:
             # Enhanced service availability check
@@ -525,52 +514,68 @@ class ProfAIAgent:
             })
             
             try:
-                # OPTIMIZED streaming for sub-300ms latency (consistent with start_class)
+                # Accumulate small TTS chunks into larger buffers for gapless
+                # playback.  At 32kbps MP3, 16 KB ≈ 4 s of audio.
+                _MIN_SEND = 16_384  # 16 KB — same as teaching audio
+                
                 audio_start_time = time.time()
                 chunk_count = 0
                 total_audio_size = 0
                 first_chunk_sent = False
+                audio_buf = b''
                 
-                log(f"🚀 Starting REAL-TIME class audio streaming for: {response_text[:50]}...")
+                log(f"🚀 Starting REAL-TIME chat audio streaming for: {response_text[:50]}...")
                 
+                import base64
+                barged_in = False
                 async for audio_chunk in self.audio_service.stream_audio_from_text(response_text, language, self.websocket):
+                    # Barge-in check: a newer request has arrived
+                    if my_gen != self._chat_audio_gen:
+                        log("🛑 Chat audio interrupted by new request (barge-in)")
+                        barged_in = True
+                        break
+                    
                     if audio_chunk and len(audio_chunk) > 0:
-                        chunk_count += 1
+                        audio_buf += audio_chunk
                         total_audio_size += len(audio_chunk)
                         
-                        # Convert to base64 for JSON transmission
-                        import base64
-                        audio_base64 = base64.b64encode(audio_chunk).decode('utf-8')
-                        
-                        # Send chunk immediately
-                        await self.websocket.send({
-                            "type": "audio_chunk",
-                            "chunk_id": chunk_count,
-                            "audio_data": audio_base64,
-                            "size": len(audio_chunk),
-                            "is_first_chunk": not first_chunk_sent,
-                            "request_id": data.get("request_id", "")
-                        })
-                        
-                        # Log first chunk latency (CRITICAL METRIC - consistent with start_class)
-                        if not first_chunk_sent:
-                            first_audio_latency = (time.time() - audio_start_time) * 1000
-                            log(f"🎯 FIRST CHAT AUDIO CHUNK delivered in {first_audio_latency:.0f}ms")
+                        # Flush buffer when large enough
+                        if len(audio_buf) >= _MIN_SEND:
+                            chunk_count += 1
+                            audio_base64 = base64.b64encode(audio_buf).decode('utf-8')
+                            await self.websocket.send({
+                                "type": "audio_chunk",
+                                "chunk_id": chunk_count,
+                                "audio_data": audio_base64,
+                                "size": len(audio_buf),
+                                "is_first_chunk": not first_chunk_sent,
+                                "request_id": data.get("request_id", "")
+                            })
+                            audio_buf = b''
                             
-                            if first_audio_latency <= 300:
-                                log(f"🎉 TARGET ACHIEVED! Sub-300ms latency: {first_audio_latency:.0f}ms")
-                            elif first_audio_latency <= 900:
-                                log(f"✅ GOOD latency: {first_audio_latency:.0f}ms (under 900ms target)")
-                            else:
-                                log(f"⚠️ HIGH latency: {first_audio_latency:.0f}ms (needs optimization)")
-                            
-                            first_chunk_sent = True
-                        else:
-                            # Log subsequent chunks
-                            chunk_time = (time.time() - audio_start_time) * 1000
-                            log(f"   Chunk {chunk_count}: {len(audio_chunk)} bytes at {chunk_time:.0f}ms")
+                            if not first_chunk_sent:
+                                first_audio_latency = (time.time() - audio_start_time) * 1000
+                                log(f"🎯 FIRST CHAT AUDIO CHUNK delivered in {first_audio_latency:.0f}ms ({chunk_count} accumulated)")
+                                first_chunk_sent = True
                 
-                # Send completion message (consistent with start_class)
+                # Flush remaining buffer (skip if barged in)
+                if audio_buf and not barged_in:
+                    chunk_count += 1
+                    audio_base64 = base64.b64encode(audio_buf).decode('utf-8')
+                    await self.websocket.send({
+                        "type": "audio_chunk",
+                        "chunk_id": chunk_count,
+                        "audio_data": audio_base64,
+                        "size": len(audio_buf),
+                        "is_first_chunk": not first_chunk_sent,
+                        "request_id": data.get("request_id", "")
+                    })
+                    if not first_chunk_sent:
+                        first_audio_latency = (time.time() - audio_start_time) * 1000
+                        log(f"🎯 FIRST CHAT AUDIO CHUNK delivered in {first_audio_latency:.0f}ms (final flush)")
+                        first_chunk_sent = True
+                
+                # Send completion message
                 await self.websocket.send({
                     "type": "audio_generation_complete",
                     "total_chunks": chunk_count,
@@ -654,40 +659,55 @@ class ProfAIAgent:
                 "request_id": data.get("request_id", "")
             })
             
-            # Load and validate course content with timeout
+            # Load and validate course content — DB primary, JSON fallback
             try:
-                import os
-                if not os.path.exists(config.OUTPUT_JSON_PATH):
+                course_data = None
+                
+                # PRIMARY: Load from Neon database
+                if self.database_service:
+                    try:
+                        log(f"Loading course {course_id} from Neon database...")
+                        course_data = self.database_service.get_course_with_content(course_id)
+                        if course_data:
+                            log(f"✅ Found course from DB: {course_data.get('title', 'Unknown')}")
+                    except Exception as db_err:
+                        log(f"⚠️ DB load failed, trying JSON fallback: {db_err}")
+                
+                # FALLBACK: Load from JSON
+                if not course_data:
+                    course_data = await asyncio.wait_for(
+                        self._load_course_data_async(course_id),
+                        timeout=60.0
+                    )
+                
+                if not course_data:
                     await self.websocket.send({
                         "type": "error",
-                        "error": "Course content not found"
+                        "error": f"Course {course_id} not found in database or JSON"
                     })
                     return
-                
-                # Load course data with timeout protection - pass course_id for proper loading
-                course_data = await asyncio.wait_for(
-                    self._load_course_data_async(course_id),
-                    timeout=60.0  # 60 second timeout for file loading
-                )
                 
                 # Validate indices
-                if module_index >= len(course_data.get("modules", [])):
+                modules = course_data.get("modules", [])
+                if module_index >= len(modules):
                     await self.websocket.send({
                         "type": "error",
-                        "error": f"Module {module_index} not found (available: 0-{len(course_data.get('modules', []))-1})"
+                        "error": f"Module {module_index} not found (available: 0-{len(modules)-1})"
                     })
                     return
                     
-                module = course_data["modules"][module_index]
+                module = modules[module_index]
                 
-                if sub_topic_index >= len(module.get("sub_topics", [])):
+                # DB uses 'topics', JSON uses 'sub_topics' — handle both
+                sub_topics = module.get("topics", module.get("sub_topics", []))
+                if sub_topic_index >= len(sub_topics):
                     await self.websocket.send({
                         "type": "error",
-                        "error": f"Sub-topic {sub_topic_index} not found (available: 0-{len(module.get('sub_topics', []))-1})"
+                        "error": f"Topic {sub_topic_index} not found (available: 0-{len(sub_topics)-1})"
                     })
                     return
                     
-                sub_topic = module["sub_topics"][sub_topic_index]
+                sub_topic = sub_topics[sub_topic_index]
                 
                 # Send course info
                 await self.websocket.send({
@@ -789,52 +809,61 @@ class ProfAIAgent:
             })
             
             try:
-                # OPTIMIZED streaming for sub-300ms latency (consistent with chat_with_audio)
+                # Accumulate small TTS chunks into larger buffers for gapless
+                # playback.  At 32kbps MP3, 16 KB ≈ 4 s of audio.
+                _MIN_SEND = 16_384  # 16 KB — same as teaching audio
+                
                 audio_start_time = time.time()
                 chunk_count = 0
                 total_audio_size = 0
                 first_chunk_sent = False
+                audio_buf = b''
                 
                 log(f"🚀 Starting REAL-TIME class audio streaming for: {teaching_content[:50]}...")
                 
+                import base64
                 async for audio_chunk in self.audio_service.stream_audio_from_text(teaching_content, language, self.websocket):
                     if audio_chunk and len(audio_chunk) > 0:
-                        chunk_count += 1
+                        audio_buf += audio_chunk
                         total_audio_size += len(audio_chunk)
                         
-                        # Convert to base64 for JSON transmission
-                        import base64
-                        audio_base64 = base64.b64encode(audio_chunk).decode('utf-8')
-                        
-                        # Send chunk immediately
-                        await self.websocket.send({
-                            "type": "audio_chunk",
-                            "chunk_id": chunk_count,
-                            "audio_data": audio_base64,
-                            "size": len(audio_chunk),
-                            "is_first_chunk": not first_chunk_sent,
-                            "request_id": data.get("request_id", "")
-                        })
-                        
-                        # Log first chunk latency (CRITICAL METRIC - consistent with chat)
-                        if not first_chunk_sent:
-                            first_audio_latency = (time.time() - audio_start_time) * 1000
-                            log(f"🎯 FIRST CLASS AUDIO CHUNK delivered in {first_audio_latency:.0f}ms")
+                        # Flush buffer when large enough
+                        if len(audio_buf) >= _MIN_SEND:
+                            chunk_count += 1
+                            audio_base64 = base64.b64encode(audio_buf).decode('utf-8')
+                            await self.websocket.send({
+                                "type": "audio_chunk",
+                                "chunk_id": chunk_count,
+                                "audio_data": audio_base64,
+                                "size": len(audio_buf),
+                                "is_first_chunk": not first_chunk_sent,
+                                "request_id": data.get("request_id", "")
+                            })
+                            audio_buf = b''
                             
-                            if first_audio_latency <= 300:
-                                log(f"🎉 TARGET ACHIEVED! Sub-300ms latency: {first_audio_latency:.0f}ms")
-                            elif first_audio_latency <= 900:
-                                log(f"✅ GOOD latency: {first_audio_latency:.0f}ms (under 900ms target)")
-                            else:
-                                log(f"⚠️ HIGH latency: {first_audio_latency:.0f}ms (needs optimization)")
-                            
-                            first_chunk_sent = True
-                        else:
-                            # Log subsequent chunks
-                            chunk_time = (time.time() - audio_start_time) * 1000
-                            log(f"   Chunk {chunk_count}: {len(audio_chunk)} bytes at {chunk_time:.0f}ms")
+                            if not first_chunk_sent:
+                                first_audio_latency = (time.time() - audio_start_time) * 1000
+                                log(f"🎯 FIRST CLASS AUDIO CHUNK delivered in {first_audio_latency:.0f}ms ({chunk_count} accumulated)")
+                                first_chunk_sent = True
                 
-                # Send completion message (consistent completion type)
+                # Flush remaining buffer
+                if audio_buf:
+                    chunk_count += 1
+                    audio_base64 = base64.b64encode(audio_buf).decode('utf-8')
+                    await self.websocket.send({
+                        "type": "audio_chunk",
+                        "chunk_id": chunk_count,
+                        "audio_data": audio_base64,
+                        "size": len(audio_buf),
+                        "is_first_chunk": not first_chunk_sent,
+                        "request_id": data.get("request_id", "")
+                    })
+                    if not first_chunk_sent:
+                        first_audio_latency = (time.time() - audio_start_time) * 1000
+                        log(f"🎯 FIRST CLASS AUDIO CHUNK delivered in {first_audio_latency:.0f}ms (final flush)")
+                        first_chunk_sent = True
+                
+                # Send completion message
                 await self.websocket.send({
                     "type": "audio_generation_complete",
                     "total_chunks": chunk_count,
@@ -899,7 +928,13 @@ class ProfAIAgent:
             ip_address = data.get("ip_address") or self.ip_address or "127.0.0.1"
             user_agent = data.get("user_agent") or self.user_agent
             
-            log(f"Starting interactive teaching: course={course_id}, module={module_index}, topic={sub_topic_index}")
+            # Resolve professor persona for multi-voice + personality
+            persona_id = data.get("persona_id") or getattr(config, "DEFAULT_PERSONA", "prof_sarah")
+            personas = getattr(config, "PROFESSOR_PERSONAS", {})
+            persona = personas.get(persona_id, {})
+            voice_id = persona.get("voice_id")  # None → AudioService uses default
+            
+            log(f"Starting interactive teaching: course={course_id}, module={module_index}, topic={sub_topic_index}, persona={persona_id}")
             
             # Get or create session for message persistence
             if self.session_manager:
@@ -915,96 +950,113 @@ class ProfAIAgent:
                 except Exception as e:
                     log(f"Session creation failed: {e}")
             
-            # Ensure supervisor multi-agent system is initialized (lazy async init)
-            supervisor_ready = await self._ensure_supervisor_initialized()
-            if not supervisor_ready or not self.supervisor_graph:
-                log("❌ Supervisor graph initialization failed, cannot start teaching")
-                await self.websocket.send({
-                    "type": "error",
-                    "error": "Multi-agent system initialization failed"
-                })
-                return
+            # Fetch username for personalised prompts
+            user_name = ""
+            if self.database_service and user_id:
+                try:
+                    user_info = self.database_service.get_user_by_id(int(user_id))
+                    if user_info:
+                        user_name = user_info.get('username', '')
+                        log(f"👤 User: {user_name} (id={user_id})")
+                except Exception as e:
+                    log(f"⚠️ Could not fetch username: {e}")
             
-            log("🤖 Initializing supervisor session with specialized agents...")
-            
-            # Initialize supervisor state (efficient - stored in Redis via checkpointing)
+            # Initialize orchestrator session (instant, no async init needed)
             thread_id = self.session_id or f"ws_{self.client_id}"
             
-            self.supervisor_state = initialize_supervisor_session(
+            orch_state = self.orchestrator.create_session(
                 session_id=thread_id,
                 user_id=user_id,
                 course_id=course_id,
                 module_index=module_index,
                 sub_topic_index=sub_topic_index,
-                total_segments=10  # Configurable
+                module_title="",  # Set after loading
+                sub_topic_title="",
+                user_name=user_name,
+                persona_id=persona_id,
             )
             
             # Initialize teaching session state (lightweight - for WebSocket management)
             self.teaching_session = {
                 'active': True,
-                'thread_id': thread_id,  # For supervisor checkpointing
+                'thread_id': thread_id,
                 'course_id': course_id,
                 'module_index': module_index,
                 'sub_topic_index': sub_topic_index,
                 'current_tts_task': None,
                 'stt_service': None,
                 'user_id': user_id,
+                'user_name': user_name,
                 'language': language,
-                'supervisor_state': self.supervisor_state,  # Reference to state
-                'last_latency_ms': 0  # Latency tracking
+                'last_latency_ms': 0,
+                '_streaming_text': '',  # Track text currently being spoken (for barge-in resume)
+                'persona_id': persona_id,
+                'persona': persona,
+                'voice_id': voice_id,
             }
             
-            log(f"✅ Supervisor session initialized (thread_id: {thread_id})")
-            log("🎯 Specialized agents ready: Teaching, Q&A, Assessment, Navigation")
+            log(f"✅ Orchestrator session ready (thread_id: {thread_id})")
             
-            # Send acknowledgment
+            # Send acknowledgment with persona info
             await self.websocket.send({
                 "type": "interactive_teaching_init",
                 "message": "Loading course content...",
                 "course_id": course_id,
                 "module_index": module_index,
-                "sub_topic_index": sub_topic_index
+                "sub_topic_index": sub_topic_index,
+                "persona": {
+                    "id": persona_id,
+                    "name": persona.get("name", "Professor"),
+                    "gender": persona.get("gender", ""),
+                    "style": persona.get("style", ""),
+                } if persona else None,
             })
             
-            # Load course content from JSON (teaching structure not in database)
+            # Load course content from Neon PostgreSQL database (primary) with JSON fallback
             try:
-                import os
-                import json
-                
-                log(f"Loading course {course_id} teaching content from JSON...")
-                
-                if not os.path.exists(config.OUTPUT_JSON_PATH):
-                    await self.websocket.send({
-                        "type": "error",
-                        "error": "Course content not found"
-                    })
-                    return
-                
-                with open(config.OUTPUT_JSON_PATH, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                
-                # Handle both single course and multi-course formats
                 course_data = None
-                if isinstance(data, dict) and 'course_title' in data:
-                    course_data = data
-                elif isinstance(data, list):
-                    for course in data:
-                        if str(course.get("course_id", "")) == str(course_id):
-                            course_data = course
-                            break
-                    if not course_data:
-                        course_data = data[0] if data else None
+                
+                # PRIMARY: Load from Neon database via DatabaseServiceV2
+                if self.database_service:
+                    try:
+                        log(f"Loading course {course_id} from Neon database...")
+                        course_data = self.database_service.get_course_with_content(course_id)
+                        if course_data:
+                            log(f"✅ Found course from DB: {course_data.get('title', 'Unknown')} (id={course_data.get('id')})")
+                    except Exception as db_err:
+                        log(f"⚠️ Database loading failed, will try JSON fallback: {db_err}")
+                
+                # FALLBACK: Load from JSON file if database unavailable
+                if not course_data:
+                    import os
+                    import json as json_mod
+                    log(f"Loading course {course_id} from JSON fallback...")
+                    
+                    if os.path.exists(config.OUTPUT_JSON_PATH):
+                        with open(config.OUTPUT_JSON_PATH, 'r', encoding='utf-8') as f:
+                            json_content = json_mod.load(f)
+                        
+                        if isinstance(json_content, dict) and ('course_title' in json_content or 'title' in json_content):
+                            course_data = json_content
+                        elif isinstance(json_content, list):
+                            for c in json_content:
+                                if str(c.get("course_id", c.get("id", ""))) == str(course_id):
+                                    course_data = c
+                                    break
+                            if not course_data and json_content:
+                                course_data = json_content[0]
+                        
+                        if course_data:
+                            log(f"Found course from JSON: {course_data.get('course_title', course_data.get('title', 'Unknown'))}")
                 
                 if not course_data:
                     await self.websocket.send({
                         "type": "error",
-                        "error": f"Course {course_id} not found in teaching content"
+                        "error": f"Course {course_id} not found in database or JSON"
                     })
                     return
                 
-                log(f"Found course: {course_data.get('course_title', 'Unknown')}")
-                
-                # Validate module index
+                # Validate module index — DB uses 'modules' same as JSON
                 modules = course_data.get("modules", [])
                 log(f"Course has {len(modules)} modules")
                 
@@ -1017,19 +1069,35 @@ class ProfAIAgent:
                 
                 module = modules[module_index]
                 
-                # Validate sub-topic index
-                sub_topics = module.get("sub_topics", [])
-                log(f"Module '{module['title']}' has {len(sub_topics)} sub-topics")
+                # DB uses 'topics', JSON uses 'sub_topics' — handle both
+                sub_topics = module.get("topics", module.get("sub_topics", []))
+                log(f"Module '{module.get('title', 'Unknown')}' has {len(sub_topics)} topics")
                 
                 if sub_topic_index >= len(sub_topics):
                     await self.websocket.send({
                         "type": "error",
-                        "error": f"Sub-topic {sub_topic_index} not found. Module has {len(sub_topics)} sub-topics (0-{len(sub_topics)-1})"
+                        "error": f"Topic {sub_topic_index} not found. Module has {len(sub_topics)} topics (0-{len(sub_topics)-1})"
                     })
                     return
                 
                 sub_topic = sub_topics[sub_topic_index]
-                log(f"✅ Loaded: {module['title']} → {sub_topic['title']}")
+                module_title = module.get('title', 'Unknown Module')
+                sub_topic_title = sub_topic.get('title', 'Unknown Topic')
+                log(f"✅ Loaded: {module_title} → {sub_topic_title}")
+                
+                # Store course_data for auto-advance to next topic/module
+                self.teaching_session['course_data'] = course_data
+                
+                # Rolling conversation context (last 6 exchanges) for LLM relevance
+                self.teaching_session['conversation_context'] = []
+                
+                # Update orchestrator with titles + course structure counts
+                orch_state = self.orchestrator.get_session(thread_id)
+                if orch_state:
+                    orch_state.module_title = module_title
+                    orch_state.sub_topic_title = sub_topic_title
+                    orch_state.total_modules = len(modules)
+                    orch_state.total_sub_topics = len(sub_topics)
                 
             except Exception as e:
                 log(f"Error loading course content: {e}")
@@ -1041,7 +1109,8 @@ class ProfAIAgent:
                 })
                 return
             
-            # Generate teaching content
+            # FAST content delivery: use raw content with minimal formatting
+            # This eliminates the 5-10s LLM generation delay
             try:
                 raw_content = sub_topic.get('content', '')
                 if not raw_content:
@@ -1050,49 +1119,48 @@ class ProfAIAgent:
                 if len(raw_content) > 8000:
                     raw_content = raw_content[:7500] + "..."
                 
-                if not self.services_available.get("teaching", False):
-                    teaching_content = self._create_simple_teaching_content(
-                        module['title'], sub_topic['title'], raw_content
-                    )
-                else:
-                    try:
-                        teaching_content = await asyncio.wait_for(
-                            self.teaching_service.generate_teaching_content(
-                                module_title=module['title'],
-                                sub_topic_title=sub_topic['title'],
-                                raw_content=raw_content,
-                                language=language
-                            ),
-                            timeout=60.0
-                        )
-                    except asyncio.TimeoutError:
-                        teaching_content = self._create_simple_teaching_content(
-                            module['title'], sub_topic['title'], raw_content
-                        )
-                
-                if not teaching_content or len(teaching_content.strip()) == 0:
-                    teaching_content = self._create_simple_teaching_content(
-                        module['title'], sub_topic['title'], raw_content
-                    )
-                
-                self.teaching_session['teaching_content'] = teaching_content
-                
-                # Content loaded and ready for supervisor to deliver
-                log(f"✅ Teaching content loaded, ready for supervisor delivery")
-                
-            except Exception as e:
-                log(f"Error generating teaching content: {e}")
+                # Use simple formatting for immediate delivery (<100ms)
                 teaching_content = self._create_simple_teaching_content(
                     module['title'], sub_topic['title'], raw_content
                 )
+                
                 self.teaching_session['teaching_content'] = teaching_content
                 
-                # Fallback content loaded and ready for supervisor
+                # Set content in orchestrator for segmented resume support
+                self.orchestrator.set_content(thread_id, teaching_content, raw_content)
+                
+                log(f"✅ Teaching content ready ({len(teaching_content)} chars, {self.orchestrator.get_session(thread_id).total_segments} segments)")
+                
+                # BACKGROUND: Enhance content with LangGraph pedagogical LLM (non-blocking)
+                # Raw content is delivered immediately; enhanced version replaces it when ready
+                if self.orchestrator.langgraph_available:
+                    async def _enhance_content_background():
+                        try:
+                            enhanced = await asyncio.get_event_loop().run_in_executor(
+                                None,
+                                self.orchestrator.generate_teaching_content_with_llm,
+                                thread_id
+                            )
+                            if enhanced and len(enhanced) > 50:
+                                self.orchestrator.set_content(thread_id, enhanced, raw_content)
+                                self.teaching_session['teaching_content'] = enhanced
+                                log(f"✅ LangGraph enhanced content ready ({len(enhanced)} chars)")
+                        except Exception as e:
+                            log(f"⚠️ Background content enhancement skipped: {e}")
+                    
+                    asyncio.create_task(_enhance_content_background())
+                    log("🧠 LangGraph content enhancement started (background)")
+                
+            except Exception as e:
+                log(f"Error preparing teaching content: {e}")
+                teaching_content = f"Let's learn about {sub_topic.get('title', 'this topic')}."
+                self.teaching_session['teaching_content'] = teaching_content
+                self.orchestrator.set_content(thread_id, teaching_content)
             
             # Initialize Deepgram STT service for voice input
             try:
                 from services.deepgram_stt_service import DeepgramSTTService
-                stt_service = DeepgramSTTService(sample_rate=16000)
+                stt_service = DeepgramSTTService(sample_rate=16000, language_hint=language)
                 stt_started = await stt_service.start()
                 
                 if not stt_started:
@@ -1143,7 +1211,10 @@ class ProfAIAgent:
             })
     
     async def _handle_teaching_interruptions(self):
-        """Listen for STT events and handle user interruptions during teaching."""
+        """
+        Listen for STT events and handle user interruptions during teaching.
+        Uses RealtimeOrchestrator for fast intent classification and routing.
+        """
         log("🎤 _handle_teaching_interruptions() task STARTED")
         
         if not self.teaching_session:
@@ -1155,69 +1226,107 @@ class ProfAIAgent:
             log("❌ No STT service available for interruptions")
             return
         
-        log(f"✅ STT service found: {type(stt_service).__name__}")
+        thread_id = self.teaching_session.get('thread_id')
+        log(f"✅ STT service found, thread_id={thread_id}")
         
         try:
-            log("👂 Starting to listen for teaching interruptions...")
+            log("👂 Listening for teaching interruptions...")
             
             event_count = 0
             async for event in stt_service.recv():
                 event_count += 1
                 event_type = event.get('type')
-                # Only log critical events at INFO level, partials at DEBUG
-                if event_type in ['speech_started', 'final', 'utterance_end']:
+                
+                # Only log critical events at INFO level (not speech_started — fires on noise)
+                if event_type in ['final', 'utterance_end']:
                     log(f"📨 Deepgram: {event_type}")
+                elif event_type == 'partial':
+                    log(f"📨 Deepgram: partial")
                 else:
                     logging.debug(f"📨 Deepgram event #{event_count}: {event_type}")
                 
                 if event_type == 'speech_started':
-                    # USER STARTED SPEAKING - BARGE-IN!
-                    barge_in_start = time.time()
-                    log(f"🗣️ User interruption detected for client {self.client_id}")
-                    
-                    # Set speaking state flag to prevent new TTS generation
-                    self.teaching_session['user_is_speaking'] = True
-                    
-                    # Cancel current teaching/answer audio IMMEDIATELY (minimize latency)
-                    if self.teaching_session.get('current_tts_task'):
-                        log("⏹️ Cancelling TTS task...")
-                        self.teaching_session['current_tts_task'].cancel()
-                        log("✅ TTS cancelled")
-                    
-                    # Notify client FAST (no supervisor call needed for barge-in detection)
-                    try:
-                        await self.websocket.send({
-                            "type": "user_interrupt_detected",
-                            "message": "Listening..."
-                        })
-                        barge_in_latency = (time.time() - barge_in_start) * 1000
-                        log(f"✅ Barge-in handled in {barge_in_latency:.0f}ms")
-                    except Exception as e:
-                        log(f"❌ Failed to send interrupt notification: {e}")
+                    # DON'T barge-in on speech_started alone — Deepgram VAD
+                    # fires on ambient noise (fan, AC). Just note it; we'll
+                    # confirm real speech when a partial/final transcript arrives.
+                    self.teaching_session['_pending_barge_in'] = True
+                    log("🗣️ SpeechStarted (pending barge-in confirmation)")
                 
                 elif event_type == 'partial':
-                    # Interim transcript - DEBUG ONLY (not sent to UI to reduce spam)
                     partial_text = event.get('text', '')
                     if partial_text:
-                        # Only log at DEBUG level to avoid console spam
-                        logging.debug(f"📝 Partial: {partial_text[:50]}")
-                        # DO NOT send partials to UI - causes network/visual spam
+                        # Real text confirmed — NOW trigger barge-in if pending
+                        if self.teaching_session.get('_pending_barge_in'):
+                            self.teaching_session['_pending_barge_in'] = False
+                            barge_in_start = time.time()
+                            self.teaching_session['user_is_speaking'] = True
+                            
+                            # Capture text being spoken for resume
+                            streaming_text = self.teaching_session.get('_streaming_text', '')
+                            self.teaching_session['_streaming_text'] = ''
+                            
+                            # Stop teaching audio immediately (checked every iteration)
+                            self.teaching_session['is_teaching'] = False
+                            
+                            # Cancel entire answer pipeline (LLM + TTS)
+                            if self.teaching_session.get('current_answer_task'):
+                                self.teaching_session['current_answer_task'].cancel()
+                                self.teaching_session['current_answer_task'] = None
+                            if self.teaching_session.get('current_tts_task'):
+                                self.teaching_session['current_tts_task'].cancel()
+                            
+                            # Notify orchestrator (with text for resume)
+                            self.orchestrator.on_barge_in(thread_id, streaming_text=streaming_text)
+                            
+                            # Notify client
+                            try:
+                                await self.websocket.send({
+                                    "type": "user_interrupt_detected",
+                                    "message": "Listening..."
+                                })
+                                log(f"✅ Barge-in (confirmed by transcript) in {(time.time()-barge_in_start)*1000:.0f}ms")
+                            except Exception as e:
+                                log(f"❌ Failed to send interrupt notification: {e}")
+                        
+                        log(f"📝 Partial: {partial_text[:80]}")
+                
+                elif event_type == 'utterance_end':
+                    # Reset pending barge-in — utterance ended without real text
+                    self.teaching_session['_pending_barge_in'] = False
+                    log("🔇 Utterance ended")
                 
                 elif event_type == 'final':
-                    # User finished speaking - USE SUPERVISOR MULTI-AGENT for intelligent routing
-                    supervisor_start = time.time()
-                    
-                    # Reset speaking state flag
+                    # User finished speaking - route via orchestrator (<5ms)
+                    route_start = time.time()
                     self.teaching_session['user_is_speaking'] = False
+                    self.teaching_session['_pending_barge_in'] = False
                     
                     user_input = event.get('text', '').strip()
                     if not user_input:
                         log("⚠️ Empty final transcript, skipping")
                         continue
                     
-                    log(f"📝 User utterance: {user_input}")
+                    # Cancel any in-progress answer pipeline + TTS
+                    streaming_text = self.teaching_session.get('_streaming_text', '')
+                    self.teaching_session['_streaming_text'] = ''
+                    self.teaching_session['is_teaching'] = False  # Stop chunk loop immediately
+                    if self.teaching_session.get('current_answer_task'):
+                        self.teaching_session['current_answer_task'].cancel()
+                        self.teaching_session['current_answer_task'] = None
+                    if self.teaching_session.get('current_tts_task'):
+                        self.teaching_session['current_tts_task'].cancel()
+                        self.orchestrator.on_barge_in(thread_id, streaming_text=streaming_text)
+                        try:
+                            await self.websocket.send({
+                                "type": "user_interrupt_detected",
+                                "message": "Listening..."
+                            })
+                        except Exception:
+                            pass
                     
-                    # Echo to client FAST (don't wait for supervisor)
+                    log(f"📝 User: {user_input}")
+                    
+                    # Echo to client immediately
                     try:
                         await self.websocket.send({
                             "type": "user_question",
@@ -1226,119 +1335,676 @@ class ProfAIAgent:
                     except Exception as e:
                         log(f"❌ Failed to send user_question: {e}")
                     
-                    # Save to database (async, non-blocking)
-                    if self.session_manager and self.session_id:
-                        try:
-                            self.session_manager.add_message(
-                                user_id=self.teaching_session['user_id'],
-                                session_id=self.session_id,
-                                role='user',
-                                content=user_input,
-                                message_type='voice',
-                                course_id=self.teaching_session['course_id']
-                            )
-                        except Exception as e:
-                            log(f"❌ Failed to save user message: {e}")
+                    # ORCHESTRATOR ROUTING (<5ms, no LLM call)
+                    route_t0 = time.time()
+                    routing = self.orchestrator.process_user_input(thread_id, user_input)
+                    action = routing.get('action', 'error')
+                    intent = routing.get('intent', 'unknown')
+                    route_ms = (time.time() - route_t0) * 1000
+                    log(f"⚡ Orchestrator: intent={intent}, action={action} in {route_ms:.1f}ms")
                     
-                    # PROCESS WITH SUPERVISOR MULTI-AGENT SYSTEM (async, efficient)
-                    if self.supervisor_graph:
+                    # Handle 'end' inline (needs to break the event loop)
+                    if action == 'end':
+                        await self.websocket.send({
+                            "type": "teaching_ended",
+                            "message": routing.get('message', "Session complete.")
+                        })
+                        break
+                    
+                    # Fire action as BACKGROUND TASK so the STT event loop
+                    # never blocks during LLM generation (5-10s) or TTS.
+                    _act = action
+                    _rt = routing
+                    _ui = user_input
+                    _tid = thread_id
+                    
+                    async def _run_action(act, rt, ui, tid):
                         try:
-                            log("🤖 Routing to supervisor for intelligent agent selection...")
-                            
-                            # Process through supervisor (async, uses Redis checkpointing)
-                            thread_id = self.teaching_session.get('thread_id')
-                            result = await process_with_supervisor(
-                                graph=self.supervisor_graph,
-                                user_input=user_input,
-                                thread_id=thread_id
-                            )
-                            
-                            supervisor_latency = (time.time() - supervisor_start) * 1000
-                            self.teaching_session['last_latency_ms'] = supervisor_latency
-                            
-                            # Extract agent response from messages
-                            messages = result.get('messages', [])
-                            if messages:
-                                # Get last AI message (agent response)
-                                ai_messages = [m for m in messages if isinstance(m, AIMessage)]
-                                if ai_messages:
-                                    agent_response = ai_messages[-1].content
-                                    last_agent = result.get('last_agent', 'unknown')
-                                    
-                                    log(f"🎯 SUPERVISOR ROUTED TO: {last_agent}")
-                                    log(f"⚡ Total latency: {supervisor_latency:.0f}ms")
-                                    
-                                    # Stream agent response via TTS
-                                    await self._stream_supervisor_response(
-                                        response_text=agent_response,
-                                        agent_name=last_agent
+                            # Save user message to DB (moved here to not block STT loop)
+                            if self.session_manager and self.session_id:
+                                try:
+                                    await asyncio.get_event_loop().run_in_executor(
+                                        None,
+                                        lambda: self.session_manager.add_message(
+                                            user_id=self.teaching_session['user_id'],
+                                            session_id=self.session_id,
+                                            role='user',
+                                            content=ui,
+                                            message_type='voice',
+                                            course_id=self.teaching_session['course_id']
+                                        )
                                     )
-                                    
+                                except Exception:
+                                    pass
+                            
+                            if act == 'continue_teaching':
+                                seg = rt.get('segment_text')
+                                if seg:
+                                    is_resume = rt.get('is_resume', False)
+                                    if is_resume:
+                                        await self.websocket.send({"type": "teaching_resumed", "message": "Resuming where we left off..."})
+                                        seg = f"As I was saying, {seg}"
+                                    else:
+                                        await self.websocket.send({"type": "teaching_resumed", "message": "Continuing the lesson..."})
+                                    await self._stream_teaching_content(seg, self.teaching_session['language'])
+                            elif act == 'pause':
+                                await self.websocket.send({"type": "teaching_paused", "message": rt.get('message', "Paused.")})
+                            elif act == 'repeat':
+                                seg = rt.get('segment_text')
+                                if seg:
+                                    await self.websocket.send({"type": "teaching_repeat", "message": "Let me repeat that..."})
+                                    await self._stream_teaching_content(seg, self.teaching_session['language'])
+                            elif act == 'advance_next_topic':
+                                await self._handle_advance_next_topic(tid, rt)
+                            elif act == 'course_complete':
+                                msg = rt.get('message', "You've completed the course!")
+                                await self.websocket.send({
+                                    "type": "course_complete",
+                                    "message": msg,
+                                })
+                                await self._stream_answer_response(msg, "course_complete")
+                            elif act == 'ask_confirmation':
+                                msg = rt.get('message', "Should I mark this as complete?")
+                                await self.websocket.send({
+                                    "type": "ask_confirmation",
+                                    "message": msg,
+                                })
+                                await self._stream_answer_response(msg, "confirmation")
+                            elif act == 'mark_complete':
+                                await self._handle_mark_complete()
+                            elif act == 'mark_and_advance':
+                                await self._handle_mark_complete()
+                                await self._handle_advance_next_topic(tid, rt)
+                            elif act == 'mark_and_next_course':
+                                await self._handle_mark_complete()
+                                await self._handle_next_course()
+                            elif act == 'next_course':
+                                await self._handle_next_course()
+                            elif act == 'greeting':
+                                await self._stream_answer_response(rt.get('message', "Hello!"), "greeting")
+                            elif act in ('answer_with_rag', 'answer_general'):
+                                await self._execute_answer_pipeline(tid, rt, ui)
+                            else:
+                                log(f"⚠️ Unknown action: {act}")
+                        except asyncio.CancelledError:
+                            log(f"🛑 Action '{act}' cancelled by barge-in")
                         except Exception as e:
-                            log(f"❌ Supervisor error: {e}")
-                            await self.websocket.send({
-                                "type": "error",
-                                "error": f"Agent processing failed: {str(e)}"
-                            })
-                    else:
-                        log("⚠️ Supervisor not available, cannot process input")
-                
-                elif event_type == 'utterance_end':
-                    log("🔇 User stopped speaking (utterance_end)")
+                            log(f"❌ Error handling action '{act}': {e}")
+                            import traceback; traceback.print_exc()
+                            try:
+                                await self.websocket.send({"type": "error", "error": f"Failed to process: {str(e)}"})
+                            except Exception:
+                                pass
+                        finally:
+                            if self.teaching_session:
+                                self.teaching_session['current_answer_task'] = None
+                    
+                    task = asyncio.create_task(_run_action(_act, _rt, _ui, _tid))
+                    self.teaching_session['current_answer_task'] = task
                 
                 elif event_type == 'closed':
-                    log("🔌 STT service closed event received")
+                    log("🔌 STT service closed")
                     break
-                
-                else:
-                    log(f"❓ Unknown event type: {event_type}")
         
         except asyncio.CancelledError:
-            log("🛑 Interruption handler task cancelled")
+            log("🛑 Interruption handler cancelled")
         except Exception as e:
-            log(f"❌❌❌ CRITICAL ERROR in teaching interruption handler: {e}")
+            log(f"❌ CRITICAL ERROR in interruption handler: {e}")
             import traceback
             log(f"Traceback: {traceback.format_exc()}")
         finally:
             log("🏁 _handle_teaching_interruptions() task ENDED")
     
+    async def _execute_answer_pipeline(self, thread_id: str, routing: dict, user_input: str):
+        """
+        Full answer pipeline with immediate audio acknowledgment:
+          1. Send visual 'thinking' indicator + stream short filler TTS
+          2. Generate LLM answer IN PARALLEL with filler audio
+          3. When both done, stream the real answer TTS
+        Runs as a background task; supports cancellation via barge-in.
+        """
+        log = lambda msg: logging.info(f"[WebSocket] {msg}")
+        question = routing.get('question', user_input)
+        use_rag = routing.get('needs_rag', False)
+        
+        # --- 1. Immediate feedback (visual + audio) ---
+        import random, re as _re
+        raw_name = (self.teaching_session.get('user_name', '') or '').strip()
+        _parts = _re.split(r'[_\-.\s]+', raw_name) if raw_name else []
+        first_name = _parts[0].capitalize() if _parts and _parts[0] else ""
+        
+        # Varied filler pool — some with name slot, some without
+        _fillers_with_name = [
+            f"Sure {first_name}, let me think about that.",
+            f"Good question {first_name}. Give me a moment.",
+            f"Hmm, interesting. One second {first_name}.",
+            f"Let me look into that for you, {first_name}.",
+        ]
+        _fillers_no_name = [
+            "Sure, let me think about that.",
+            "Good question. Give me a moment.",
+            "Hmm, let me think.",
+            "One moment, let me put that together.",
+            "Let me think about the best way to explain this.",
+        ]
+        # Use name ~40% of the time, if available
+        if first_name and random.random() < 0.4:
+            filler = random.choice(_fillers_with_name)
+        else:
+            filler = random.choice(_fillers_no_name)
+        
+        await self.websocket.send({
+            "type": "thinking_acknowledgment",
+            "message": filler,
+        })
+        
+        # --- 2. Run filler TTS and LLM generation in parallel ---
+        llm_task = asyncio.create_task(
+            self._generate_llm_answer(thread_id, question, use_rag)
+        )
+        
+        try:
+            # Filler audio plays on client (~2-3s) while LLM generates (~5-10s)
+            await self._stream_filler_tts(filler)
+        except asyncio.CancelledError:
+            llm_task.cancel()
+            raise
+        
+        try:
+            answer_text, answer_source, answer_ms = await llm_task
+        except asyncio.CancelledError:
+            raise
+        
+        log(f"💬 Answer [{answer_source}] in {answer_ms:.0f}ms: {answer_text[:80]}...")
+        
+        # --- Update rolling conversation context (max 6 exchanges) ---
+        ctx = self.teaching_session.get('conversation_context', [])
+        ctx.append({"role": "user", "content": question})
+        ctx.append({"role": "assistant", "content": answer_text[:500]})  # truncate for prompt size
+        if len(ctx) > 12:  # 6 exchanges × 2 messages
+            ctx = ctx[-12:]
+        self.teaching_session['conversation_context'] = ctx
+        
+        # --- 3. Send answer text to client ---
+        await self.websocket.send(json.dumps({
+            "type": "agent_response",
+            "text": answer_text,
+            "agent": answer_source,
+            "answer_time_ms": round(answer_ms),
+        }))
+        
+        # Notify orchestrator answer is complete
+        self.orchestrator.on_answer_complete(thread_id, answer_text)
+        
+        # Save assistant response to DB (once)
+        if self.session_manager and self.session_id:
+            try:
+                await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: self.session_manager.add_message(
+                        user_id=self.teaching_session['user_id'],
+                        session_id=self.session_id,
+                        role='assistant',
+                        content=answer_text,
+                        message_type='voice',
+                        course_id=self.teaching_session['course_id']
+                    )
+                )
+            except Exception:
+                pass
+        
+        # --- 4. Stream answer + resume prompt via TTS ---
+        resume_prompt = self.orchestrator.get_resume_text(thread_id)
+        full_response = f"{answer_text} {resume_prompt}"
+        
+        await self._stream_answer_response(
+            full_response,
+            "qa_rag" if use_rag else "qa_general",
+            skip_text_send=True,  # Already sent above
+        )
+    
+    async def _generate_llm_answer(self, thread_id: str, question: str, use_rag: bool):
+        """
+        Generate answer text through LLM tiers (LangGraph → RAG → General).
+        Returns (answer_text, answer_source, duration_ms).
+        """
+        log = lambda msg: logging.info(f"[WebSocket] {msg}")
+        answer_start = time.time()
+        answer_text = ""
+        answer_source = "unknown"
+        
+        # TIER 2: Try LangGraph pedagogical answer first
+        conv_ctx = self.teaching_session.get('conversation_context', []) if self.teaching_session else []
+        if self.orchestrator.langgraph_available:
+            try:
+                log("🧠 Tier 2: LangGraph pedagogical answer...")
+                lg_answer = await asyncio.wait_for(
+                    asyncio.get_event_loop().run_in_executor(
+                        None,
+                        lambda: self.orchestrator.answer_question_with_llm(
+                            thread_id, question, conversation_context=conv_ctx
+                        )
+                    ),
+                    timeout=10.0
+                )
+                if lg_answer and len(lg_answer.strip()) > 20:
+                    answer_text = lg_answer
+                    answer_source = "langgraph_pedagogical"
+                    log(f"✅ LangGraph answer: {len(answer_text)} chars")
+            except asyncio.TimeoutError:
+                log("⚠️ LangGraph timeout, falling to Tier 1")
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                log(f"⚠️ LangGraph error: {e}, falling to Tier 1")
+        
+        # TIER 1 FALLBACK: ChatService with RAG
+        if not answer_text and use_rag and self.services_available.get("chat", False):
+            try:
+                log("📚 Tier 1: RAG fallback...")
+                conversation_history = []
+                if self.session_manager and self.session_id:
+                    try:
+                        conversation_history = self.session_manager.get_conversation_history(
+                            self.session_id, limit=3
+                        )
+                    except Exception:
+                        pass
+                
+                response_data = await asyncio.wait_for(
+                    self.chat_service.ask_question(
+                        question,
+                        query_language_code=self.teaching_session['language'],
+                        session_id=self.session_id,
+                        conversation_history=conversation_history,
+                        course_id=self.teaching_session['course_id']
+                    ),
+                    timeout=15.0
+                )
+                answer_text = response_data.get('answer', '')
+                answer_source = "rag"
+            except asyncio.TimeoutError:
+                log("⚠️ RAG timeout, falling back to general LLM")
+                use_rag = False
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                log(f"⚠️ RAG error: {e}, falling back to general LLM")
+                use_rag = False
+        
+        # TIER 1 FALLBACK: General LLM
+        if not answer_text and self.services_available.get("chat", False):
+            try:
+                log("🤖 Tier 1: General LLM fallback...")
+                response_data = await asyncio.wait_for(
+                    self.chat_service.ask_question(
+                        question,
+                        query_language_code=self.teaching_session['language'],
+                        session_id=self.session_id,
+                        conversation_history=[],
+                        course_id=None
+                    ),
+                    timeout=15.0
+                )
+                answer_text = response_data.get('answer', '')
+                answer_source = "general_llm"
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                log(f"⚠️ LLM error: {e}")
+                answer_text = "I'm having trouble processing your question right now. Could you rephrase it?"
+                answer_source = "fallback"
+        
+        if not answer_text:
+            answer_text = "I apologize, but I couldn't process your question. Please try again."
+            answer_source = "fallback"
+        
+        answer_ms = (time.time() - answer_start) * 1000
+        return answer_text, answer_source, answer_ms
+    
+    async def _stream_filler_tts(self, filler_text: str):
+        """
+        Stream a short acknowledgment phrase via TTS.
+        Awaits completion so the caller knows when filler audio is done.
+        Sends chunks as 'answer_audio_chunk' so the client plays them
+        seamlessly before the real answer audio.
+        """
+        try:
+            if not self.audio_service or not self.teaching_session:
+                return
+            if self.teaching_session.get('user_is_speaking', False):
+                return
+            
+            chunk_count = 0
+            async for audio_chunk in self.audio_service.stream_audio_from_text(
+                filler_text,
+                self.teaching_session.get('language', self.current_language),
+                self.websocket,
+                voice_id=self.teaching_session.get('voice_id'),
+            ):
+                if self.teaching_session.get('user_is_speaking', False):
+                    break
+                if audio_chunk and len(audio_chunk) > 0:
+                    audio_base64 = base64.b64encode(audio_chunk).decode('utf-8')
+                    await self.websocket.send({
+                        "type": "answer_audio_chunk",
+                        "chunk_id": chunk_count,
+                        "audio_data": audio_base64,
+                        "size": len(audio_chunk),
+                        "agent": "thinking"
+                    })
+                    chunk_count += 1
+            
+            logging.info(f"[WebSocket] 💭 Filler TTS done: {chunk_count} chunks")
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logging.info(f"[WebSocket] ⚠️ Filler TTS error (non-fatal): {e}")
+    
+    async def _handle_mark_complete(self):
+        """Mark current topic/module as complete via the progress API."""
+        if not self.teaching_session or not self.database_service:
+            return
+        try:
+            user_id = self.teaching_session.get('user_id')
+            course_id = self.teaching_session.get('course_id')
+            module_idx = self.teaching_session.get('module_index', 0)
+            topic_idx = self.teaching_session.get('sub_topic_index', 0)
+            if user_id and course_id:
+                # Resolve topic_id from course_data if available
+                topic_title = ""
+                course_data = self.teaching_session.get('course_data')
+                if course_data:
+                    modules = course_data.get("modules", [])
+                    if module_idx < len(modules):
+                        mod = modules[module_idx]
+                        subs = mod.get("topics", mod.get("sub_topics", []))
+                        if topic_idx < len(subs):
+                            topic_title = subs[topic_idx].get("title", "")
+                self.database_service.mark_topic_complete(
+                    user_id=int(user_id),
+                    course_id=int(course_id),
+                    module_id=module_idx,
+                    topic_id=topic_idx,
+                )
+                log(f"✅ Marked complete: course={course_id} module={module_idx} topic={topic_idx} ({topic_title})")
+                await self.websocket.send({
+                    "type": "progress_updated",
+                    "message": f"Marked as complete: {topic_title or f'Module {module_idx+1}, Topic {topic_idx+1}'}",
+                    "course_id": course_id,
+                    "module_index": module_idx,
+                    "topic_index": topic_idx,
+                })
+                # Also speak a short confirmation
+                await self._stream_answer_response(
+                    f"Done! I've marked that as complete.",
+                    "progress"
+                )
+        except Exception as e:
+            log(f"⚠️ mark_topic_complete failed: {e}")
+            await self.websocket.send({
+                "type": "error",
+                "error": f"Could not mark as complete: {str(e)}"
+            })
+
+    async def _handle_next_course(self):
+        """Load the next course from the database and start teaching it."""
+        if not self.teaching_session or not self.database_service:
+            return
+        try:
+            current_course_id = int(self.teaching_session.get('course_id', 0))
+            all_courses = self.database_service.get_all_courses()
+            if not all_courses:
+                await self.websocket.send({
+                    "type": "error",
+                    "error": "No courses available."
+                })
+                return
+
+            # Sort by id and find next
+            sorted_courses = sorted(all_courses, key=lambda c: c.get('id', 0))
+            next_course = None
+            for c in sorted_courses:
+                if c.get('id', 0) > current_course_id:
+                    next_course = c
+                    break
+
+            if not next_course:
+                await self.websocket.send({
+                    "type": "all_courses_complete",
+                    "message": "You've completed all available courses! Amazing work!"
+                })
+                await self._stream_answer_response(
+                    "Congratulations! You've completed all available courses. That's an incredible achievement!",
+                    "all_courses_complete"
+                )
+                return
+
+            next_id = next_course.get('id')
+            next_title = next_course.get('title', 'Unknown')
+            log(f"⏭️ Switching to next course: {next_title} (id={next_id})")
+
+            # Load full course content
+            course_data = self.database_service.get_course_with_content(next_id)
+            if not course_data:
+                await self.websocket.send({
+                    "type": "error",
+                    "error": f"Could not load course: {next_title}"
+                })
+                return
+
+            # Update teaching session
+            self.teaching_session['course_id'] = next_id
+            self.teaching_session['course_data'] = course_data
+            self.teaching_session['module_index'] = 0
+            self.teaching_session['sub_topic_index'] = 0
+
+            modules = course_data.get("modules", [])
+            if not modules:
+                await self.websocket.send({"type": "error", "error": "Course has no modules."})
+                return
+
+            first_mod = modules[0]
+            sub_topics = first_mod.get("topics", first_mod.get("sub_topics", []))
+            first_topic = sub_topics[0] if sub_topics else {}
+            module_title = first_mod.get('title', 'Module 1')
+            sub_topic_title = first_topic.get('title', 'Topic 1')
+
+            # Update orchestrator
+            tid = self.teaching_session['thread_id']
+            self.orchestrator.advance_topic(
+                session_id=tid,
+                module_index=0,
+                sub_topic_index=0,
+                module_title=module_title,
+                sub_topic_title=sub_topic_title,
+                total_sub_topics=len(sub_topics),
+            )
+            orch_state = self.orchestrator.get_session(tid)
+            if orch_state:
+                orch_state.course_id = next_id
+                orch_state.total_modules = len(modules)
+
+            # Notify client
+            await self.websocket.send({
+                "type": "course_changed",
+                "course_id": next_id,
+                "course_title": next_title,
+                "module_title": module_title,
+                "sub_topic_title": sub_topic_title,
+                "message": f"Starting new course: {next_title}"
+            })
+
+            # Prepare and stream first topic
+            raw_content = first_topic.get('content', '')
+            if not raw_content:
+                raw_content = f"This topic covers {sub_topic_title} as part of {module_title}."
+            if len(raw_content) > 8000:
+                raw_content = raw_content[:7500] + "..."
+
+            teaching_content = self._create_simple_teaching_content(
+                module_title, sub_topic_title, raw_content
+            )
+            self.teaching_session['teaching_content'] = teaching_content
+            self.orchestrator.set_content(tid, teaching_content, raw_content)
+
+            first_segment = self.orchestrator.start_teaching(tid)
+            if first_segment:
+                await self._stream_teaching_content(first_segment, self.teaching_session['language'])
+        except Exception as e:
+            log(f"❌ _handle_next_course error: {e}")
+            import traceback; traceback.print_exc()
+            await self.websocket.send({
+                "type": "error",
+                "error": f"Failed to load next course: {str(e)}"
+            })
+
+    async def _handle_advance_next_topic(self, thread_id: str, routing: dict):
+        """
+        Auto-advance to the next sub-topic or module when all segments are done.
+        Loads new content from the stored course_data and starts streaming.
+        """
+        next_mi = routing.get('next_module_index', 0)
+        next_si = routing.get('next_sub_topic_index', 0)
+        
+        course_data = self.teaching_session.get('course_data')
+        if not course_data:
+            log("⚠️ No course_data stored, cannot advance")
+            await self.websocket.send({
+                "type": "error",
+                "error": "Course data not available. Please restart the session."
+            })
+            return
+        
+        modules = course_data.get("modules", [])
+        if next_mi >= len(modules):
+            log(f"⚠️ Module index {next_mi} out of range ({len(modules)} modules)")
+            await self.websocket.send({
+                "type": "course_complete",
+                "message": "You've completed all modules in this course!"
+            })
+            return
+        
+        module = modules[next_mi]
+        sub_topics = module.get("topics", module.get("sub_topics", []))
+        
+        if next_si >= len(sub_topics):
+            log(f"⚠️ Sub-topic index {next_si} out of range ({len(sub_topics)} topics)")
+            await self.websocket.send({
+                "type": "error",
+                "error": "Topic not found. Please restart the session."
+            })
+            return
+        
+        sub_topic = sub_topics[next_si]
+        module_title = module.get('title', 'Unknown Module')
+        sub_topic_title = sub_topic.get('title', 'Unknown Topic')
+        
+        log(f"⏭️ Advancing to: {module_title} → {sub_topic_title}")
+        
+        # Notify client of topic change
+        await self.websocket.send({
+            "type": "topic_advanced",
+            "module_index": next_mi,
+            "sub_topic_index": next_si,
+            "module_title": module_title,
+            "sub_topic_title": sub_topic_title,
+            "message": f"Moving on to: {sub_topic_title}"
+        })
+        
+        # Update orchestrator state
+        self.orchestrator.advance_topic(
+            session_id=thread_id,
+            module_index=next_mi,
+            sub_topic_index=next_si,
+            module_title=module_title,
+            sub_topic_title=sub_topic_title,
+            total_sub_topics=len(sub_topics),
+        )
+        
+        # Update teaching_session indices
+        self.teaching_session['module_index'] = next_mi
+        self.teaching_session['sub_topic_index'] = next_si
+        
+        # Load and prepare new content
+        raw_content = sub_topic.get('content', '')
+        if not raw_content:
+            raw_content = f"This topic covers {sub_topic_title} as part of {module_title}."
+        if len(raw_content) > 8000:
+            raw_content = raw_content[:7500] + "..."
+        
+        teaching_content = self._create_simple_teaching_content(
+            module_title, sub_topic_title, raw_content
+        )
+        
+        self.teaching_session['teaching_content'] = teaching_content
+        self.orchestrator.set_content(thread_id, teaching_content, raw_content)
+        
+        log(f"✅ New topic content ready ({len(teaching_content)} chars, "
+            f"{self.orchestrator.get_session(thread_id).total_segments} segments)")
+        
+        # Start streaming the first segment of the new topic
+        first_segment = self.orchestrator.start_teaching(thread_id)
+        if first_segment:
+            await self._stream_teaching_content(first_segment, self.teaching_session['language'])
+        else:
+            log("⚠️ No content to stream for new topic")
+
     async def _stream_teaching_content(self, content: str, language: str):
         """Stream teaching audio with cancellation support for barge-in."""
         try:
             self.teaching_session['is_teaching'] = True
+            self.teaching_session['_streaming_text'] = content  # Track for barge-in resume
             
             async def send_teaching_audio():
+                # Accumulate small TTS chunks into larger buffers for gapless
+                # playback.  At 32kbps MP3, 16 KB ≈ 4 s of audio — enough for
+                # the browser to decode and queue seamlessly.
+                _MIN_SEND = 16_384  # 16 KB minimum buffer before sending
+                
                 chunk_count = 0
                 total_audio_size = 0
                 audio_start_time = time.time()
+                audio_buf = b''
                 
                 log(f"🎙️ Starting teaching audio stream ({len(content)} chars)")
                 
-                # Stream audio chunks
                 async for audio_chunk in self.audio_service.stream_audio_from_text(
-                    content, language, self.websocket
+                    content, language, self.websocket,
+                    voice_id=self.teaching_session.get('voice_id'),
                 ):
-                    # CHECK IF INTERRUPTED
                     if not self.teaching_session.get('is_teaching', False):
                         log("🛑 Teaching interrupted by user - stopping audio")
                         await self.websocket.send({"type": "teaching_interrupted"})
                         return
                     
                     if audio_chunk and len(audio_chunk) > 0:
-                        chunk_count += 1
+                        audio_buf += audio_chunk
                         total_audio_size += len(audio_chunk)
                         
-                        # Send audio chunk
-                        import base64
-                        audio_base64 = base64.b64encode(audio_chunk).decode('utf-8')
-                        await self.websocket.send({
-                            "type": "teaching_audio_chunk",
-                            "chunk_id": chunk_count,
-                            "audio_data": audio_base64,
-                            "size": len(audio_chunk)
-                        })
+                        # Flush buffer when large enough
+                        if len(audio_buf) >= _MIN_SEND:
+                            chunk_count += 1
+                            audio_base64 = base64.b64encode(audio_buf).decode('utf-8')
+                            await self.websocket.send({
+                                "type": "teaching_audio_chunk",
+                                "chunk_id": chunk_count,
+                                "audio_data": audio_base64,
+                                "size": len(audio_buf)
+                            })
+                            audio_buf = b''
                 
-                # Teaching segment complete
+                # Flush remaining bytes
+                if audio_buf:
+                    chunk_count += 1
+                    audio_base64 = base64.b64encode(audio_buf).decode('utf-8')
+                    await self.websocket.send({
+                        "type": "teaching_audio_chunk",
+                        "chunk_id": chunk_count,
+                        "audio_data": audio_base64,
+                        "size": len(audio_buf)
+                    })
+                
                 await self.websocket.send({
                     "type": "teaching_segment_complete",
                     "total_chunks": chunk_count,
@@ -1348,19 +2014,29 @@ class ProfAIAgent:
                 })
                 
                 self.teaching_session['is_teaching'] = False
+                self.teaching_session['_streaming_text'] = ''  # Clear — delivered successfully
                 log(f"✅ Teaching audio complete: {chunk_count} chunks, {total_audio_size} bytes")
+                
+                # Advance segment index so next 'continue' loads the next segment
+                thread_id = self.teaching_session.get('thread_id')
+                if thread_id:
+                    self.orchestrator.advance_segment(thread_id)
             
-            # Create cancellable task
-            self.teaching_session['current_tts_task'] = asyncio.create_task(send_teaching_audio())
+            # Create cancellable task — DON'T await!
+            # The interruption handler must keep consuming STT events during playback.
+            tts_task = asyncio.create_task(send_teaching_audio())
+            self.teaching_session['current_tts_task'] = tts_task
             
-            # Wait for completion or cancellation
-            try:
-                await self.teaching_session['current_tts_task']
-            except asyncio.CancelledError:
-                log("Teaching TTS task cancelled")
-                self.teaching_session['is_teaching'] = False
-            finally:
-                self.teaching_session['current_tts_task'] = None
+            def _on_teaching_tts_done(task):
+                if self.teaching_session:
+                    self.teaching_session['current_tts_task'] = None
+                if task.cancelled():
+                    log("Teaching TTS task cancelled")
+                    self.teaching_session['is_teaching'] = False
+                elif task.exception():
+                    log(f"❌ Teaching TTS error: {task.exception()}")
+                    self.teaching_session['is_teaching'] = False
+            tts_task.add_done_callback(_on_teaching_tts_done)
         
         except asyncio.CancelledError:
             log("Teaching audio streaming cancelled by user")
@@ -1369,121 +2045,144 @@ class ProfAIAgent:
             log(f"Error streaming teaching content: {e}")
             self.teaching_session['is_teaching'] = False
     
-    async def _stream_supervisor_response(self, response_text: str, agent_name: str):
+    async def _stream_answer_response(self, response_text: str, agent_name: str, skip_text_send: bool = False):
         """
-        Stream supervisor agent response via TTS with low latency.
-        Optimized for continuous listening and minimal delay.
+        Stream answer response via TTS with low latency and barge-in support.
+        Sends text immediately (unless skip_text_send), then streams audio asynchronously.
         """
         stream_start = time.time()
         
         try:
             log(f"🎤 Streaming {agent_name} response ({len(response_text)} chars)")
             
-            # Send text response FIRST (user sees immediately - no waiting for audio)
-            await self.websocket.send({
-                "type": "agent_response",
-                "text": response_text,
-                "agent": agent_name,
-                "timestamp": time.time()
-            })
+            # Track for barge-in resume
+            if self.teaching_session:
+                self.teaching_session['_streaming_text'] = response_text
             
-            text_latency = (time.time() - stream_start) * 1000
-            log(f"⚡ Text sent in {text_latency:.0f}ms")
+            if not skip_text_send:
+                # Send text response FIRST (user sees immediately)
+                await self.websocket.send({
+                    "type": "agent_response",
+                    "text": response_text,
+                    "agent": agent_name,
+                    "timestamp": time.time()
+                })
+                
+                log(f"⚡ Text sent in {(time.time()-stream_start)*1000:.0f}ms")
+                
+                # Save to database (non-blocking)
+                if self.session_manager and self.session_id and self.teaching_session:
+                    try:
+                        self.session_manager.add_message(
+                            user_id=self.teaching_session.get('user_id', ''),
+                            session_id=self.session_id,
+                            role='assistant',
+                            content=response_text,
+                            message_type='voice',
+                            course_id=self.teaching_session.get('course_id'),
+                            metadata={'agent': agent_name}
+                        )
+                    except Exception:
+                        pass
             
-            # Save agent message to database (async, non-blocking)
-            if self.session_manager and self.session_id:
-                try:
-                    self.session_manager.add_message(
-                        user_id=self.teaching_session['user_id'],
-                        session_id=self.session_id,
-                        role='assistant',
-                        content=response_text,
-                        message_type='voice',
-                        course_id=self.teaching_session['course_id'],
-                        metadata={
-                            'agent': agent_name,
-                            'supervisor_routed': True
-                        }
-                    )
-                except Exception as e:
-                    log(f"⚠️ Failed to save agent message: {e}")
-            
-            # Stream audio chunks (async, can be interrupted)
+            # Stream audio (cancellable for barge-in)
             async def send_audio_chunks():
-                # Check if user is speaking BEFORE generating TTS
+                if not self.teaching_session:
+                    return
                 if self.teaching_session.get('user_is_speaking', False):
                     log("🛑 Skipping TTS: user is speaking")
                     return
                 
+                _MIN_SEND = 16_384  # 16 KB — same as teaching audio
                 chunk_count = 0
                 audio_start = time.time()
+                audio_buf = b''
                 
                 try:
                     async for audio_chunk in self.audio_service.stream_audio_from_text(
-                        text=response_text,
-                        language_code=self.teaching_session['language']
+                        response_text,
+                        self.teaching_session.get('language', self.current_language),
+                        self.websocket,
+                        voice_id=self.teaching_session.get('voice_id'),
                     ):
-                        # Check if user started speaking during generation
                         if self.teaching_session.get('user_is_speaking', False):
-                            log("🛑 TTS interrupted: user started speaking")
+                            log("🛑 TTS interrupted: user speaking")
                             break
                         
-                        # Check for task cancellation (barge-in)
-                        if self.teaching_session.get('current_tts_task'):
-                            if self.teaching_session['current_tts_task'].cancelled():
-                                log("🛑 Agent TTS cancelled (barge-in)")
-                                break
-                        
-                        # Send audio chunk
+                        if audio_chunk and len(audio_chunk) > 0:
+                            audio_buf += audio_chunk
+                            
+                            if len(audio_buf) >= _MIN_SEND:
+                                chunk_count += 1
+                                audio_base64 = base64.b64encode(audio_buf).decode('utf-8')
+                                await self.websocket.send({
+                                    "type": "answer_audio_chunk",
+                                    "chunk_id": chunk_count,
+                                    "audio_data": audio_base64,
+                                    "size": len(audio_buf),
+                                    "agent": agent_name
+                                })
+                                audio_buf = b''
+                    
+                    # Flush remaining
+                    if audio_buf:
+                        chunk_count += 1
+                        audio_base64 = base64.b64encode(audio_buf).decode('utf-8')
                         await self.websocket.send({
-                            "type": "audio_chunk",
-                            "audio": audio_chunk,
-                            "chunk_index": chunk_count,
+                            "type": "answer_audio_chunk",
+                            "chunk_id": chunk_count,
+                            "audio_data": audio_base64,
+                            "size": len(audio_buf),
                             "agent": agent_name
                         })
-                        
-                        chunk_count += 1
                     
-                    audio_duration = (time.time() - audio_start) * 1000
-                    log(f"✅ Audio streamed: {chunk_count} chunks in {audio_duration:.0f}ms")
+                    audio_ms = (time.time() - audio_start) * 1000
+                    log(f"✅ Answer audio: {chunk_count} chunks in {audio_ms:.0f}ms")
                     
-                    # Send completion
                     await self.websocket.send({
-                        "type": "audio_complete",
+                        "type": "answer_audio_complete",
                         "agent": agent_name,
                         "chunk_count": chunk_count,
-                        "duration_ms": audio_duration
+                        "duration_ms": audio_ms
                     })
                     
                 except asyncio.CancelledError:
-                    log(f"🛑 Audio streaming cancelled for {agent_name}")
+                    log(f"🛑 Answer audio cancelled for {agent_name}")
                     raise
                 except Exception as e:
-                    log(f"❌ Audio streaming error: {e}")
+                    log(f"❌ Answer audio error: {e}")
             
-            # Create TTS task (can be cancelled for barge-in)
+            # Create cancellable TTS task — DON'T await it!
+            # The interruption handler must keep consuming STT events during playback.
+            # If we await here, the handler blocks and user speech queues up unseen.
             tts_task = asyncio.create_task(send_audio_chunks())
-            self.teaching_session['current_tts_task'] = tts_task
+            if self.teaching_session:
+                self.teaching_session['current_tts_task'] = tts_task
             
-            # Wait for completion or cancellation
-            try:
-                await tts_task
-            except asyncio.CancelledError:
-                log("Agent TTS task cancelled")
-            finally:
-                self.teaching_session['current_tts_task'] = None
-            
-            total_latency = (time.time() - stream_start) * 1000
-            log(f"⚡ Total supervisor response latency: {total_latency:.0f}ms")
+            _start = stream_start  # capture for callback
+            def _on_answer_tts_done(task):
+                if self.teaching_session:
+                    self.teaching_session['current_tts_task'] = None
+                    self.teaching_session['_streaming_text'] = ''  # Clear after delivery/cancel
+                if task.cancelled():
+                    log("Answer TTS cancelled")
+                elif task.exception():
+                    log(f"❌ Answer TTS error: {task.exception()}")
+                else:
+                    log(f"⚡ Total answer latency: {(time.time()-_start)*1000:.0f}ms")
+            tts_task.add_done_callback(_on_answer_tts_done)
             
         except asyncio.CancelledError:
-            log(f"🛑 Supervisor response streaming cancelled")
+            log("🛑 Answer streaming cancelled")
         except Exception as e:
-            log(f"❌ Supervisor streaming error: {e}")
-            await self.websocket.send({
-                "type": "error",
-                "error": f"Response streaming failed: {str(e)}"
-            })
+            log(f"❌ Answer streaming error: {e}")
+            try:
+                await self.websocket.send({
+                    "type": "error",
+                    "error": f"Response streaming failed: {str(e)}"
+                })
+            except Exception:
+                pass
     
     def _create_simple_teaching_content(self, module_title: str, topic_title: str, raw_content: str) -> str:
         """
@@ -1497,8 +2196,17 @@ class ProfAIAgent:
         Returns:
             Formatted teaching content string
         """
-        # Create a simple structured teaching content
-        content = f"Let's learn about {topic_title} in the {module_title} module.\n\n"
+        # Personalise greeting with username and persona
+        user_name = ""
+        persona_name = ""
+        if self.teaching_session:
+            user_name = self.teaching_session.get('user_name', '')
+            persona = self.teaching_session.get('persona', {})
+            persona_name = persona.get('name', '')
+        intro = f"I'm {persona_name}. " if persona_name else ""
+        greeting = f"{intro}Hey {user_name}, let's" if user_name else f"{intro}Let's"
+        
+        content = f"{greeting} learn about {topic_title} in the {module_title} module.\n\n"
         
         # Add raw content with basic formatting
         if raw_content and len(raw_content.strip()) > 0:
@@ -1514,133 +2222,6 @@ class ProfAIAgent:
         
         return content
 
-    async def _answer_teaching_question(self, question: str):
-        """Answer user's question in the context of current teaching."""
-        try:
-            log(f"🤔 Processing teaching question: {question[:50]}...")
-            
-            # Get conversation history from database (last 5 turns)
-            conversation_history = []
-            if self.session_id and self.session_manager:
-                try:
-                    conversation_history = self.session_manager.get_conversation_history(
-                        self.session_id, limit=5
-                    )
-                    log(f"Retrieved {len(conversation_history)} previous messages")
-                except Exception as e:
-                    log(f"Failed to get conversation history: {e}")
-            
-            # Call chat service with course context
-            if not self.services_available.get("chat", False):
-                # Fallback if chat service unavailable
-                answer_text = "I apologize, but I'm having trouble processing your question right now. Please try again."
-            else:
-                try:
-                    response_data = await asyncio.wait_for(
-                        self.chat_service.ask_question(
-                            question,
-                            query_language_code=self.teaching_session['language'],
-                            session_id=self.session_id,
-                            conversation_history=conversation_history,
-                            course_id=self.teaching_session['course_id']
-                        ),
-                        timeout=60.0
-                    )
-                    
-                    answer_text = response_data.get('answer', '')
-                    
-                    # Send text response with metadata
-                    await self.websocket.send({
-                        "type": "teaching_question_answer",
-                        "text": answer_text,
-                        "route": response_data.get('route'),
-                        "confidence": response_data.get('confidence'),
-                        "sources": response_data.get('sources', [])
-                    })
-                    
-                    log(f"💬 Answer generated: {answer_text[:80]}...")
-                    
-                except asyncio.TimeoutError:
-                    log("Chat service timeout")
-                    answer_text = "I'm taking a bit longer than usual to process your question. Could you please rephrase it?"
-                    await self.websocket.send({
-                        "type": "teaching_question_answer",
-                        "text": answer_text
-                    })
-            
-            # Save assistant message to database
-            if self.session_manager and self.session_id:
-                try:
-                    self.session_manager.add_message(
-                        user_id=self.teaching_session['user_id'],
-                        session_id=self.session_id,
-                        role='assistant',
-                        content=answer_text,
-                        message_type='voice',
-                        course_id=self.teaching_session['course_id'],
-                        metadata={
-                            'route': response_data.get('route') if 'response_data' in locals() else None,
-                            'context': 'teaching_qa'
-                        }
-                    )
-                    log("💾 Answer saved to database")
-                except Exception as e:
-                    log(f"Failed to save answer: {e}")
-            
-            # Stream answer audio (use separate flag from teaching)
-            self.teaching_session['is_answering'] = True
-            chunk_count = 0
-            total_audio_size = 0
-            audio_start_time = time.time()
-            
-            log(f"🎙️ Generating answer audio...")
-            
-            try:
-                async for audio_chunk in self.audio_service.stream_audio_from_text(
-                    answer_text, self.teaching_session['language'], self.websocket
-                ):
-                    # Check if interrupted again
-                    if not self.teaching_session.get('is_answering', False):
-                        log("🛑 Answer interrupted by user")
-                        return
-                    
-                    if audio_chunk and len(audio_chunk) > 0:
-                        chunk_count += 1
-                        total_audio_size += len(audio_chunk)
-                        
-                        import base64
-                        audio_base64 = base64.b64encode(audio_chunk).decode('utf-8')
-                        await self.websocket.send({
-                            "type": "answer_audio_chunk",
-                            "chunk_id": chunk_count,
-                            "audio_data": audio_base64,
-                            "size": len(audio_chunk)
-                        })
-                
-                # Answer complete
-                await self.websocket.send({
-                    "type": "answer_complete",
-                    "total_chunks": chunk_count,
-                    "total_size": total_audio_size,
-                    "duration_ms": (time.time() - audio_start_time) * 1000,
-                    "message": "Would you like to continue the lesson or ask another question?"
-                })
-                
-                self.teaching_session['is_answering'] = False
-                log(f"✅ Answer audio complete: {chunk_count} chunks")
-                
-            except Exception as e:
-                log(f"Error streaming answer audio: {e}")
-                self.teaching_session['is_answering'] = False
-        
-        except Exception as e:
-            log(f"Error answering teaching question: {e}")
-            await self.websocket.send({
-                "type": "error",
-                "error": "Failed to answer question. Please try again."
-            })
-            self.teaching_session['is_teaching'] = False
-    
     async def handle_stt_audio_chunk(self, data: dict):
         """Receive audio chunk from client and forward to Deepgram STT service."""
         # Check if teaching session active with STT service
@@ -1656,6 +2237,14 @@ class ProfAIAgent:
             import base64
             pcm_bytes = base64.b64decode(audio_base64)
             
+            # Track audio chunk count for diagnostics
+            chunk_count = self.teaching_session.get('_audio_chunk_count', 0) + 1
+            self.teaching_session['_audio_chunk_count'] = chunk_count
+            if chunk_count == 1:
+                log(f"🎤 First audio chunk received ({len(pcm_bytes)} bytes) — forwarding to Deepgram")
+            elif chunk_count % 500 == 0:
+                log(f"🎤 Audio chunks forwarded: {chunk_count}")
+            
             # Forward to Deepgram
             await self.teaching_session['stt_service'].send_audio_chunk(pcm_bytes)
             
@@ -1663,7 +2252,7 @@ class ProfAIAgent:
             log(f"Error forwarding audio to STT: {e}")
     
     async def handle_continue_teaching(self, data: dict):
-        """Resume teaching after user Q&A."""
+        """Resume teaching after user Q&A - resumes from current segment, not beginning."""
         if not self.teaching_session or not self.teaching_session.get('active'):
             await self.websocket.send({
                 "type": "error",
@@ -1671,25 +2260,34 @@ class ProfAIAgent:
             })
             return
         
-        teaching_content = self.teaching_session.get('teaching_content')
+        thread_id = self.teaching_session.get('thread_id')
         language = self.teaching_session.get('language', self.current_language)
         
-        if not teaching_content:
+        # Use orchestrator to get current segment (resume from where we left off)
+        segment_text = None
+        if thread_id and self.orchestrator:
+            segment_text = self.orchestrator.start_teaching(thread_id)
+        
+        # Fallback to full content if orchestrator has no segments
+        if not segment_text:
+            segment_text = self.teaching_session.get('teaching_content')
+        
+        if not segment_text:
             await self.websocket.send({
                 "type": "error",
                 "error": "No teaching content available"
             })
             return
         
-        log("📖 Resuming teaching...")
+        log(f"📖 Resuming teaching from segment (orchestrator)...")
         
         await self.websocket.send({
             "type": "teaching_resumed",
             "message": "Continuing the lesson..."
         })
         
-        # Resume teaching audio
-        await self._stream_teaching_content(teaching_content, language)
+        # Resume teaching audio from current segment
+        await self._stream_teaching_content(segment_text, language)
     
     async def handle_end_teaching(self, data: dict):
         """End teaching session and cleanup resources."""
@@ -1714,14 +2312,41 @@ class ProfAIAgent:
             except Exception as e:
                 log(f"Error cancelling TTS: {e}")
         
+        # Cleanup orchestrator session
+        thread_id = self.teaching_session.get('thread_id')
+        if thread_id and self.orchestrator:
+            self.orchestrator.cleanup(thread_id)
+        
         # Mark session as inactive
         self.teaching_session['active'] = False
         self.teaching_session = None
         
-        await self.websocket.send({
+        # Fetch recommendations for the student (non-blocking, best-effort)
+        recommendations = None
+        if self.user_id:
+            try:
+                from services.recommendation_service import RecommendationService
+                rec_service = RecommendationService()
+                recommendations = rec_service.get_recommendations(int(self.user_id))
+                if "error" in recommendations:
+                    recommendations = None
+            except Exception as e:
+                log(f"⚠️ Recommendations fetch failed (non-fatal): {e}")
+        
+        end_payload = {
             "type": "teaching_ended",
             "message": "Teaching session completed successfully"
-        })
+        }
+        if recommendations:
+            end_payload["recommendations"] = {
+                "summary": recommendations.get("summary", ""),
+                "next_topics": recommendations.get("next_topics", [])[:3],
+                "recommended_quizzes": recommendations.get("recommended_quizzes", [])[:3],
+                "weak_modules": recommendations.get("weak_modules", [])[:3],
+                "next_courses": recommendations.get("next_courses", [])[:2],
+            }
+        
+        await self.websocket.send(end_payload)
         
         log("✅ Teaching session ended")
 

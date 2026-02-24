@@ -2647,6 +2647,53 @@ async def get_user_progress(user_id: int, course_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ===== SELF-IMPROVEMENT / RECOMMENDATION ENDPOINT =====
+
+@app.get(
+    "/api/recommendations/{user_id}",
+    tags=["Progress"],
+    summary="Get personalized learning recommendations",
+    description="""Self-improvement agent that analyzes student progress, quiz scores,
+and learning patterns to provide actionable recommendations.
+
+**Returns:**
+- **weak_modules**: Modules where quiz score < 60% — need revision
+- **recommended_quizzes**: Quizzes to take or retake
+- **next_topics**: Incomplete topics to study next
+- **next_courses**: Courses the student hasn't started
+- **summary**: Natural-language summary of recommendations
+
+**Use Cases:**
+- Student dashboard "What should I study next?"
+- Adaptive learning path
+- Self-improvement feedback loop
+    """,
+    responses={
+        200: {"description": "Recommendations generated successfully"},
+        503: {"description": "Service unavailable", "model": ErrorResponse}
+    }
+)
+async def get_recommendations(user_id: int):
+    """Get personalized learning recommendations for a student."""
+    try:
+        from services.recommendation_service import RecommendationService
+        rec_service = RecommendationService()
+        result = rec_service.get_recommendations(user_id)
+        
+        if "error" in result:
+            raise HTTPException(status_code=503, detail=result["error"])
+        
+        return {
+            "status": "success",
+            **result
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error generating recommendations for user {user_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Start server
 if __name__ == "__main__":
     import uvicorn

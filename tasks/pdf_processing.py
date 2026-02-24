@@ -95,9 +95,9 @@ def process_pdf_and_generate_course(
                 }
             )
             
-            # Process PDFs using existing document service
-            # Note: We'll need to adapt document_service to work with file paths
-            result = document_service.process_pdfs_and_generate_course(
+            # Process PDFs using the synchronous file-path method
+            # (process_pdfs_and_generate_course is async + expects UploadFile objects)
+            result = document_service.process_pdf_files_from_paths(
                 temp_files,
                 course_title,
                 country=country,
@@ -114,7 +114,28 @@ def process_pdf_and_generate_course(
             # Success
             logging.info(f"[Job {job_id}] Course generated successfully: {result.get('course_id')}")
             
-            return {
+            # --- Auto-generate quiz after course creation ---
+            quiz_id = None
+            try:
+                self.update_state(
+                    state='STARTED',
+                    meta={
+                        'status': 'processing',
+                        'progress': 92,
+                        'message': 'Generating course quiz...'
+                    }
+                )
+                import asyncio
+                from services.quiz_service import QuizService
+                quiz_svc = QuizService()
+                quiz = asyncio.run(quiz_svc.generate_course_quiz(result))
+                quiz_id = quiz.quiz_id if quiz else None
+                if quiz_id:
+                    logging.info(f"[Job {job_id}] ✅ Auto-generated course quiz: {quiz_id}")
+            except Exception as qe:
+                logging.warning(f"[Job {job_id}] ⚠️ Auto quiz generation failed (non-fatal): {qe}")
+            
+            task_result = {
                 'status': 'completed',
                 'job_id': job_id,
                 'result': {
@@ -123,6 +144,10 @@ def process_pdf_and_generate_course(
                     'modules': len(result.get('modules', []))
                 }
             }
+            if quiz_id:
+                task_result['result']['quiz_id'] = quiz_id
+            
+            return task_result
             
         finally:
             # Clean up temporary files
