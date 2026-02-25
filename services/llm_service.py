@@ -16,8 +16,13 @@ class LLMService:
             timeout=60.0  # 8 second timeout for all requests
         )
     
-    async def get_general_response(self, query: str, target_language: str = "English", conversation_context: str = None) -> str:
-        """Get a general response from the LLM with conversation context."""
+    async def get_general_response(self, query: str, target_language: str = "English", conversation_context: str = None, pedagogical: bool = False) -> str:
+        """Get a general response from the LLM with conversation context.
+        
+        Args:
+            pedagogical: When True, response follows pedagogical style — ends with
+                         a follow-up question or invitation to explore further.
+        """
         
         logging.info(f" [LLM SERVICE] Getting general response for query: {query[:80]}...")
         
@@ -70,6 +75,16 @@ CRITICAL - COURSE QUERIES:
 Answer the user's question CONCISELY in {target_language}. Format your response to sound natural when spoken aloud.
 
 IMPORTANT: You have access to previous conversation context. Use it to provide coherent, contextual responses. Reference previous messages when relevant."""
+
+        # Pedagogical mode: make responses interactive with follow-up engagement
+        if pedagogical:
+            system_content += """
+
+PEDAGOGICAL ENGAGEMENT (IMPORTANT):
+- After answering, end with ONE short follow-up question or an invitation to explore a related concept.
+- Examples: "Would you like me to explain how this relates to neural networks?" or "Shall we dive deeper into this topic?"
+- Keep the follow-up natural and conversational — like a real teacher checking understanding.
+- Do NOT just answer and stop — always invite further learning."""
 
         messages = [
             {"role": "system", "content": system_content}

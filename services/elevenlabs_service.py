@@ -83,34 +83,48 @@ class ElevenLabsService:
         
         # Strategy 1: Official SDK streaming (fastest, ~200-500ms first byte)
         effective_voice = voice_id or self.voice_id
+        quota_exhausted = False
         if self._sdk_client:
             try:
                 async for chunk in self._stream_with_sdk(text, effective_voice):
                     yield chunk
                 return
             except Exception as e:
-                logger.warning(f"⚠️ SDK streaming failed: {e}, trying WebSocket fallback")
+                err_str = str(e).lower()
+                # Detect quota/auth failures — skip all ElevenLabs strategies
+                if 'quota' in err_str or '401' in err_str or 'unauthorized' in err_str:
+                    quota_exhausted = True
+                    logger.warning(f"⚠️ ElevenLabs quota exceeded, skipping to Edge TTS: {e}")
+                else:
+                    logger.warning(f"⚠️ SDK streaming failed: {e}, trying WebSocket fallback")
         
-        # Strategy 2: Raw WebSocket streaming (fallback)
-        try:
-            async for chunk in self._stream_with_websocket(text, effective_voice):
-                yield chunk
-            return
-        except Exception as e2:
-            logger.warning(f"⚠️ WebSocket streaming failed: {e2}, trying REST fallback")
-        
-        # Strategy 3: REST fallback (slowest but most reliable)
-        try:
-            logger.info("🔄 Falling back to REST TTS...")
-            audio = await self.text_to_speech(text, voice_id)
-            if audio:
-                logger.info(f"✅ REST TTS fallback: {len(audio)} bytes in {(time.time()-t0)*1000:.0f}ms")
-                yield audio
+        if not quota_exhausted:
+            # Strategy 2: Raw WebSocket streaming (fallback)
+            try:
+                async for chunk in self._stream_with_websocket(text, effective_voice):
+                    yield chunk
                 return
-            else:
-                logger.warning("⚠️ REST TTS returned empty")
-        except Exception as e2:
-            logger.warning(f"⚠️ REST TTS failed: {e2}")
+            except Exception as e2:
+                err_str = str(e2).lower()
+                if 'quota' in err_str or '401' in err_str or 'unauthorized' in err_str:
+                    quota_exhausted = True
+                    logger.warning(f"⚠️ ElevenLabs quota exceeded, skipping to Edge TTS")
+                else:
+                    logger.warning(f"⚠️ WebSocket streaming failed: {e2}, trying REST fallback")
+        
+        if not quota_exhausted:
+            # Strategy 3: REST fallback (slowest but most reliable)
+            try:
+                logger.info("🔄 Falling back to REST TTS...")
+                audio = await self.text_to_speech(text, voice_id)
+                if audio:
+                    logger.info(f"✅ REST TTS fallback: {len(audio)} bytes in {(time.time()-t0)*1000:.0f}ms")
+                    yield audio
+                    return
+                else:
+                    logger.warning("⚠️ REST TTS returned empty")
+            except Exception as e2:
+                logger.warning(f"⚠️ REST TTS failed: {e2}")
         
         # Strategy 4: Free Edge TTS fallback (no API key needed)
         if _HAS_EDGE_TTS:

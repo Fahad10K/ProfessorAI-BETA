@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prof_AI — Chat with Audio (WebSocket)</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            padding: 24px;
+            color: #e2e8f0;
+        }
+
+        .app {
+            max-width: 960px;
+            width: 100%;
+        }
+
+        /* ── Header ── */
+        .header {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+        .header h1 {
+            font-size: 1.8em;
+            background: linear-gradient(135deg, #667eea, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .header p { color: #94a3b8; font-size: 0.9em; margin-top: 6px; }
+
+        /* ── Cards ── */
+        .card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 14px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+        .card-title {
+            font-weight: 700;
+            font-size: 1em;
+            margin-bottom: 16px;
+            color: #a78bfa;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.8em;
+        }
+
+        /* ── Status bar ── */
+        .status-bar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 14px;
+        }
+        .stat { text-align: center; }
+        .stat-value {
+            font-size: 1.3em;
+            font-weight: 700;
+            font-family: 'Courier New', monospace;
+        }
+        .stat-label {
+            font-size: 0.7em;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 2px;
+        }
+        .dot {
+            display: inline-block;
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+        .dot-idle { background: #64748b; }
+        .dot-active { background: #22c55e; animation: pulse 1.5s infinite; }
+        .dot-error { background: #ef4444; }
+        @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.4;} }
+
+        /* ── Form ── */
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+        .form-grid .full { grid-column: 1 / -1; }
+        label {
+            display: block;
+            font-size: 0.8em;
+            font-weight: 600;
+            color: #94a3b8;
+            margin-bottom: 6px;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 10px 14px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            color: #e2e8f0;
+            font-size: 0.95em;
+            font-family: inherit;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102,126,234,.15);
+        }
+        textarea { resize: vertical; min-height: 60px; }
+
+        /* ── Buttons ── */
+        .btn-row { display: flex; gap: 10px; margin-top: 10px; }
+        button {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all .2s;
+            font-family: inherit;
+        }
+        button:disabled { opacity: .45; cursor: not-allowed; }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(102,126,234,.35);
+        }
+        .btn-green { background: #22c55e; color: white; }
+        .btn-green:hover:not(:disabled) { box-shadow: 0 6px 20px rgba(34,197,94,.3); }
+        .btn-red { background: #ef4444; color: white; }
+        .btn-red:hover:not(:disabled) { box-shadow: 0 6px 20px rgba(239,68,68,.3); }
+        .btn-ghost {
+            background: transparent;
+            color: #94a3b8;
+            border: 1px solid #334155;
+        }
+        .btn-ghost:hover:not(:disabled) { background: #334155; color: #e2e8f0; }
+
+        /* ── Chat area ── */
+        .chat-area {
+            max-height: 340px;
+            overflow-y: auto;
+            padding: 4px 0;
+        }
+        .chat-area::-webkit-scrollbar { width: 6px; }
+        .chat-area::-webkit-scrollbar-track { background: transparent; }
+        .chat-area::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        .bubble {
+            padding: 12px 16px;
+            border-radius: 12px;
+            margin-bottom: 10px;
+            line-height: 1.55;
+            font-size: 0.92em;
+            animation: fadeUp .25s ease;
+        }
+        @keyframes fadeUp { from{opacity:0;transform:translateY(8px);} to{opacity:1;transform:translateY(0);} }
+        .bubble.user {
+            background: #312e81;
+            border-left: 3px solid #667eea;
+            max-width: 85%;
+        }
+        .bubble.agent {
+            background: #064e3b;
+            border-left: 3px solid #22c55e;
+        }
+        .bubble.system {
+            background: #78350f33;
+            border-left: 3px solid #f59e0b;
+            text-align: center;
+            font-style: italic;
+            color: #fbbf24;
+            font-size: 0.85em;
+        }
+        .bubble .meta {
+            font-size: 0.72em;
+            color: #64748b;
+            margin-top: 6px;
+        }
+        .bubble .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.72em;
+            font-weight: 700;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+
+        /* ── Audio player ── */
+        .audio-panel { margin-top: 10px; }
+        .audio-panel audio { width: 100%; border-radius: 8px; }
+
+        /* ── Log ── */
+        .log-area {
+            max-height: 180px;
+            overflow-y: auto;
+            background: #0f172a;
+            border-radius: 8px;
+            padding: 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.78em;
+            line-height: 1.5;
+        }
+        .log-area::-webkit-scrollbar { width: 5px; }
+        .log-area::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        .log-info { color: #38bdf8; }
+        .log-success { color: #4ade80; }
+        .log-error { color: #f87171; }
+        .log-warn { color: #fbbf24; }
+
+        /* ── Persona pill ── */
+        .persona-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: #312e81;
+            border-radius: 20px;
+            padding: 6px 14px;
+            font-size: 0.82em;
+            font-weight: 600;
+            color: #c4b5fd;
+            margin-bottom: 14px;
+        }
+        .persona-pill .avatar {
+            width: 24px; height: 24px;
+            border-radius: 50%;
+            background: #667eea;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.8em;
+        }
+
+        @media (max-width: 640px) {
+            .form-grid { grid-template-columns: 1fr; }
+            .btn-row { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+<div class="app">
+    <div class="header">
+        <h1>🎙️ Chat with Audio — WebSocket Test</h1>
+        <p>Real-time text + streaming audio via <code>/ws/audio-stream</code></p>
+    </div>
+
+    <!-- Status -->
+    <div class="card">
+        <div class="status-bar">
+            <div class="stat">
+                <div class="stat-value"><span class="dot dot-idle" id="wsDot"></span><span id="wsStatus">Disconnected</span></div>
+                <div class="stat-label">Connection</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="statChunks">0</div>
+                <div class="stat-label">Audio Chunks</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="statFirstChunk">—</div>
+                <div class="stat-label">First Chunk (ms)</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="statTotalAudio">—</div>
+                <div class="stat-label">Audio Size</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Config -->
+    <div class="card">
+        <div class="card-title">Configuration</div>
+        <div class="form-grid">
+            <div>
+                <label>WebSocket URL</label>
+                <input id="wsUrl" value="ws://localhost:8765">
+            </div>
+            <div>
+                <label>User ID</label>
+                <input id="userId" value="167">
+            </div>
+            <div>
+                <label>Language</label>
+                <select id="language">
+                    <option value="en-IN" selected>English (India)</option>
+                    <option value="hi-IN">Hindi</option>
+                    <option value="en-US">English (US)</option>
+                </select>
+            </div>
+            <div>
+                <label>Voice / Persona</label>
+                <select id="voiceSelect">
+                    <option value="">Default (server config)</option>
+                    <option value="ZQe5CZNOzWyzPSCn5a3c">Prof James — calm male</option>
+                    <option value="EXAVITQu4vr4xnSDxMaL">Prof Sarah — warm female</option>
+                    <option value="onwK4e9ZLuTAKqWW03F9">Prof Daniel — deep male</option>
+                    <option value="LcfcDJNUP1GQjkzn1xUU">Prof Emily — clear female</option>
+                </select>
+            </div>
+            <div class="full">
+                <label>Message</label>
+                <textarea id="message" rows="2" placeholder="Type your question…">What is machine learning and how does it work?</textarea>
+            </div>
+        </div>
+        <div class="btn-row">
+            <button class="btn-green" id="btnConnect" onclick="toggleConnection()">Connect</button>
+            <button class="btn-primary" id="btnSend" onclick="sendChat()" disabled>🚀 Send</button>
+            <button class="btn-ghost" onclick="clearAll()">Clear</button>
+        </div>
+    </div>
+
+    <!-- Chat -->
+    <div class="card">
+        <div class="card-title">Conversation</div>
+        <div class="chat-area" id="chatArea">
+            <div class="bubble system">Send a message to begin chatting.</div>
+        </div>
+        <div class="audio-panel" id="audioPanel" style="display:none;">
+            <audio id="audioPlayer" controls></audio>
+        </div>
+    </div>
+
+    <!-- Log -->
+    <div class="card">
+        <div class="card-title">Event Log</div>
+        <div class="log-area" id="logArea"></div>
+    </div>
+</div>
+
+<script>
+    // ── State ──
+    let ws = null;
+    let audioChunks = [];
+    let sendTimestamp = null;
+    let firstChunkTime = null;
+    let totalAudioSize = 0;
+    let chunkCount = 0;
+    let currentAudioBlob = null;
+    let audioPlaybackGen = 0;
+    let audioQueue = [];
+    let isPlayingAudio = false;
+    let currentAudio = null;
+
+    // ── Helpers ──
+    const $ = id => document.getElementById(id);
+
+    function log(msg, cls = 'info') {
+        const el = $('logArea');
+        const ts = new Date().toLocaleTimeString('en-US', { hour12: false });
+        el.innerHTML += `<div class="log-${cls}"><span style="color:#475569">[${ts}]</span> ${msg}</div>`;
+        el.scrollTop = el.scrollHeight;
+    }
+
+    function addBubble(role, html) {
+        const el = $('chatArea');
+        const div = document.createElement('div');
+        div.className = `bubble ${role}`;
+        div.innerHTML = html;
+        el.appendChild(div);
+        el.scrollTop = el.scrollHeight;
+    }
+
+    function setWsStatus(label, dot) {
+        $('wsStatus').textContent = label;
+        $('wsDot').className = `dot dot-${dot}`;
+    }
+
+    function resetStats() {
+        chunkCount = 0; totalAudioSize = 0; firstChunkTime = null;
+        $('statChunks').textContent = '0';
+        $('statFirstChunk').textContent = '—';
+        $('statTotalAudio').textContent = '—';
+    }
+
+    // ── Audio playback (double-buffer, same as interactive client) ──
+    function stopAllAudio() {
+        audioPlaybackGen++;
+        if (currentAudio) { currentAudio.pause(); }
+        audioQueue = [];
+        isPlayingAudio = false;
+    }
+
+    function prepareAudio(b64) {
+        const raw = atob(b64);
+        const bytes = new Uint8Array(raw.length);
+        for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+        const blob = new Blob([bytes], { type: 'audio/mp3' });
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audio.preload = 'auto';
+        return { audio, url };
+    }
+
+    function playPrepared({ audio, url }) {
+        return new Promise(resolve => {
+            let settled = false;
+            const done = () => { if (settled) return; settled = true; URL.revokeObjectURL(url); if (currentAudio === audio) currentAudio = null; resolve(); };
+            audio.onended = done;
+            audio.onpause = done;
+            audio.onabort = done;
+            audio.onerror = () => { console.warn('chunk err'); done(); };
+            currentAudio = audio;
+            audio.play().catch(done);
+        });
+    }
+
+    async function playAudioQueue() {
+        if (audioQueue.length === 0 || isPlayingAudio) return;
+        isPlayingAudio = true;
+        const myGen = audioPlaybackGen;
+        let nextReady = null;
+        while (audioPlaybackGen === myGen) {
+            let toPlay = nextReady; nextReady = null;
+            if (!toPlay) { if (audioQueue.length === 0) break; toPlay = prepareAudio(audioQueue.shift()); }
+            if (audioQueue.length > 0) nextReady = prepareAudio(audioQueue.shift());
+            try { await playPrepared(toPlay); } catch(_) {}
+            if (!nextReady && audioQueue.length === 0) {
+                await new Promise(r => setTimeout(r, 80));
+                if (audioQueue.length === 0) break;
+            }
+        }
+        if (nextReady) { URL.revokeObjectURL(nextReady.url); }
+        isPlayingAudio = false;
+    }
+
+    // ── WebSocket ──
+    function toggleConnection() {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.close();
+            return;
+        }
+        const url = $('wsUrl').value.trim();
+        if (!url) { alert('Enter WS URL'); return; }
+        log(`Connecting to ${url}…`);
+        setWsStatus('Connecting…', 'active');
+        $('btnConnect').disabled = true;
+
+        ws = new WebSocket(url);
+
+        ws.onopen = () => {
+            setWsStatus('Connected', 'active');
+            $('btnConnect').textContent = 'Disconnect';
+            $('btnConnect').className = 'btn-red';
+            $('btnConnect').disabled = false;
+            $('btnSend').disabled = false;
+            log('✅ WebSocket connected', 'success');
+        };
+
+        ws.onclose = () => {
+            setWsStatus('Disconnected', 'idle');
+            $('btnConnect').textContent = 'Connect';
+            $('btnConnect').className = 'btn-green';
+            $('btnConnect').disabled = false;
+            $('btnSend').disabled = true;
+            ws = null;
+            log('🔌 Disconnected', 'warn');
+        };
+
+        ws.onerror = (e) => {
+            setWsStatus('Error', 'error');
+            $('btnConnect').disabled = false;
+            log(`❌ Connection error`, 'error');
+        };
+
+        ws.onmessage = handleMessage;
+    }
+
+    function handleMessage(event) {
+        let data;
+        try { data = JSON.parse(event.data); } catch { log('Non-JSON message', 'warn'); return; }
+        const t = data.type;
+        log(`📨 ${t}`);
+
+        switch (t) {
+            case 'connection_ready':
+                log(`Server: ${data.message || 'ready'}`, 'success');
+                break;
+
+            case 'processing_started':
+                addBubble('system', `⏳ ${data.message || 'Processing…'}`);
+                break;
+
+            case 'text_response': {
+                const txt = data.text || '';
+                const meta = data.metadata || {};
+                const route = meta.route || meta.metadata?.route || '';
+                const badge = route
+                    ? `<span class="badge" style="background:#667eea;color:#fff;">${route}</span>`
+                    : '';
+                addBubble('agent', `${badge}${txt}<div class="meta">Model: ${meta.model || '—'} · Sources: ${meta.sources?.length ?? 0}</div>`);
+                if (sendTimestamp) {
+                    const ms = Date.now() - sendTimestamp;
+                    log(`📝 Text response in ${ms}ms`, 'success');
+                }
+                break;
+            }
+
+            case 'audio_generation_started':
+                log('🔊 Audio streaming started…');
+                break;
+
+            case 'audio_chunk': {
+                chunkCount++;
+                const chunkBytes = data.audio_data ? atob(data.audio_data).length : 0;
+                totalAudioSize += chunkBytes;
+                $('statChunks').textContent = chunkCount;
+                $('statTotalAudio').textContent = (totalAudioSize / 1024).toFixed(1) + ' KB';
+
+                if (data.is_first_chunk && sendTimestamp && !firstChunkTime) {
+                    firstChunkTime = Date.now() - sendTimestamp;
+                    $('statFirstChunk').textContent = firstChunkTime + 'ms';
+                    log(`🎯 First audio chunk: ${firstChunkTime}ms`, 'success');
+                }
+
+                // Queue for streaming playback
+                audioQueue.push(data.audio_data);
+                if (!isPlayingAudio) playAudioQueue();
+                break;
+            }
+
+            case 'audio_complete': {
+                const info = `${data.chunk_count || chunkCount} chunks, ${((data.total_size || totalAudioSize) / 1024).toFixed(1)} KB`;
+                log(`✅ Audio complete — ${info}`, 'success');
+
+                // Also set full blob in <audio> for scrubbing
+                if (audioChunks.length === 0 && chunkCount > 0) {
+                    // We already played via queue; leave player as-is
+                }
+                break;
+            }
+
+            case 'error':
+                addBubble('system', `❌ ${data.error}`);
+                log(`❌ ${data.error}`, 'error');
+                break;
+
+            default:
+                log(`Unhandled: ${t}`, 'warn');
+        }
+    }
+
+    // ── Send ──
+    function sendChat() {
+        if (!ws || ws.readyState !== WebSocket.OPEN) { alert('Not connected'); return; }
+        const msg = $('message').value.trim();
+        if (!msg) { alert('Enter a message'); return; }
+
+        resetStats();
+        stopAllAudio();
+        sendTimestamp = Date.now();
+
+        const payload = {
+            type: 'chat_with_audio',
+            message: msg,
+            user_id: $('userId').value.trim(),
+            language: $('language').value,
+        };
+        const voiceId = $('voiceSelect').value;
+        if (voiceId) payload.voice_id = voiceId;
+
+        addBubble('user', msg);
+        ws.send(JSON.stringify(payload));
+        log(`📤 Sent: "${msg.substring(0, 60)}…"`);
+        $('audioPanel').style.display = 'block';
+    }
+
+    function clearAll() {
+        stopAllAudio();
+        $('chatArea').innerHTML = '<div class="bubble system">Send a message to begin chatting.</div>';
+        $('audioPanel').style.display = 'none';
+        $('audioPlayer').src = '';
+        resetStats();
+        log('🗑️ Cleared', 'warn');
+    }
+
+    // Enter to send
+    $('message').addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+    });
+
+    log('✅ UI ready', 'success');
+</script>
+</body>
+</html>

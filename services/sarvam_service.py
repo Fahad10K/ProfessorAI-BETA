@@ -5,12 +5,13 @@ Sarvam Service - Handles Sarvam AI integrations for translation, STT, and TTS
 import io
 import asyncio
 import time
-import io
 import base64
+import logging
 from typing import AsyncGenerator, Optional
 from sarvamai import AsyncSarvamAI, AudioOutput
-from typing import Optional
 import config
+
+logger = logging.getLogger(__name__)
 
 class SarvamService:
     """Service for Sarvam AI operations."""
@@ -46,7 +47,7 @@ class SarvamService:
             return response.translated_text
             
         except Exception as e:
-            print(f"Error during Sarvam AI translation: {e}")
+            logger.error(f"Error during Sarvam AI translation: {e}")
             return text  # Return original text on failure
     
     async def translate_text(self, text: str, target_language_code: str, source_language_code: str) -> str:
@@ -70,7 +71,7 @@ class SarvamService:
             )
             return response.transcript
         except Exception as e:
-            print(f"Error during Sarvam AI transcription: {e}")
+            logger.error(f"Error during Sarvam AI transcription: {e}")
             return ""
     
     async def transcribe_audio(self, audio_file_buffer: io.BytesIO, language_code: Optional[str] = None) -> str:
@@ -86,36 +87,36 @@ class SarvamService:
     async def generate_audio(self, text: str, language_code: str, speaker: str) -> io.BytesIO:
         """Generate audio from text with optimized parallel processing for low latency."""
         try:
-            print(f"🔊 Fast audio generation for {len(text)} characters")
+            logger.info(f"Fast audio generation for {len(text)} characters")
             
             # Aggressive text cleaning and optimization for speed
             cleaned_text = self._clean_text_for_tts_fast(text)
-            print(f"   Optimized text: {len(cleaned_text)} chars")
+            logger.debug(f"Optimized text: {len(cleaned_text)} chars")
             
             # Dynamic chunk sizing based on text length for optimal speed
             if len(cleaned_text) <= 2500:
-                print("   Single chunk - ultra fast...")
+                logger.debug("Single chunk - ultra fast...")
                 return await self._generate_audio_single(cleaned_text, language_code, speaker)
             elif len(cleaned_text) <= 6000:
-                print("   Small parallel batch...")
+                logger.debug("Small parallel batch...")
                 return await self._generate_audio_parallel_chunks(cleaned_text, language_code, speaker, 2000)
             else:
-                print("   Large parallel processing...")
+                logger.debug("Large parallel processing...")
                 return await self._generate_audio_parallel_chunks(cleaned_text, language_code, speaker, 2500)
                 
         except Exception as e:
-            print(f"❌ Error during fast TTS: {e}")
+            logger.error(f"Error during fast TTS: {e}")
             return io.BytesIO()
     
     async def generate_audio_ultra_fast(self, text: str, language_code: str, speaker: str) -> io.BytesIO:
         """Ultra-fast audio generation with aggressive optimization for minimal latency."""
         try:
-            print(f"⚡ Ultra-fast generation for {len(text)} chars")
+            logger.info(f"Ultra-fast generation for {len(text)} chars")
             
             # EXTREME truncation for speed
             if len(text) > 1000:
                 text = text[:900] + "."
-                print(f"   Truncated to 900 chars for MAXIMUM speed")
+                logger.debug("Truncated to 900 chars for MAXIMUM speed")
             
             # Minimal cleaning for maximum speed
             import re
@@ -129,20 +130,20 @@ class SarvamService:
             )
             
         except asyncio.TimeoutError:
-            print(f"❌ Ultra-fast TTS timeout after 10s")
+            logger.error("Ultra-fast TTS timeout after 10s")
             return io.BytesIO()
         except Exception as e:
-            print(f"❌ Ultra-fast TTS error: {e}")
+            logger.error(f"Ultra-fast TTS error: {e}")
             return io.BytesIO()
     
     async def stream_audio_generation(self, text: str, language_code: str, speaker: str, websocket=None):
         """Direct Sarvam TTS streaming like Contelligence - ZERO buffering for maximum speed."""
         try:
-            print(f"⚡ DIRECT Sarvam streaming for {len(text)} chars")
+            logger.info(f"DIRECT Sarvam streaming for {len(text)} chars")
             
             # Use Sarvam's direct TTS streaming like Contelligence
             async with self.client.text_to_speech_streaming.connect(model="bulbul:v2") as tts_ws:
-                print("   🔗 Connected to Sarvam TTS streaming")
+                logger.debug("Connected to Sarvam TTS streaming")
                 
                 # Configure TTS stream
                 await tts_ws.configure(
@@ -151,7 +152,7 @@ class SarvamService:
                     output_audio_codec="mp3"
                 )
                 
-                print("   🎯 Starting direct TTS conversion")
+                logger.debug("Starting direct TTS conversion")
                 # Send text to TTS - this starts streaming immediately
                 await tts_ws.convert(text)
                 
@@ -170,33 +171,33 @@ class SarvamService:
                         import base64
                         audio_bytes = base64.b64decode(audio_chunk_b64)
                         
-                        print(f"   ⚡ Direct chunk {chunk_count}: {len(audio_bytes)} bytes")
+                        logger.debug(f"Direct chunk {chunk_count}: {len(audio_bytes)} bytes")
                         yield audio_bytes
                 
                 # Final flush like Contelligence - with exception handling
                 try:
                     await tts_ws.flush()
-                    print(f"   ✅ Direct streaming complete: {chunk_count} chunks")
+                    logger.info(f"Direct streaming complete: {chunk_count} chunks")
                 except Exception as flush_error:
-                    print(f"   ⚠️ Flush failed (continuing anyway): {flush_error}")
-                    print(f"   ✅ Direct streaming complete: {chunk_count} chunks (flush skipped)")
+                    logger.warning(f"Flush failed (continuing anyway): {flush_error}")
+                    logger.info(f"Direct streaming complete: {chunk_count} chunks (flush skipped)")
                 
         except Exception as e:
-            print(f"❌ Direct streaming failed: {e}")
+            logger.error(f"Direct streaming failed: {e}")
             # Simple fallback without complex buffering
             try:
-                print("   ⚡ Simple fallback generation")
+                logger.info("Simple fallback generation")
                 audio_buffer = await self.generate_audio_ultra_fast(text, language_code, speaker)
                 if audio_buffer and audio_buffer.getbuffer().nbytes > 0:
                     yield audio_buffer.getvalue()
             except Exception as fallback_error:
-                print(f"   ❌ Fallback failed: {fallback_error}")
+                logger.error(f"Stream fallback failed: {fallback_error}")
                 return
     
     async def _stream_audio_direct(self, text: str, language_code: str, speaker: str, websocket=None):
         """Direct streaming from Sarvam with immediate chunk delivery and browser-compatible chunking."""
         try:
-            print(f"   🎯 Direct streaming: {len(text)} chars")
+            logger.debug(f"Direct streaming: {len(text)} chars")
             
             # Import AudioOutput here to avoid import issues
             from sarvamai import AudioOutput
@@ -225,7 +226,7 @@ class SarvamService:
                                 small_chunk = audio_buffer[:max_chunk_size]
                                 audio_buffer = audio_buffer[max_chunk_size:]
                                 
-                                print(f"   ⚡ Chunk {chunk_count}: {len(small_chunk)} bytes (browser-optimized)")
+                                logger.debug(f"Chunk {chunk_count}: {len(small_chunk)} bytes (browser-optimized)")
                                 yield small_chunk
                                 
                                 # Minimal delay for maximum speed
@@ -234,29 +235,29 @@ class SarvamService:
                 # Send remaining audio buffer
                 if audio_buffer:
                     chunk_count += 1
-                    print(f"   ⚡ Final chunk {chunk_count}: {len(audio_buffer)} bytes")
+                    logger.debug(f"Final chunk {chunk_count}: {len(audio_buffer)} bytes")
                     yield audio_buffer
                 
                 # Always flush to complete the streaming - with exception handling
                 try:
                     await ws.flush()
-                    print(f"   ✅ Direct streaming complete: {chunk_count} browser-compatible chunks")
+                    logger.info(f"Direct streaming complete: {chunk_count} browser-compatible chunks")
                 except Exception as flush_error:
-                    print(f"   ⚠️ Flush failed (continuing anyway): {flush_error}")
-                    print(f"   ✅ Direct streaming complete: {chunk_count} browser-compatible chunks (flush skipped)")
+                    logger.warning(f"Flush failed (continuing anyway): {flush_error}")
+                    logger.info(f"Direct streaming complete: {chunk_count} browser-compatible chunks (flush skipped)")
                             
         except Exception as e:
             error_msg = str(e)
             if self._is_normal_disconnection(error_msg):
-                print(f"   🔌 Client disconnected during streaming: {e}")
-                print(f"   ⚠️ Normal disconnection - continuing with fallback")
+                logger.info(f"Client disconnected during streaming: {e}")
+                logger.info("Normal disconnection - continuing with fallback")
                 # Continue with fallback instead of stopping
             else:
-                print(f"   ❌ Direct stream error: {e}")
+                logger.error(f"Direct stream error: {e}")
             
             # Fast fallback with immediate small chunks
             try:
-                print(f"   ⚡ ULTRA-FAST fallback generation")
+                logger.info("ULTRA-FAST fallback generation")
                 audio_buffer = await self.generate_audio_ultra_fast(text, language_code, speaker)
                 if audio_buffer and audio_buffer.getbuffer().nbytes > 0:
                     # Break into small chunks for immediate streaming
@@ -267,11 +268,11 @@ class SarvamService:
                     for i in range(0, len(audio_bytes), chunk_size):
                         chunk_count += 1
                         chunk = audio_bytes[i:i + chunk_size]
-                        print(f"   ⚡ Fallback chunk {chunk_count}: {len(chunk)} bytes")
+                        logger.debug(f"Fallback chunk {chunk_count}: {len(chunk)} bytes")
                         yield chunk
                         await asyncio.sleep(0.01)  # 10ms delay between chunks
             except Exception as fallback_error:
-                print(f"   ❌ Fallback failed: {fallback_error}")
+                logger.error(f"Direct stream fallback failed: {fallback_error}")
                 return
     
     async def _stream_audio_immediate(self, text: str, language_code: str, speaker: str, chunk_size: int, websocket=None):
@@ -281,19 +282,19 @@ class SarvamService:
             
             # Split into very small chunks for immediate delivery
             chunks = self._split_text_for_immediate_streaming(text, chunk_size)
-            print(f"   ⚡ Immediate streaming: {len(chunks)} chunks")
+            logger.info(f"Immediate streaming: {len(chunks)} chunks")
             
             if not chunks:
                 return
             
             # FIRST CHUNK - IMMEDIATE DELIVERY
             first_chunk = chunks[0]
-            print(f"   🎯 First chunk ({len(first_chunk)} chars) - IMMEDIATE")
+            logger.debug(f"First chunk ({len(first_chunk)} chars) - IMMEDIATE")
             
             first_chunk_delivered = False
             async for audio_chunk in self._stream_audio_direct(first_chunk, language_code, speaker, websocket):
                 if not first_chunk_delivered:
-                    print(f"   🚀 FIRST AUDIO DELIVERED!")
+                    logger.info("FIRST AUDIO DELIVERED")
                     first_chunk_delivered = True
                 yield audio_chunk
             
@@ -301,7 +302,7 @@ class SarvamService:
             if len(chunks) > 1:
 
                 
-                print(f"   �  Processing {len(chunks)-1} remaining chunks sequentially")
+                logger.debug(f"Processing {len(chunks)-1} remaining chunks sequentially")
                 
                 # Process remaining chunks sequentially to allow immediate stopping on disconnection
                 remaining_chunks = chunks[1:]
@@ -311,7 +312,7 @@ class SarvamService:
                     
 
                     
-                    print(f"   🔄 Processing chunk {chunk_index}/{len(chunks)}: {len(chunk)} chars")
+                    logger.debug(f"Processing chunk {chunk_index}/{len(chunks)}: {len(chunk)} chars")
                     
                     # Process chunk and yield results immediately
                     async for audio_chunk in self._stream_audio_direct(chunk, language_code, speaker, websocket):
@@ -320,15 +321,15 @@ class SarvamService:
                             yield audio_chunk
 
                         
-            print(f"   ✅ Immediate streaming complete")
+            logger.info("Immediate streaming complete")
                             
         except Exception as e:
             error_msg = str(e)
             if self._is_normal_disconnection(error_msg):
-                print(f"   🔌 Client disconnected during immediate streaming: {e}")
+                logger.info(f"Client disconnected during immediate streaming: {e}")
                 return
             else:
-                print(f"   ❌ Immediate streaming error: {e}")
+                logger.error(f"Immediate streaming error: {e}")
                 return
     
     async def _collect_audio_chunk(self, text: str, language_code: str, speaker: str, chunk_num: int) -> bytes:
@@ -337,10 +338,10 @@ class SarvamService:
             audio_buffer = await self._generate_audio_single(text, language_code, speaker)
             audio_bytes = audio_buffer.getvalue()
             if audio_bytes:
-                print(f"   ✅ Chunk {chunk_num}: {len(audio_bytes)} bytes ready")
+                logger.debug(f"Chunk {chunk_num}: {len(audio_bytes)} bytes ready")
             return audio_bytes
         except Exception as e:
-            print(f"   ❌ Chunk {chunk_num} failed: {e}")
+            logger.error(f"Chunk {chunk_num} failed: {e}")
             return b''
     
     def _split_text_for_streaming(self, text: str, max_chunk_size: int) -> list:
@@ -409,7 +410,7 @@ class SarvamService:
         # AGGRESSIVE truncation for streaming speed
         if len(text) > 5000:  # Much smaller limit for streaming
             text = text[:4800] + "."
-            print(f"   ⚡ Truncated to 4800 chars for streaming speed")
+            logger.debug("Truncated to 4800 chars for streaming speed")
         
         return text.strip()
     
@@ -450,7 +451,7 @@ class SarvamService:
     async def _generate_chunk_with_streaming(self, text: str, language_code: str, speaker: str, chunk_num: int, websocket=None) -> list:
         """Generate audio chunk with streaming and collect all pieces - CONTINUOUS STREAMING."""
         try:
-            print(f"   🔄 Processing chunk {chunk_num}: {len(text)} chars")
+            logger.debug(f"Processing chunk {chunk_num}: {len(text)} chars")
             audio_chunks = []
             
             # Collect all audio chunks from this text chunk - NO INTERRUPTION
@@ -460,13 +461,13 @@ class SarvamService:
             
             total_bytes = sum(len(chunk) for chunk in audio_chunks)
             if total_bytes > 0:
-                print(f"   ✅ Chunk {chunk_num}: {len(audio_chunks)} pieces, {total_bytes} bytes ready")
+                logger.debug(f"Chunk {chunk_num}: {len(audio_chunks)} pieces, {total_bytes} bytes ready")
             else:
-                print(f"   ⚠️ Chunk {chunk_num}: No audio generated")
+                logger.warning(f"Chunk {chunk_num}: No audio generated")
             return audio_chunks
             
         except Exception as e:
-            print(f"   ❌ Chunk {chunk_num} failed: {e}")
+            logger.error(f"Chunk {chunk_num} failed: {e}")
             return []
     
     def _clean_text_for_tts_fast(self, text: str) -> str:
@@ -483,7 +484,7 @@ class SarvamService:
         # Truncate aggressively if too long for speed
         if len(text) > 8000:  # Hard limit for speed
             text = text[:7500] + "."
-            print(f"   Truncated to 7500 chars for speed")
+            logger.debug("Truncated to 7500 chars for speed")
         
         return text.strip()
     
@@ -624,17 +625,17 @@ class SarvamService:
                 return io.BytesIO(full_audio_bytes)
                 
         except Exception as e:
-            print(f"   ❌ TTS error: {e}")
+            logger.error(f"TTS error: {e}")
             return io.BytesIO()
     
     async def _generate_audio_parallel_chunks(self, text: str, language_code: str, speaker: str, chunk_size: int) -> io.BytesIO:
         """Generate audio using parallel processing for maximum speed."""
         try:
-            print(f"   Parallel processing with {chunk_size} char chunks")
+            logger.info(f"Parallel processing with {chunk_size} char chunks")
             
             # Split into smaller chunks for faster parallel processing
             chunks = self._split_text_fast(text, chunk_size)
-            print(f"   Processing {len(chunks)} chunks in parallel")
+            logger.debug(f"Processing {len(chunks)} chunks in parallel")
             
             # Limit concurrent connections to avoid overwhelming the API
             max_concurrent = min(4, len(chunks))  # Max 4 parallel connections
@@ -644,7 +645,7 @@ class SarvamService:
             
             for i in range(0, len(chunks), max_concurrent):
                 batch = chunks[i:i + max_concurrent]
-                print(f"   Batch {i//max_concurrent + 1}: processing {len(batch)} chunks")
+                logger.debug(f"Batch {i//max_concurrent + 1}: processing {len(batch)} chunks")
                 
                 # Create tasks for parallel processing
                 tasks = []
@@ -661,24 +662,24 @@ class SarvamService:
                     # Combine results in order
                     for j, result in enumerate(results):
                         if isinstance(result, Exception):
-                            print(f"   ⚠️ Chunk {i+j+1} failed: {result}")
+                            logger.warning(f"Chunk {i+j+1} failed: {result}")
                             continue
                         
                         if result and result.getbuffer().nbytes > 0:
                             all_audio_bytes += result.getvalue()
-                            print(f"   ✅ Chunk {i+j+1}: {result.getbuffer().nbytes} bytes")
+                            logger.debug(f"Chunk {i+j+1}: {result.getbuffer().nbytes} bytes")
                         else:
-                            print(f"   ⚠️ Chunk {i+j+1}: No audio generated")
+                            logger.warning(f"Chunk {i+j+1}: No audio generated")
                 
                 except Exception as e:
-                    print(f"   ❌ Batch {i//max_concurrent + 1} error: {e}")
+                    logger.error(f"Batch {i//max_concurrent + 1} error: {e}")
                     continue
             
-            print(f"✅ Parallel TTS complete: {len(all_audio_bytes)} bytes")
+            logger.info(f"Parallel TTS complete: {len(all_audio_bytes)} bytes")
             return io.BytesIO(all_audio_bytes)
             
         except Exception as e:
-            print(f"❌ Error in parallel processing: {e}")
+            logger.error(f"Error in parallel processing: {e}")
             return io.BytesIO()
     
     def _split_text_fast(self, text: str, max_chunk_size: int) -> list:

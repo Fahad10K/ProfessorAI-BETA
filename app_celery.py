@@ -184,6 +184,8 @@ if SERVICES_AVAILABLE:
             logging.warning(f"⚠️ Failed to initialize services on attempt {attempt + 1}: {e}")
             if attempt < MAX_RETRIES - 1:
                 logging.info(f"Retrying in {RETRY_DELAY} seconds...")
+                # time.sleep is acceptable here since this runs at module-load
+                # time before the event loop starts
                 time.sleep(RETRY_DELAY)
             else:
                 logging.error("❌ All retries failed. Some services will be unavailable.")
@@ -396,15 +398,19 @@ async def get_job_status(task_id: str):
 )
 async def get_worker_stats():
     try:
-        inspector = celery_app.control.inspect()
+        loop = asyncio.get_event_loop()
         
-        stats = {
-            "active_workers": inspector.active(),
-            "scheduled_tasks": inspector.scheduled(),
-            "active_tasks": inspector.active(),
-            "reserved_tasks": inspector.reserved(),
-        }
+        # Celery inspector calls are synchronous Redis calls — run in executor
+        def _inspect():
+            inspector = celery_app.control.inspect()
+            return {
+                "active_workers": inspector.active(),
+                "scheduled_tasks": inspector.scheduled(),
+                "active_tasks": inspector.active(),
+                "reserved_tasks": inspector.reserved(),
+            }
         
+        stats = await loop.run_in_executor(None, _inspect)
         return stats
     except Exception as e:
         logging.error(f"Error getting worker stats: {e}")
@@ -511,8 +517,6 @@ async def get_course_content(course_id: str):
             raise HTTPException(status_code=404, detail=f"Course {course_id} not found")
         else:
             raise HTTPException(status_code=500, detail="Invalid course data format")
-            
-        raise HTTPException(status_code=404, detail=f"Course {course_id} not found")
     except HTTPException:
         raise
     except Exception as e:
@@ -796,6 +800,8 @@ async def generate_course_quiz(request: QuizRequest):
             "message": "Course quiz generated successfully",
             "quiz": quiz_display.model_dump()
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"Error generating course quiz: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -987,18 +993,22 @@ async def chat_endpoint(request: ChatRequest):
         raise HTTPException(status_code=503, detail="Session manager not available")
     
     try:
-        # Get or create session for user
-        session = session_manager.get_or_create_session(
+        loop = asyncio.get_event_loop()
+        
+        # Get or create session for user (sync DB call → executor)
+        session = await loop.run_in_executor(None, lambda: session_manager.get_or_create_session(
             user_id=request.user_id,
             ip_address=request.ip_address,
             user_agent=request.user_agent
-        )
+        ))
         session_id = session['session_id']
         
         logging.info(f"Chat query: {request.message[:50]}... (user: {request.user_id}, session: {session_id})")
         
-        # Get conversation history from database (last 5 interactions = 10 messages)
-        conversation_history = session_manager.get_conversation_history(session_id, limit=5)
+        # Get conversation history from database (sync → executor)
+        conversation_history = await loop.run_in_executor(
+            None, lambda: session_manager.get_conversation_history(session_id, limit=5)
+        )
         
         # Get response from chat service (with optional course_id filtering)
         response_data = await chat_service.ask_question(
@@ -1009,27 +1019,22 @@ async def chat_endpoint(request: ChatRequest):
             course_id=request.course_id
         )
         
-        # Save user message and assistant response to database
-        session_manager.add_message(
-            user_id=request.user_id,
-            session_id=session_id,
-            role='user',
-            content=request.message,
-            message_type='text'
-        )
-        
-        session_manager.add_message(
-            user_id=request.user_id,
-            session_id=session_id,
-            role='assistant',
-            content=response_data.get('answer', ''),
-            message_type='text',
-            metadata={
-                'route': response_data.get('route'),
-                'confidence': response_data.get('confidence'),
-                'sources': response_data.get('sources')
-            }
-        )
+        # Save user message and assistant response to database (sync → executor)
+        _uid, _sid, _msg = request.user_id, session_id, request.message
+        _answer = response_data.get('answer', '')
+        _meta = {
+            'route': response_data.get('route'),
+            'confidence': response_data.get('confidence'),
+            'sources': response_data.get('sources')
+        }
+        await loop.run_in_executor(None, lambda: session_manager.add_message(
+            user_id=_uid, session_id=_sid, role='user',
+            content=_msg, message_type='text'
+        ))
+        await loop.run_in_executor(None, lambda: session_manager.add_message(
+            user_id=_uid, session_id=_sid, role='assistant',
+            content=_answer, message_type='text', metadata=_meta
+        ))
         
         # Add session_id to response
         response_data['session_id'] = session_id
@@ -1097,18 +1102,22 @@ async def chat_with_audio_endpoint(request: ChatWithAudioRequest):
         raise HTTPException(status_code=503, detail="Session manager not available")
     
     try:
-        # Get or create session for user
-        session = session_manager.get_or_create_session(
+        loop = asyncio.get_event_loop()
+        
+        # Get or create session for user (sync DB call → executor)
+        session = await loop.run_in_executor(None, lambda: session_manager.get_or_create_session(
             user_id=request.user_id,
             ip_address=request.ip_address,
             user_agent=request.user_agent
-        )
+        ))
         session_id = session['session_id']
         
         logging.info(f"Chat with audio query: {request.message[:50]}... (user: {request.user_id}, session: {session_id})")
         
-        # Get conversation history from database (last 5 interactions = 10 messages)
-        conversation_history = session_manager.get_conversation_history(session_id, limit=5)
+        # Get conversation history from database (sync → executor)
+        conversation_history = await loop.run_in_executor(
+            None, lambda: session_manager.get_conversation_history(session_id, limit=5)
+        )
         
         # Get text response with conversation context (with optional course_id filtering)
         response_data = await chat_service.ask_question(
@@ -1124,27 +1133,21 @@ async def chat_with_audio_endpoint(request: ChatWithAudioRequest):
         audio_buffer = await audio_service.generate_audio_from_text(answer_text, request.language)
         audio_base64 = base64.b64encode(audio_buffer.getvalue()).decode('utf-8')
         
-        # Save user message and assistant response to database
-        session_manager.add_message(
-            user_id=request.user_id,
-            session_id=session_id,
-            role='user',
-            content=request.message,
-            message_type='voice'
-        )
-        
-        session_manager.add_message(
-            user_id=request.user_id,
-            session_id=session_id,
-            role='assistant',
-            content=answer_text,
-            message_type='voice',
-            metadata={
-                'route': response_data.get('route'),
-                'confidence': response_data.get('confidence'),
-                'has_audio': True
-            }
-        )
+        # Save user message and assistant response to database (sync → executor)
+        _uid, _sid, _msg = request.user_id, session_id, request.message
+        _meta = {
+            'route': response_data.get('route'),
+            'confidence': response_data.get('confidence'),
+            'has_audio': True
+        }
+        await loop.run_in_executor(None, lambda: session_manager.add_message(
+            user_id=_uid, session_id=_sid, role='user',
+            content=_msg, message_type='voice'
+        ))
+        await loop.run_in_executor(None, lambda: session_manager.add_message(
+            user_id=_uid, session_id=_sid, role='assistant',
+            content=answer_text, message_type='voice', metadata=_meta
+        ))
         
         response = {
             "answer": answer_text,
@@ -1216,18 +1219,22 @@ async def chat_with_audio_stream_endpoint(request: ChatWithAudioRequest):
         raise HTTPException(status_code=503, detail="Session manager not available")
     
     try:
-        # Get or create session
-        session = session_manager.get_or_create_session(
+        loop = asyncio.get_event_loop()
+        
+        # Get or create session (sync DB call → executor)
+        session = await loop.run_in_executor(None, lambda: session_manager.get_or_create_session(
             user_id=request.user_id,
             ip_address=request.ip_address,
             user_agent=request.user_agent
-        )
+        ))
         session_id = session['session_id']
         
         logging.info(f"Chat stream query: {request.message[:50]}... (user: {request.user_id})")
         
-        # Get conversation history (last 5 interactions = 10 messages)
-        conversation_history = session_manager.get_conversation_history(session_id, limit=5)
+        # Get conversation history (sync → executor)
+        conversation_history = await loop.run_in_executor(
+            None, lambda: session_manager.get_conversation_history(session_id, limit=5)
+        )
         
         # Get text response (with optional course_id filtering)
         response_data = await chat_service.ask_question(
@@ -1239,28 +1246,22 @@ async def chat_with_audio_stream_endpoint(request: ChatWithAudioRequest):
         )
         answer_text = response_data.get('answer', '')
         
-        # Save messages to DB
-        session_manager.add_message(
-            user_id=request.user_id,
-            session_id=session_id,
-            role='user',
-            content=request.message,
-            message_type='voice'
-        )
-        
-        session_manager.add_message(
-            user_id=request.user_id,
-            session_id=session_id,
-            role='assistant',
-            content=answer_text,
-            message_type='voice',
-            metadata={
-                'route': response_data.get('route'),
-                'confidence': response_data.get('confidence'),
-                'has_audio': True,
-                'streaming': True
-            }
-        )
+        # Save messages to DB (sync → executor)
+        _uid, _sid, _msg = request.user_id, session_id, request.message
+        _meta = {
+            'route': response_data.get('route'),
+            'confidence': response_data.get('confidence'),
+            'has_audio': True,
+            'streaming': True
+        }
+        await loop.run_in_executor(None, lambda: session_manager.add_message(
+            user_id=_uid, session_id=_sid, role='user',
+            content=_msg, message_type='voice'
+        ))
+        await loop.run_in_executor(None, lambda: session_manager.add_message(
+            user_id=_uid, session_id=_sid, role='assistant',
+            content=answer_text, message_type='voice', metadata=_meta
+        ))
         
         # Stream audio chunks directly
         async def audio_generator():
@@ -1884,26 +1885,22 @@ async def get_all_users(
             offset=offset
         )
         
-        # Get total count for pagination
-        conn = database_service.get_connection()
-        cur = conn.cursor()
-        
-        count_query = "SELECT COUNT(*) FROM users WHERE 1=1"
-        params = []
+        # Get total count for pagination using safe execute_query
+        count_query = "SELECT COUNT(*) as count FROM users WHERE 1=1"
+        count_params = []
         
         if role:
             count_query += " AND role = %s"
-            params.append(role)
+            count_params.append(role)
         
         if is_active is not None:
             count_query += " AND is_active = %s"
-            params.append(is_active)
+            count_params.append(is_active)
         
-        cur.execute(count_query, params)
-        total_count = cur.fetchone()[0]
-        
-        cur.close()
-        database_service.return_connection(conn)
+        count_result = database_service.execute_query(
+            count_query, tuple(count_params) if count_params else None, fetch='one'
+        )
+        total_count = count_result['count'] if count_result else 0
         
         return {
             "total_count": total_count,
@@ -2677,8 +2674,12 @@ async def get_recommendations(user_id: int):
     """Get personalized learning recommendations for a student."""
     try:
         from services.recommendation_service import RecommendationService
-        rec_service = RecommendationService()
-        result = rec_service.get_recommendations(user_id)
+        # Use cached instance to avoid creating new DB connections per request
+        if not hasattr(get_recommendations, '_rec_service'):
+            get_recommendations._rec_service = RecommendationService()
+        rec_service = get_recommendations._rec_service
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, rec_service.get_recommendations, user_id)
         
         if "error" in result:
             raise HTTPException(status_code=503, detail=result["error"])

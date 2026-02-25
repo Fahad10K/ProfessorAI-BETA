@@ -295,6 +295,8 @@ class ProfAIAgent:
                         await self.handle_interactive_teaching(data)
                     elif message_type == "stt_audio_chunk":
                         await self.handle_stt_audio_chunk(data)
+                    elif message_type == "teaching_user_input":
+                        await self.handle_teaching_user_input(data)
                     elif message_type == "continue_teaching":
                         await self.handle_continue_teaching(data)
                     elif message_type == "end_teaching":
@@ -380,6 +382,13 @@ class ProfAIAgent:
             ip_address = data.get("ip_address") or self.ip_address or "127.0.0.1"  # Valid IP for database inet type
             user_agent = data.get("user_agent") or self.user_agent
             
+            # Resolve persona / voice for TTS
+            persona_id = data.get("persona_id") or getattr(config, "DEFAULT_PERSONA", "prof_sarah")
+            personas = getattr(config, "PROFESSOR_PERSONAS", {})
+            persona = personas.get(persona_id, {})
+            chat_voice_id = persona.get("voice_id")  # None → default
+            log(f"🎤 Persona: {persona_id} → voice={chat_voice_id[:8] + '...' if chat_voice_id else 'default'}")
+            
             if not query:
                 await self.websocket.send({
                     "type": "error",
@@ -435,7 +444,8 @@ class ProfAIAgent:
                         language, 
                         self.session_id,
                         conversation_history,
-                        course_id=course_id
+                        course_id=course_id,
+                        pedagogical=True,
                     ),
                     timeout=90.0  # Increased to 90s for RAG + reranking + LLM processing
                 )
@@ -528,7 +538,7 @@ class ProfAIAgent:
                 
                 import base64
                 barged_in = False
-                async for audio_chunk in self.audio_service.stream_audio_from_text(response_text, language, self.websocket):
+                async for audio_chunk in self.audio_service.stream_audio_from_text(response_text, language, self.websocket, voice_id=chat_voice_id):
                     # Barge-in check: a newer request has arrived
                     if my_gen != self._chat_audio_gen:
                         log("🛑 Chat audio interrupted by new request (barge-in)")
@@ -934,7 +944,7 @@ class ProfAIAgent:
             persona = personas.get(persona_id, {})
             voice_id = persona.get("voice_id")  # None → AudioService uses default
             
-            log(f"Starting interactive teaching: course={course_id}, module={module_index}, topic={sub_topic_index}, persona={persona_id}")
+            log(f"Starting interactive teaching: course={course_id}, module={module_index}, topic={sub_topic_index}, persona={persona_id}, voice={voice_id[:8] + '...' if voice_id else 'default'}")
             
             # Get or create session for message persistence
             if self.session_manager:
@@ -993,6 +1003,8 @@ class ProfAIAgent:
                 'persona_id': persona_id,
                 'persona': persona,
                 'voice_id': voice_id,
+                # Mode: 'course_teaching' | 'query_resolution' | 'idle'
+                'mode': 'course_teaching',
             }
             
             log(f"✅ Orchestrator session ready (thread_id: {thread_id})")
@@ -1233,6 +1245,11 @@ class ProfAIAgent:
             log("👂 Listening for teaching interruptions...")
             
             event_count = 0
+            _last_real_activity = time.time()
+            _idle_warned = False
+            _IDLE_WARN_SECS = 300   # 5 min — send gentle nudge
+            _IDLE_TIMEOUT_SECS = 600  # 10 min — auto-pause
+            
             async for event in stt_service.recv():
                 event_count += 1
                 event_type = event.get('type')
@@ -1244,6 +1261,30 @@ class ProfAIAgent:
                     log(f"📨 Deepgram: partial")
                 else:
                     logging.debug(f"📨 Deepgram event #{event_count}: {event_type}")
+                
+                # --- Idle timeout check ---
+                idle_secs = time.time() - _last_real_activity
+                if idle_secs > _IDLE_TIMEOUT_SECS:
+                    log(f"⏰ Teaching session idle for {idle_secs:.0f}s — auto-pausing")
+                    try:
+                        await self.websocket.send({
+                            "type": "session_idle_timeout",
+                            "message": "Session paused due to inactivity. Send a message to resume.",
+                            "idle_seconds": int(idle_secs),
+                        })
+                    except Exception:
+                        pass
+                    break  # Exit STT loop — this effectively pauses the session
+                elif idle_secs > _IDLE_WARN_SECS and not _idle_warned:
+                    _idle_warned = True
+                    try:
+                        await self.websocket.send({
+                            "type": "session_idle_warning",
+                            "message": "Are you still there? The session will pause soon if there's no activity.",
+                            "idle_seconds": int(idle_secs),
+                        })
+                    except Exception:
+                        pass
                 
                 if event_type == 'speech_started':
                     # DON'T barge-in on speech_started alone — Deepgram VAD
@@ -1278,11 +1319,15 @@ class ProfAIAgent:
                             # Notify orchestrator (with text for resume)
                             self.orchestrator.on_barge_in(thread_id, streaming_text=streaming_text)
                             
+                            # Switch mode: course_teaching → query_resolution
+                            self.teaching_session['mode'] = 'query_resolution'
+                            
                             # Notify client
                             try:
                                 await self.websocket.send({
                                     "type": "user_interrupt_detected",
-                                    "message": "Listening..."
+                                    "message": "Listening...",
+                                    "mode": "query_resolution",
                                 })
                                 log(f"✅ Barge-in (confirmed by transcript) in {(time.time()-barge_in_start)*1000:.0f}ms")
                             except Exception as e:
@@ -1300,6 +1345,8 @@ class ProfAIAgent:
                     route_start = time.time()
                     self.teaching_session['user_is_speaking'] = False
                     self.teaching_session['_pending_barge_in'] = False
+                    _last_real_activity = time.time()
+                    _idle_warned = False
                     
                     user_input = event.get('text', '').strip()
                     if not user_input:
@@ -1353,94 +1400,7 @@ class ProfAIAgent:
                     
                     # Fire action as BACKGROUND TASK so the STT event loop
                     # never blocks during LLM generation (5-10s) or TTS.
-                    _act = action
-                    _rt = routing
-                    _ui = user_input
-                    _tid = thread_id
-                    
-                    async def _run_action(act, rt, ui, tid):
-                        try:
-                            # Save user message to DB (moved here to not block STT loop)
-                            if self.session_manager and self.session_id:
-                                try:
-                                    await asyncio.get_event_loop().run_in_executor(
-                                        None,
-                                        lambda: self.session_manager.add_message(
-                                            user_id=self.teaching_session['user_id'],
-                                            session_id=self.session_id,
-                                            role='user',
-                                            content=ui,
-                                            message_type='voice',
-                                            course_id=self.teaching_session['course_id']
-                                        )
-                                    )
-                                except Exception:
-                                    pass
-                            
-                            if act == 'continue_teaching':
-                                seg = rt.get('segment_text')
-                                if seg:
-                                    is_resume = rt.get('is_resume', False)
-                                    if is_resume:
-                                        await self.websocket.send({"type": "teaching_resumed", "message": "Resuming where we left off..."})
-                                        seg = f"As I was saying, {seg}"
-                                    else:
-                                        await self.websocket.send({"type": "teaching_resumed", "message": "Continuing the lesson..."})
-                                    await self._stream_teaching_content(seg, self.teaching_session['language'])
-                            elif act == 'pause':
-                                await self.websocket.send({"type": "teaching_paused", "message": rt.get('message', "Paused.")})
-                            elif act == 'repeat':
-                                seg = rt.get('segment_text')
-                                if seg:
-                                    await self.websocket.send({"type": "teaching_repeat", "message": "Let me repeat that..."})
-                                    await self._stream_teaching_content(seg, self.teaching_session['language'])
-                            elif act == 'advance_next_topic':
-                                await self._handle_advance_next_topic(tid, rt)
-                            elif act == 'course_complete':
-                                msg = rt.get('message', "You've completed the course!")
-                                await self.websocket.send({
-                                    "type": "course_complete",
-                                    "message": msg,
-                                })
-                                await self._stream_answer_response(msg, "course_complete")
-                            elif act == 'ask_confirmation':
-                                msg = rt.get('message', "Should I mark this as complete?")
-                                await self.websocket.send({
-                                    "type": "ask_confirmation",
-                                    "message": msg,
-                                })
-                                await self._stream_answer_response(msg, "confirmation")
-                            elif act == 'mark_complete':
-                                await self._handle_mark_complete()
-                            elif act == 'mark_and_advance':
-                                await self._handle_mark_complete()
-                                await self._handle_advance_next_topic(tid, rt)
-                            elif act == 'mark_and_next_course':
-                                await self._handle_mark_complete()
-                                await self._handle_next_course()
-                            elif act == 'next_course':
-                                await self._handle_next_course()
-                            elif act == 'greeting':
-                                await self._stream_answer_response(rt.get('message', "Hello!"), "greeting")
-                            elif act in ('answer_with_rag', 'answer_general'):
-                                await self._execute_answer_pipeline(tid, rt, ui)
-                            else:
-                                log(f"⚠️ Unknown action: {act}")
-                        except asyncio.CancelledError:
-                            log(f"🛑 Action '{act}' cancelled by barge-in")
-                        except Exception as e:
-                            log(f"❌ Error handling action '{act}': {e}")
-                            import traceback; traceback.print_exc()
-                            try:
-                                await self.websocket.send({"type": "error", "error": f"Failed to process: {str(e)}"})
-                            except Exception:
-                                pass
-                        finally:
-                            if self.teaching_session:
-                                self.teaching_session['current_answer_task'] = None
-                    
-                    task = asyncio.create_task(_run_action(_act, _rt, _ui, _tid))
-                    self.teaching_session['current_answer_task'] = task
+                    self._schedule_action(action, routing, user_input, thread_id, save_user_msg=True)
                 
                 elif event_type == 'closed':
                     log("🔌 STT service closed")
@@ -1455,6 +1415,124 @@ class ProfAIAgent:
         finally:
             log("🏁 _handle_teaching_interruptions() task ENDED")
     
+    async def _dispatch_action(self, act: str, rt: dict, ui: str, tid: str, save_user_msg: bool = False):
+        """
+        Shared action dispatcher for both STT and text-input paths.
+        Handles all orchestrator actions with proper mode transitions.
+        Runs as a background task; supports cancellation via barge-in.
+
+        Args:
+            act: Action name from orchestrator
+            rt: Full routing dict from orchestrator
+            ui: Original user input text
+            tid: Thread/session ID
+            save_user_msg: If True, persist user message to DB (STT path)
+        """
+        try:
+            # Optionally persist user message (STT path does this here; text path does it before)
+            if save_user_msg and self.session_manager and self.session_id and self.teaching_session:
+                try:
+                    await asyncio.get_event_loop().run_in_executor(
+                        None,
+                        lambda: self.session_manager.add_message(
+                            user_id=self.teaching_session['user_id'],
+                            session_id=self.session_id,
+                            role='user',
+                            content=ui,
+                            message_type='voice',
+                            course_id=self.teaching_session['course_id']
+                        )
+                    )
+                except Exception:
+                    pass
+
+            if act == 'continue_teaching':
+                seg = rt.get('segment_text')
+                if seg:
+                    if self.teaching_session:
+                        self.teaching_session['mode'] = 'course_teaching'
+                    is_resume = rt.get('is_resume', False)
+                    if is_resume:
+                        await self.websocket.send({"type": "teaching_resumed", "message": "Resuming where we left off...", "mode": "course_teaching"})
+                        seg = f"As I was saying, {seg}"
+                    else:
+                        await self.websocket.send({"type": "teaching_resumed", "message": "Continuing the lesson...", "mode": "course_teaching"})
+                    await self._stream_teaching_content(seg, self.teaching_session['language'])
+            elif act == 'pause':
+                await self.websocket.send({"type": "teaching_paused", "message": rt.get('message', "Paused.")})
+            elif act == 'repeat':
+                seg = rt.get('segment_text')
+                if seg:
+                    if self.teaching_session:
+                        self.teaching_session['mode'] = 'course_teaching'
+                    await self.websocket.send({"type": "teaching_repeat", "message": "Let me repeat that...", "mode": "course_teaching"})
+                    await self._stream_teaching_content(seg, self.teaching_session['language'])
+            elif act == 'advance_next_topic':
+                if self.teaching_session:
+                    self.teaching_session['mode'] = 'course_teaching'
+                await self._handle_advance_next_topic(tid, rt)
+            elif act == 'course_complete':
+                msg = rt.get('message', "You've completed the course!")
+                await self.websocket.send({"type": "course_complete", "message": msg})
+                await self._stream_answer_response(msg, "course_complete")
+            elif act == 'ask_confirmation':
+                msg = rt.get('message', "Should I mark this as complete?")
+                await self.websocket.send({"type": "ask_confirmation", "message": msg})
+                await self._stream_answer_response(msg, "confirmation")
+            elif act == 'mark_complete':
+                await self._handle_mark_complete()
+                # After marking complete, offer to advance if there's a next topic/course
+                if rt.get('has_next'):
+                    orch_state = self.orchestrator.get_session(tid) if self.orchestrator else None
+                    if orch_state:
+                        import json as _json
+                        name = orch_state.user_name or "there"
+                        name = name.split('_')[0].capitalize() if '_' in name else name.capitalize()
+                        orch_state.pending_action = "advance_next_topic"
+                        orch_state.pending_action_data = _json.dumps({
+                            "next_module_index": rt.get("next_module_index"),
+                            "next_sub_topic_index": rt.get("next_sub_topic_index"),
+                        })
+                        orch_state.phase = "pending_confirmation"
+                        follow_up = f"Great {name}, shall we move on to the next topic?"
+                        await self.websocket.send({"type": "ask_confirmation", "message": follow_up})
+                        await self._stream_answer_response(follow_up, "confirmation")
+            elif act == 'mark_and_advance':
+                await self._handle_mark_complete()
+                await self._handle_advance_next_topic(tid, rt)
+            elif act == 'mark_and_next_course':
+                await self._handle_mark_complete()
+                await self._handle_next_course()
+            elif act == 'next_course':
+                await self._handle_next_course()
+            elif act == 'greeting':
+                await self._stream_answer_response(rt.get('message', "Hello!"), "greeting")
+            elif act in ('answer_with_rag', 'answer_general'):
+                if self.teaching_session:
+                    self.teaching_session['mode'] = 'query_resolution'
+                await self._execute_answer_pipeline(tid, rt, ui)
+            else:
+                log(f"⚠️ Unknown action: {act}")
+        except asyncio.CancelledError:
+            log(f"🛑 Action '{act}' cancelled by barge-in")
+        except Exception as e:
+            log(f"❌ Error handling action '{act}': {e}")
+            import traceback; traceback.print_exc()
+            try:
+                await self.websocket.send({"type": "error", "error": f"Failed to process: {str(e)}"})
+            except Exception:
+                pass
+        finally:
+            if self.teaching_session:
+                self.teaching_session['current_answer_task'] = None
+
+    def _schedule_action(self, act: str, rt: dict, ui: str, tid: str, save_user_msg: bool = False):
+        """Schedule _dispatch_action as a cancellable background task."""
+        task = asyncio.create_task(self._dispatch_action(act, rt, ui, tid, save_user_msg=save_user_msg))
+        if self.teaching_session:
+            self.teaching_session['current_answer_task'] = task
+        return task
+
     async def _execute_answer_pipeline(self, thread_id: str, routing: dict, user_input: str):
         """
         Full answer pipeline with immediate audio acknowledgment:
@@ -1740,12 +1818,39 @@ class ProfAIAgent:
                     f"Done! I've marked that as complete.",
                     "progress"
                 )
+                # Fetch recommendations (non-blocking, best-effort)
+                await self._send_recommendations_if_available()
         except Exception as e:
             log(f"⚠️ mark_topic_complete failed: {e}")
             await self.websocket.send({
                 "type": "error",
                 "error": f"Could not mark as complete: {str(e)}"
             })
+
+    async def _send_recommendations_if_available(self):
+        """Fetch and send learning recommendations to the client (best-effort)."""
+        try:
+            uid = self.teaching_session.get('user_id') if self.teaching_session else self.user_id
+            if not uid:
+                return
+            # Reuse cached instance to avoid creating new DB connections per call
+            if not hasattr(self, '_recommendation_service') or self._recommendation_service is None:
+                from services.recommendation_service import RecommendationService
+                self._recommendation_service = RecommendationService()
+            result = await asyncio.get_event_loop().run_in_executor(
+                None, self._recommendation_service.get_recommendations, int(uid)
+            )
+            if result and 'error' not in result:
+                await self.websocket.send({
+                    "type": "recommendations",
+                    "next_topics": result.get('next_topics', [])[:3],
+                    "recommended_quizzes": result.get('recommended_quizzes', [])[:3],
+                    "next_courses": result.get('next_courses', [])[:2],
+                    "summary": result.get('summary', ''),
+                })
+                log(f"📊 Recommendations sent: {len(result.get('next_topics',[]))} topics, {len(result.get('recommended_quizzes',[]))} quizzes")
+        except Exception as e:
+            log(f"⚠️ Recommendations fetch failed (non-critical): {e}")
 
     async def _handle_next_course(self):
         """Load the next course from the database and start teaching it."""
@@ -1783,6 +1888,9 @@ class ProfAIAgent:
             next_id = next_course.get('id')
             next_title = next_course.get('title', 'Unknown')
             log(f"⏭️ Switching to next course: {next_title} (id={next_id})")
+
+            # Update course_id FIRST so any barge-in during loading uses correct course
+            self.teaching_session['course_id'] = next_id
 
             # Load full course content
             course_data = self.database_service.get_course_with_content(next_id)
@@ -2032,10 +2140,20 @@ class ProfAIAgent:
                     self.teaching_session['current_tts_task'] = None
                 if task.cancelled():
                     log("Teaching TTS task cancelled")
-                    self.teaching_session['is_teaching'] = False
+                    if self.teaching_session:
+                        self.teaching_session['is_teaching'] = False
                 elif task.exception():
                     log(f"❌ Teaching TTS error: {task.exception()}")
-                    self.teaching_session['is_teaching'] = False
+                    if self.teaching_session:
+                        self.teaching_session['is_teaching'] = False
+                    # Notify client of TTS failure so they know teaching didn't complete
+                    try:
+                        asyncio.get_event_loop().call_soon_threadsafe(
+                            asyncio.ensure_future,
+                            self.websocket.send({"type": "error", "error": "Audio streaming failed. Say 'continue' to retry."})
+                        )
+                    except Exception:
+                        pass
             tts_task.add_done_callback(_on_teaching_tts_done)
         
         except asyncio.CancelledError:
@@ -2070,17 +2188,22 @@ class ProfAIAgent:
                 
                 log(f"⚡ Text sent in {(time.time()-stream_start)*1000:.0f}ms")
                 
-                # Save to database (non-blocking)
+                # Save to database (non-blocking — runs in thread pool)
                 if self.session_manager and self.session_id and self.teaching_session:
                     try:
-                        self.session_manager.add_message(
-                            user_id=self.teaching_session.get('user_id', ''),
-                            session_id=self.session_id,
-                            role='assistant',
-                            content=response_text,
-                            message_type='voice',
-                            course_id=self.teaching_session.get('course_id'),
-                            metadata={'agent': agent_name}
+                        _uid = self.teaching_session.get('user_id', '')
+                        _cid = self.teaching_session.get('course_id')
+                        await asyncio.get_event_loop().run_in_executor(
+                            None,
+                            lambda: self.session_manager.add_message(
+                                user_id=_uid,
+                                session_id=self.session_id,
+                                role='assistant',
+                                content=response_text,
+                                message_type='voice',
+                                course_id=_cid,
+                                metadata={'agent': agent_name}
+                            )
                         )
                     except Exception:
                         pass
@@ -2210,9 +2333,9 @@ class ProfAIAgent:
         
         # Add raw content with basic formatting
         if raw_content and len(raw_content.strip()) > 0:
-            # Split into paragraphs for better readability
+            # Split into paragraphs — include ALL content; the segmenter handles chunking for TTS
             paragraphs = raw_content.strip().split('\n\n')
-            for para in paragraphs[:3]:  # Limit to first 3 paragraphs
+            for para in paragraphs:
                 if para.strip():
                     content += para.strip() + "\n\n"
         else:
@@ -2251,6 +2374,79 @@ class ProfAIAgent:
         except Exception as e:
             log(f"Error forwarding audio to STT: {e}")
     
+    async def handle_teaching_user_input(self, data: dict):
+        """
+        Handle direct text input during an interactive teaching session.
+        This bypasses STT and injects user text into the orchestrator pipeline,
+        enabling button-driven actions (mark complete, next course, yes/no).
+        """
+        if not self.teaching_session or not self.teaching_session.get('active'):
+            await self.websocket.send({"type": "error", "error": "No active teaching session"})
+            return
+
+        user_input = (data.get('text') or '').strip()
+        if not user_input:
+            return
+
+        thread_id = self.teaching_session.get('thread_id')
+        if not thread_id:
+            return
+
+        log(f"📝 Text input: {user_input}")
+
+        # Cancel any in-progress TTS / answer so we can process the new input
+        streaming_text = self.teaching_session.get('_streaming_text', '')
+        self.teaching_session['_streaming_text'] = ''
+        self.teaching_session['is_teaching'] = False
+        if self.teaching_session.get('current_answer_task'):
+            self.teaching_session['current_answer_task'].cancel()
+            self.teaching_session['current_answer_task'] = None
+        if self.teaching_session.get('current_tts_task'):
+            self.teaching_session['current_tts_task'].cancel()
+            self.orchestrator.on_barge_in(thread_id, streaming_text=streaming_text)
+
+        # Echo to client
+        try:
+            await self.websocket.send({"type": "user_question", "text": user_input})
+        except Exception:
+            pass
+
+        # Orchestrator routing
+        routing = self.orchestrator.process_user_input(thread_id, user_input)
+        action = routing.get('action', 'error')
+        intent = routing.get('intent', 'unknown')
+        log(f"⚡ Text input → intent={intent}, action={action}")
+
+        # Handle 'end' inline
+        if action == 'end':
+            await self.websocket.send({
+                "type": "teaching_ended",
+                "message": routing.get('message', "Session complete.")
+            })
+            return
+
+        # Persist user message (non-blocking — runs in thread pool)
+        if self.session_manager and self.session_id:
+            try:
+                _uid = self.teaching_session.get('user_id', self.user_id)
+                _cid = self.teaching_session.get('course_id')
+                await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: self.session_manager.add_message(
+                        user_id=_uid,
+                        session_id=self.session_id,
+                        role='user',
+                        content=user_input,
+                        message_type='text',
+                        course_id=_cid
+                    )
+                )
+            except Exception:
+                pass
+
+        # Fire action as background task (uses shared dispatcher with mode transitions)
+        self._schedule_action(action, routing, user_input, thread_id)
+
     async def handle_continue_teaching(self, data: dict):
         """Resume teaching after user Q&A - resumes from current segment, not beginning."""
         if not self.teaching_session or not self.teaching_session.get('active'):
@@ -2281,9 +2477,13 @@ class ProfAIAgent:
         
         log(f"📖 Resuming teaching from segment (orchestrator)...")
         
+        if self.teaching_session:
+            self.teaching_session['mode'] = 'course_teaching'
+        
         await self.websocket.send({
             "type": "teaching_resumed",
-            "message": "Continuing the lesson..."
+            "message": "Continuing the lesson...",
+            "mode": "course_teaching",
         })
         
         # Resume teaching audio from current segment
@@ -2327,8 +2527,10 @@ class ProfAIAgent:
             try:
                 from services.recommendation_service import RecommendationService
                 rec_service = RecommendationService()
-                recommendations = rec_service.get_recommendations(int(self.user_id))
-                if "error" in recommendations:
+                recommendations = await asyncio.get_event_loop().run_in_executor(
+                    None, rec_service.get_recommendations, int(self.user_id)
+                )
+                if recommendations and "error" in recommendations:
                     recommendations = None
             except Exception as e:
                 log(f"⚠️ Recommendations fetch failed (non-fatal): {e}")
@@ -2382,7 +2584,12 @@ class ProfAIAgent:
                 
                 log(f"🚀 Starting REAL-TIME audio-only streaming for: {text[:50]}...")
                 
-                async for audio_chunk in self.audio_service.stream_audio_from_text(text, language, self.websocket):
+                # Resolve voice_id from request or teaching session
+                _ao_voice_id = data.get("voice_id")
+                if not _ao_voice_id and self.teaching_session:
+                    _ao_voice_id = self.teaching_session.get('voice_id')
+                
+                async for audio_chunk in self.audio_service.stream_audio_from_text(text, language, self.websocket, voice_id=_ao_voice_id):
                     if audio_chunk and len(audio_chunk) > 0:
                         chunk_count += 1
                         total_audio_size += len(audio_chunk)
@@ -2725,6 +2932,32 @@ class ProfAIAgent:
         try:
             session_duration = time.time() - self.session_start_time
             log(f"Cleaning up client {self.client_id} after {session_duration:.2f}s")
+            
+            # --- Stop teaching session resources ---
+            if self.teaching_session:
+                # Cancel in-flight answer/TTS tasks
+                for task_key in ('current_answer_task', 'current_tts_task'):
+                    task = self.teaching_session.get(task_key)
+                    if task and not task.done():
+                        task.cancel()
+                        log(f"  Cancelled {task_key}")
+                
+                # Close Deepgram STT WebSocket
+                stt = self.teaching_session.get('stt_service')
+                if stt:
+                    try:
+                        await stt.close()
+                        log("  STT service closed")
+                    except Exception as e:
+                        log(f"  STT close error (ignored): {e}")
+                
+                # Cleanup orchestrator session
+                thread_id = self.teaching_session.get('thread_id')
+                if thread_id and self.orchestrator:
+                    self.orchestrator.cleanup(thread_id)
+                
+                self.teaching_session['active'] = False
+                self.teaching_session = None
             
             # Log final metrics
             log(f"Final metrics for {self.client_id}: {self.conversation_metrics}")

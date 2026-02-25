@@ -19,8 +19,12 @@ class AssessmentService:
     def __init__(self):
         self.llm_service = LLMService()
         self.doc_extractor = DocumentExtractor()
-        self.db_service = DatabaseServiceV2()
-        logger.info("AssessmentService initialized with DatabaseServiceV2")
+        try:
+            self.db_service = DatabaseServiceV2()
+            logger.info("AssessmentService initialized with DatabaseServiceV2")
+        except Exception as e:
+            logger.error(f"AssessmentService: DB unavailable, assessment features disabled: {e}")
+            self.db_service = None
     
     async def process_and_generate_assessment(
         self,
@@ -44,6 +48,9 @@ class AssessmentService:
             Assessment data with questions (without answers)
         """
         try:
+            if not self.db_service:
+                raise RuntimeError("Assessment service unavailable: database not connected")
+            
             if len(file_bytes_list) > 3:
                 raise ValueError("Maximum 3 documents allowed")
             
@@ -162,6 +169,9 @@ class AssessmentService:
             Evaluation results with score and feedback
         """
         try:
+            if not self.db_service:
+                raise RuntimeError("Assessment service unavailable: database not connected")
+            
             # Get assessment questions with correct answers
             questions = self.db_service.get_assessment_questions(assessment_id)
             

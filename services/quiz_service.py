@@ -6,6 +6,7 @@ import json
 import os
 import uuid
 import logging
+import asyncio
 from datetime import datetime
 from typing import List, Dict, Optional
 from services.llm_service import LLMService
@@ -56,7 +57,10 @@ class QuizService:
             logging.info(f"Generating 20-question quiz for module week {module_week}")
             
             quiz_prompt = self._create_module_quiz_prompt(module, module_content)
-            quiz_response = await self.llm_service.generate_response(quiz_prompt, temperature=1.0)
+            quiz_response = await asyncio.wait_for(
+                self.llm_service.generate_response(quiz_prompt, temperature=1.0),
+                timeout=120.0  # 2 minute timeout for quiz generation
+            )
             
             # Parse the LLM response into structured quiz
             questions = self._parse_quiz_response(quiz_response, quiz_id)
@@ -65,7 +69,10 @@ class QuizService:
             if len(questions) < 20:
                 # Generate additional questions if needed
                 additional_prompt = self._create_additional_questions_prompt(module_content, 20 - len(questions))
-                additional_response = await self.llm_service.generate_response(additional_prompt, temperature=1.0)
+                additional_response = await asyncio.wait_for(
+                    self.llm_service.generate_response(additional_prompt, temperature=1.0),
+                    timeout=120.0
+                )
                 additional_questions = self._parse_quiz_response(additional_response, quiz_id, start_id=len(questions))
                 questions.extend(additional_questions)
             
@@ -106,14 +113,20 @@ class QuizService:
             # Generate quiz using LLM in chunks (20 questions at a time for better results)
             quiz_prompt_1 = self._create_course_quiz_prompt(all_content, part=1)
             logging.info("Sending part 1 quiz prompt to LLM...")
-            quiz_response_1 = await self.llm_service.generate_response(quiz_prompt_1, temperature=1.0)
+            quiz_response_1 = await asyncio.wait_for(
+                self.llm_service.generate_response(quiz_prompt_1, temperature=1.0),
+                timeout=120.0
+            )
             logging.info(f"LLM Response Part 1 (first 500 chars): {quiz_response_1[:500]}")
             questions_1 = self._parse_quiz_response(quiz_response_1, quiz_id, start_id=0)
             logging.info(f"Parsed {len(questions_1)} questions from part 1")
             
             quiz_prompt_2 = self._create_course_quiz_prompt(all_content, part=2)
             logging.info("Sending part 2 quiz prompt to LLM...")
-            quiz_response_2 = await self.llm_service.generate_response(quiz_prompt_2, temperature=1.0)
+            quiz_response_2 = await asyncio.wait_for(
+                self.llm_service.generate_response(quiz_prompt_2, temperature=1.0),
+                timeout=120.0
+            )
             logging.info(f"LLM Response Part 2 (first 500 chars): {quiz_response_2[:500]}")
             questions_2 = self._parse_quiz_response(quiz_response_2, quiz_id, start_id=20)
             logging.info(f"Parsed {len(questions_2)} questions from part 2")
@@ -489,7 +502,7 @@ EXPLANATION: [Brief explanation]"""
                         'description': quiz.description,
                         'quiz_type': quiz.quiz_type,
                         'module_week': quiz.module_week,
-                        'questions': [q.dict() for q in quiz.questions]
+                        'questions': [q.model_dump() for q in quiz.questions]
                     }
                     self.db_service.create_quiz(quiz_data, course_id)  # TEXT UUID
                     logging.info(f"✅ Quiz {quiz.quiz_id} saved to database (course: {course_id})")
@@ -499,7 +512,7 @@ EXPLANATION: [Brief explanation]"""
             
             # Fallback to JSON files (original logic)
             # Store full quiz data with course_id
-            quiz_data = quiz.dict()
+            quiz_data = quiz.model_dump()
             if course_id:
                 quiz_data['course_id'] = str(course_id)
             
@@ -570,8 +583,8 @@ EXPLANATION: [Brief explanation]"""
             
             # Fallback to JSON files (original logic)
             submission_data = {
-                "submission": submission.dict(),
-                "result": result.dict(),
+                "submission": submission.model_dump(),
+                "result": result.model_dump(),
                 "submitted_at": datetime.utcnow().isoformat()
             }
             

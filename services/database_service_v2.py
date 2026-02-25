@@ -68,10 +68,9 @@ class DatabaseServiceV2:
                 # Validate connection before use
                 if not self._validate_connection(conn):
                     logger.warning(f"⚠️ Connection invalid on attempt {attempt + 1}, getting fresh connection")
-                    self.return_connection(conn)
-                    # Close the bad connection and get a fresh one
+                    # Don't return closed connection to pool — it would poison it
                     try:
-                        conn.close()
+                        self.pool.putconn(conn, close=True)
                     except:
                         pass
                     conn = self.get_connection()
@@ -93,9 +92,7 @@ class DatabaseServiceV2:
                 # Connection errors - retry with fresh connection
                 if conn:
                     try:
-                        conn.rollback()
-                        self.return_connection(conn)
-                        conn.close()
+                        self.pool.putconn(conn, close=True)
                     except:
                         pass
                     conn = None
@@ -466,9 +463,9 @@ class DatabaseServiceV2:
         query = """
             SELECT 
                 COUNT(*) as total_attempts,
-                AVG(score) as avg_score,
-                MAX(score) as best_score,
-                SUM(CASE WHEN score >= 70 THEN 1 ELSE 0 END) as passed_count
+                AVG(CASE WHEN total_questions > 0 THEN (score::float / total_questions * 100) ELSE 0 END) as avg_score,
+                MAX(CASE WHEN total_questions > 0 THEN (score::float / total_questions * 100) ELSE 0 END) as best_score,
+                SUM(CASE WHEN total_questions > 0 AND (score::float / total_questions * 100) >= 60 THEN 1 ELSE 0 END) as passed_count
             FROM quiz_responses
             WHERE user_id = %s
         """
@@ -478,8 +475,10 @@ class DatabaseServiceV2:
             if result:
                 stats = dict(result)
                 # Convert Decimal to float for JSON serialization
-                if stats.get('avg_score'):
-                    stats['avg_score'] = float(stats['avg_score'])
+                if stats.get('avg_score') is not None:
+                    stats['avg_score'] = round(float(stats['avg_score']), 1)
+                if stats.get('best_score') is not None:
+                    stats['best_score'] = round(float(stats['best_score']), 1)
                 return stats
             return {
                 'total_attempts': 0,
@@ -841,11 +840,17 @@ class DatabaseServiceV2:
         except Exception as e:
             logger.error(f"Error fetching dashboard stats: {e}")
             if conn:
-                conn.rollback()
+                try:
+                    conn.rollback()
+                except:
+                    pass
             return {}
         finally:
             if conn:
-                cur.close()
+                try:
+                    cur.close()
+                except:
+                    pass
                 self.return_connection(conn)
     
     def get_all_users(
@@ -1349,11 +1354,17 @@ class DatabaseServiceV2:
         except Exception as e:
             logger.error(f"Error fetching completion stats: {e}")
             if conn:
-                conn.rollback()
+                try:
+                    conn.rollback()
+                except:
+                    pass
             return {'total_topics': 0, 'completed_topics': 0, 'completion_percentage': 0}
         finally:
             if conn:
-                cur.close()
+                try:
+                    cur.close()
+                except:
+                    pass
                 self.return_connection(conn)
     
     def close(self):

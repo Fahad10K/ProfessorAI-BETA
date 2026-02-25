@@ -266,13 +266,15 @@ class SemanticRouterService:
                 
                 # Check if we got a valid route
                 if route_name in ["greeting", "general_question", "course_query"]:
-                    should_use_rag = (route_name == "course_query")
+                    raw_score = getattr(route_choice, 'similarity_score', None)
+                    confidence = float(raw_score) if raw_score is not None else 0.5
+                    should_use_rag = (route_name == "course_query") and confidence >= 0.55
                     
-                    logger.info(f"🎯 Routed query to: {route_name} (RAG: {should_use_rag})")
+                    logger.info(f"🎯 Routed query to: {route_name} (confidence: {confidence:.2f}, RAG: {should_use_rag})")
                     
                     return {
                         "route_name": route_name,
-                        "confidence": getattr(route_choice, 'similarity_score', 0.8) or 0.8,
+                        "confidence": confidence,
                         "should_use_rag": should_use_rag
                     }
             

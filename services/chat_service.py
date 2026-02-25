@@ -162,11 +162,17 @@ class ChatService:
         
         return text
 
-    async def ask_question(self, query: str, query_language_code: str = "en-IN", session_id: str = None, conversation_history: list = None, course_id: int = None) -> Dict[str, Any]:
-        """Answer a question using RAG with multilingual support, conversation history, and intelligent routing."""
+    async def ask_question(self, query: str, query_language_code: str = "en-IN", session_id: str = None, conversation_history: list = None, course_id: int = None, pedagogical: bool = False) -> Dict[str, Any]:
+        """Answer a question using RAG with multilingual support, conversation history, and intelligent routing.
+        
+        Args:
+            pedagogical: When True, LLM responses include follow-up questions and
+                         teaching engagement (used by chat-with-audio mode).
+        """
         
         # Cache formatted conversation context to avoid re-logging in fallbacks
         self._cached_context = None
+        self._pedagogical = pedagogical
         
         response_lang_name = next(
             (lang["name"] for lang in config.SUPPORTED_LANGUAGES if lang["code"] == query_language_code), 
@@ -204,7 +210,7 @@ class ChatService:
             logging.info("[ROUTE] General question detected - using general LLM (no RAG)")
             start_time = time.time()
             history = self._get_conversation_context(session_id, conversation_history)
-            answer = await self.llm_service.get_general_response(query, response_lang_name, history)
+            answer = await self.llm_service.get_general_response(query, response_lang_name, history, pedagogical=self._pedagogical)
             answer = self._fix_tts_pronunciation(answer)
             end_time = time.time()
             logging.info(f"  > General LLM response in {end_time - start_time:.2f}s")
@@ -216,7 +222,24 @@ class ChatService:
                 "confidence": confidence
             }
         
-        # Route 3: Course-related query - Use RAG
+        # Route 3: Course-related query
+        # If classified as course_query but confidence is low, use general LLM (faster)
+        if route_name == "course_query" and not should_use_rag:
+            logging.info(f"[ROUTE] Low-confidence course_query ({confidence:.2f}) — using general LLM instead of RAG")
+            start_time = time.time()
+            history = self._get_conversation_context(session_id, conversation_history)
+            answer = await self.llm_service.get_general_response(query, response_lang_name, history)
+            answer = self._fix_tts_pronunciation(answer)
+            end_time = time.time()
+            logging.info(f"  > General LLM response (low-confidence bypass) in {end_time - start_time:.2f}s")
+            self._save_to_memory(session_id, query, answer)
+            return {
+                "answer": answer,
+                "sources": [{"type": "general_llm", "content": "General Knowledge"}],
+                "route": "course_query_low_confidence",
+                "confidence": confidence
+            }
+
         logging.info("[ROUTE] Course query detected - using RAG pipeline")
 
         if self.is_rag_active and should_use_rag:

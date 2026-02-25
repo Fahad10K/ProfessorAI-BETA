@@ -387,6 +387,92 @@
             0%, 80%, 100% { transform: scale(0); }
             40% { transform: scale(1); }
         }
+
+        /* ── New action buttons ── */
+        .btn-mark {
+            background: linear-gradient(135deg, #059669, #10b981);
+            color: white;
+        }
+        .btn-mark:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(16, 185, 129, 0.4);
+        }
+        .btn-next-course {
+            background: linear-gradient(135deg, #7c3aed, #a78bfa);
+            color: white;
+        }
+        .btn-next-course:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(124, 58, 237, 0.4);
+        }
+        .btn-yes {
+            background: #22c55e;
+            color: white;
+        }
+        .btn-yes:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(34, 197, 94, 0.4);
+        }
+        .btn-no {
+            background: #64748b;
+            color: white;
+        }
+        .btn-no:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(100, 116, 139, 0.3);
+        }
+
+        /* Persona banner */
+        .persona-banner {
+            display: none;
+            background: linear-gradient(135deg, #312e81, #4c1d95);
+            color: white;
+            border-radius: 10px;
+            padding: 12px 20px;
+            margin-bottom: 12px;
+            font-size: 0.9em;
+        }
+        .persona-banner.visible { display: flex; align-items: center; gap: 12px; }
+        .persona-banner .persona-avatar {
+            width: 40px; height: 40px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.15);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.3em;
+        }
+        .persona-banner .persona-info { flex: 1; }
+        .persona-banner .persona-name { font-weight: 700; font-size: 1.05em; }
+        .persona-banner .persona-style { opacity: 0.75; font-size: 0.85em; }
+
+        /* Confirmation message */
+        .message.confirmation {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border-left: 4px solid #f59e0b;
+            text-align: center;
+            padding: 16px;
+        }
+        .message.confirmation .conf-text { font-weight: 600; color: #92400e; }
+
+        /* Progress update */
+        .message.progress-update {
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            border-left: 4px solid #059669;
+            text-align: center;
+            padding: 12px;
+        }
+        .message.progress-update .pu-icon { font-size: 1.3em; }
+        .message.progress-update .pu-text { font-weight: 600; color: #065f46; }
+
+        /* Course change */
+        .message.course-change {
+            background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
+            border-left: 4px solid #7c3aed;
+            text-align: center;
+            padding: 16px;
+        }
+        .message.course-change .cc-icon { font-size: 1.5em; }
+        .message.course-change .cc-title { font-weight: 700; color: #4c1d95; margin: 4px 0; }
+        .message.course-change .cc-sub { color: #6d28d9; }
     </style>
 </head>
 <body>
@@ -412,6 +498,15 @@
             <div class="status-row">
                 <span class="status-label">Teaching State:</span>
                 <span class="status-value" id="teachingState">Idle</span>
+            </div>
+        </div>
+
+        <!-- Professor persona banner (shown during teaching) -->
+        <div class="persona-banner" id="personaBanner">
+            <div class="persona-avatar" id="personaAvatar">👩‍🏫</div>
+            <div class="persona-info">
+                <div class="persona-name" id="personaName">—</div>
+                <div class="persona-style" id="personaStyle">—</div>
             </div>
         </div>
 
@@ -449,6 +544,14 @@
                 <option value="mr-IN">Marathi</option>
                 <option value="pa-IN">Punjabi</option>
             </select>
+
+            <label>Professor Persona:</label>
+            <select id="personaSelect">
+                <option value="prof_sarah" selected>👩‍🏫 Prof Sarah — Warm &amp; Encouraging (female)</option>
+                <option value="prof_james">👨‍🏫 Prof James — Socratic &amp; Analytical (male)</option>
+                <option value="prof_daniel">👨‍🏫 Prof Daniel — Direct &amp; Structured (male)</option>
+                <option value="prof_emily">👩‍🏫 Prof Emily — Methodical &amp; Nurturing (female)</option>
+            </select>
         </div>
 
         <div class="controls">
@@ -460,6 +563,24 @@
             </button>
             <button class="btn-end" id="endBtn" onclick="endTeaching()" disabled>
                 ⏹️ End Teaching
+            </button>
+        </div>
+
+        <!-- New action buttons for mark-complete, next-course, confirmation -->
+        <div class="controls" id="actionControls" style="display:none;">
+            <button class="btn-mark" id="markCompleteBtn" onclick="sendAction('mark_complete')" disabled>
+                ✅ Mark Complete
+            </button>
+            <button class="btn-next-course" id="nextCourseBtn" onclick="sendAction('next_course')" disabled>
+                ⏭️ Next Course
+            </button>
+        </div>
+        <div class="controls" id="confirmControls" style="display:none;">
+            <button class="btn-yes" id="confirmYesBtn" onclick="sendConfirmation('yes')">
+                👍 Yes, Mark It
+            </button>
+            <button class="btn-no" id="confirmNoBtn" onclick="sendConfirmation('no')">
+                👎 No, Skip
             </button>
         </div>
 
@@ -508,10 +629,14 @@
         <div class="info-box">
             <h3>💡 How to Use:</h3>
             <ul>
-                <li>🎤 <strong>Speak naturally</strong> - The system will detect your voice automatically</li>
-                <li>🛑 <strong>Interrupt anytime</strong> - Just start speaking to pause the lesson</li>
-                <li>❓ <strong>Ask questions</strong> - Your questions will be answered in context</li>
-                <li>▶️ <strong>Continue</strong> - Click continue or wait for the lesson to resume</li>
+                <li>🎤 <strong>Speak naturally</strong> — The system detects your voice automatically</li>
+                <li>🛑 <strong>Interrupt anytime</strong> — Just start speaking to pause the lesson</li>
+                <li>❓ <strong>Ask questions</strong> — Your questions are answered in context</li>
+                <li>▶️ <strong>Continue</strong> — Click continue or say "continue" to resume</li>
+                <li>👩‍🏫 <strong>Persona</strong> — Choose a professor persona before starting (each has a unique voice &amp; style)</li>
+                <li>✅ <strong>Mark Complete</strong> — Click or say "mark as complete" to save your progress</li>
+                <li>⏭️ <strong>Next Course</strong> — Click or say "next course" to move to the next course</li>
+                <li>👍👎 <strong>Confirmation</strong> — When asked to confirm, click Yes/No or say "yes"/"no"</li>
             </ul>
         </div>
     </div>
@@ -589,8 +714,9 @@
             if (role === 'system') {
                 messageDiv.innerHTML = `<div class="message-text">${text}</div>`;
             } else {
+                const agentLabel = window._personaName ? `🤖 ${window._personaName}` : '🤖 Professor';
                 messageDiv.innerHTML = `
-                    <div class="message-label">${role === 'agent' ? '🤖 Professor' : '👤 You'}</div>
+                    <div class="message-label">${role === 'agent' ? agentLabel : '👤 You'}</div>
                     <div class="message-text">${text}</div>
                 `;
             }
@@ -636,7 +762,8 @@
                             module_index: parseInt(document.getElementById('moduleIndex').value),
                             sub_topic_index: parseInt(document.getElementById('subTopicIndex').value),
                             user_id: document.getElementById('userId').value,
-                            language: document.getElementById('language').value
+                            language: document.getElementById('language').value,
+                            persona_id: document.getElementById('personaSelect').value
                         };
 
                         console.log('📤 Sending teaching request:', teachingRequest);
@@ -791,6 +918,19 @@
 
                     case 'interactive_teaching_init':
                         addMessage('system', '📚 Loading course content...');
+                        // Show persona banner if server sent persona info
+                        if (data.persona) {
+                            const pb = document.getElementById('personaBanner');
+                            pb.classList.add('visible');
+                            document.getElementById('personaName').textContent = data.persona.name || 'Professor';
+                            document.getElementById('personaStyle').textContent = data.persona.style || '';
+                            const avatar = data.persona.gender === 'male' ? '👨‍🏫' : '👩‍🏫';
+                            document.getElementById('personaAvatar').textContent = avatar;
+                            // Update the agent label for messages
+                            window._personaName = data.persona.name || 'Professor';
+                        }
+                        // Show action controls
+                        document.getElementById('actionControls').style.display = 'flex';
                         break;
 
                     case 'interactive_teaching_started':
@@ -804,6 +944,9 @@
                             document.getElementById('topicProgress').textContent =
                                 `Module ${(parseInt(document.getElementById('moduleIndex').value) || 0) + 1} · Topic ${(parseInt(document.getElementById('subTopicIndex').value) || 0) + 1}`;
                         }
+                        // Enable action buttons
+                        document.getElementById('markCompleteBtn').disabled = false;
+                        document.getElementById('nextCourseBtn').disabled = false;
                         updateStatus(undefined, 'Listening', 'Teaching Active');
                         document.getElementById('latencyPanel').style.display = 'block';
                         totalChunkCount = 0;
@@ -977,6 +1120,81 @@
                         updateStatus(undefined, 'Listening', 'Course Complete');
                         break;
 
+                    case 'ask_confirmation':
+                        // Show confirmation prompt from server
+                        {
+                            const div = document.createElement('div');
+                            div.className = 'message confirmation';
+                            div.innerHTML = `
+                                <div class="conf-text">❓ ${data.message || 'Should I mark this as complete?'}</div>
+                            `;
+                            conversationLog.appendChild(div);
+                            conversationLog.scrollTop = conversationLog.scrollHeight;
+                        }
+                        // Show confirmation buttons
+                        document.getElementById('confirmControls').style.display = 'flex';
+                        updateStatus(undefined, 'Listening', 'Awaiting Confirmation');
+                        break;
+
+                    case 'progress_updated':
+                        // Topic/module marked as complete
+                        {
+                            const div = document.createElement('div');
+                            div.className = 'message progress-update';
+                            div.innerHTML = `
+                                <div class="pu-icon">✅</div>
+                                <div class="pu-text">${data.message || 'Progress updated!'}</div>
+                            `;
+                            conversationLog.appendChild(div);
+                            conversationLog.scrollTop = conversationLog.scrollHeight;
+                        }
+                        // Hide confirmation buttons
+                        document.getElementById('confirmControls').style.display = 'none';
+                        break;
+
+                    case 'course_changed':
+                        // Switched to a new course
+                        {
+                            const div = document.createElement('div');
+                            div.className = 'message course-change';
+                            div.innerHTML = `
+                                <div class="cc-icon">📖</div>
+                                <div class="cc-title">${data.course_title || 'New Course'}</div>
+                                <div class="cc-sub">${data.module_title || ''} → ${data.sub_topic_title || ''}</div>
+                            `;
+                            conversationLog.appendChild(div);
+                            conversationLog.scrollTop = conversationLog.scrollHeight;
+                        }
+                        // Update topic banner
+                        document.getElementById('topicModuleTitle').textContent = data.module_title || '';
+                        document.getElementById('topicSubTitle').textContent = data.sub_topic_title || '';
+                        document.getElementById('topicProgress').textContent = `Module 1 · Topic 1`;
+                        document.getElementById('moduleIndex').value = 0;
+                        document.getElementById('subTopicIndex').value = 0;
+                        document.getElementById('courseId').value = data.course_id || '';
+                        // Hide confirmation buttons
+                        document.getElementById('confirmControls').style.display = 'none';
+                        updateStatus(undefined, 'Listening', 'Teaching Active');
+                        break;
+
+                    case 'all_courses_complete':
+                        {
+                            const div = document.createElement('div');
+                            div.className = 'message course-done';
+                            div.innerHTML = `
+                                <div class="cd-icon">🏆🎓</div>
+                                <div class="cd-text">${data.message || 'All courses completed!'}</div>
+                            `;
+                            conversationLog.appendChild(div);
+                            conversationLog.scrollTop = conversationLog.scrollHeight;
+                        }
+                        document.getElementById('topicBanner').classList.remove('visible');
+                        document.getElementById('confirmControls').style.display = 'none';
+                        document.getElementById('markCompleteBtn').disabled = true;
+                        document.getElementById('nextCourseBtn').disabled = true;
+                        updateStatus(undefined, 'Listening', 'All Courses Complete');
+                        break;
+
                     case 'teaching_interrupted':
                     case 'teaching_cancelled':
                         console.log('🛑 Teaching audio stopped');
@@ -1105,6 +1323,38 @@
                 nextReady = null;
             }
             isPlayingAudio = false;
+        }
+
+        // Send action (mark_complete, next_course) via voice transcript simulation
+        function sendAction(action) {
+            if (!websocket || websocket.readyState !== WebSocket.OPEN) return;
+            // Map button actions to the text that triggers the intent
+            const textMap = {
+                'mark_complete': 'mark this as complete',
+                'next_course': 'move to next course',
+            };
+            const text = textMap[action] || action;
+            // Send as a simulated user transcript so the orchestrator processes it
+            websocket.send(JSON.stringify({
+                type: 'teaching_user_input',
+                text: text
+            }));
+            addMessage('user', text);
+            console.log(`📤 Action: ${action} → "${text}"`);
+        }
+
+        // Send confirmation (yes/no) via voice transcript simulation
+        function sendConfirmation(answer) {
+            if (!websocket || websocket.readyState !== WebSocket.OPEN) return;
+            const text = answer === 'yes' ? 'yes' : 'no';
+            websocket.send(JSON.stringify({
+                type: 'teaching_user_input',
+                text: text
+            }));
+            addMessage('user', answer === 'yes' ? '👍 Yes' : '👎 No');
+            // Hide confirmation buttons
+            document.getElementById('confirmControls').style.display = 'none';
+            console.log(`📤 Confirmation: ${text}`);
         }
 
         // Continue teaching

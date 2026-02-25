@@ -79,6 +79,7 @@ class UserIntent(str, Enum):
     NEXT_COURSE = "next_course"
     CONFIRM_YES = "confirm_yes"
     CONFIRM_NO = "confirm_no"
+    MARK_AND_NEXT_COURSE = "mark_and_next_course"
     GREETING = "greeting"
     FAREWELL = "farewell"
     UNKNOWN = "unknown"
@@ -132,6 +133,7 @@ class TeachingState:
     last_question: str = ""
     last_answer: str = ""
     last_intent: str = ""
+    topic_marked_complete: bool = False  # Set when user marks current topic complete
 
     # Timing
     started_at: str = ""
@@ -203,7 +205,11 @@ _MARK_COMPLETE_KW = frozenset([
     'mark this complete', 'mark this as complete', 'completed',
     'i have completed', 'mark done', 'mark it done',
     'mark as done', 'i am done with this', 'finished this',
-    'mark finished', 'complete this',
+    'mark finished', 'complete this', "i'm done with this",
+    "i'm done", 'done with this', 'finished with this',
+    "that's all for this", 'done with this topic',
+    'market complete', 'market is complete', 'market as complete',  # STT mishearings
+    'market it complete', 'march complete', 'march as complete',
 ])
 
 _NEXT_COURSE_KW = frozenset([
@@ -216,6 +222,10 @@ _CONFIRM_YES_KW = frozenset([
     'yes', 'yeah', 'yep', 'sure', 'ok', 'okay', 'do it',
     'yes please', 'go ahead', 'mark it', 'confirm', 'absolutely',
     'of course', 'definitely', 'please do', 'yes mark it',
+    'yes do it', 'please mark', 'right', 'correct', 'affirmative',
+    'market it', 'market is', 'market complete',  # common STT mishearings of "mark it/complete"
+    'yes mark', 'please mark it', 'mark it as complete',
+    'yes mark it as complete', 'let\'s do it', 'sounds good',
 ])
 
 _CONFIRM_NO_KW = frozenset([
@@ -230,7 +240,7 @@ _GREETING_KW = frozenset([
 
 _FAREWELL_KW = frozenset([
     'bye', 'goodbye', 'see you', 'thank you', 'thanks',
-    'end class', 'finish', 'done', "that's all"
+    'end class', 'end session', 'end the class', 'end the session',
 ])
 
 
@@ -259,18 +269,45 @@ def classify_intent(user_input: str, pending_confirmation: bool = False) -> User
     words = text.split()
     word_count = len(words)
 
+    # --- Compound: mark complete + next course in one sentence ---
+    has_mark = any(kw in text for kw in _MARK_COMPLETE_KW)
+    has_next_course = any(kw in text for kw in _NEXT_COURSE_KW)
+    if has_mark and has_next_course:
+        return UserIntent.MARK_AND_NEXT_COURSE
+
     # --- Confirmation yes/no (highest priority when awaiting) ---
-    if pending_confirmation and word_count <= 6:
+    if pending_confirmation:
+        # Check explicit yes/no first (no strict word-count limit)
         if any(kw in text for kw in _CONFIRM_YES_KW):
             return UserIntent.CONFIRM_YES
         if any(kw in text for kw in _CONFIRM_NO_KW):
             return UserIntent.CONFIRM_NO
+        # If user repeats the action ("next course", "mark complete") while
+        # we are waiting for confirmation, treat it as implicit YES
+        if has_next_course or has_mark:
+            return UserIntent.CONFIRM_YES
 
     # --- Mark-complete / next-course (check before advance) ---
-    if any(kw in text for kw in _MARK_COMPLETE_KW):
+    if has_mark:
         return UserIntent.MARK_COMPLETE
-    if any(kw in text for kw in _NEXT_COURSE_KW):
+    if has_next_course:
         return UserIntent.NEXT_COURSE
+
+    # --- Long inputs (>15 words): almost certainly a question, not a command ---
+    # Skip short-phrase intents that could be embedded in a longer sentence
+    # (e.g., "I was saying ok continue but then I realized I don't understand")
+    if word_count > 15:
+        # Only check for repeat/clarify/example/summary (multi-word phrases unlikely to be accidental)
+        if any(kw in text for kw in _REPEAT_KW):
+            return UserIntent.REPEAT
+        if any(kw in text for kw in _CLARIFY_KW):
+            return UserIntent.CLARIFY
+        if any(kw in text for kw in _EXAMPLE_KW):
+            return UserIntent.EXAMPLE
+        if any(kw in text for kw in _SUMMARY_KW):
+            return UserIntent.SUMMARY
+        # Default long input to question
+        return UserIntent.QUESTION
 
     # Short phrases (1-3 words) - check exact/near matches first
     if word_count <= 3:
@@ -285,7 +322,7 @@ def classify_intent(user_input: str, pending_confirmation: bool = False) -> User
         if any(kw in text for kw in _FAREWELL_KW):
             return UserIntent.FAREWELL
 
-    # Longer inputs - check intent keywords
+    # Medium inputs (4-15 words) - check intent keywords
     if any(kw in text for kw in _REPEAT_KW):
         return UserIntent.REPEAT
     if any(kw in text for kw in _CLARIFY_KW):
@@ -356,8 +393,9 @@ def needs_rag(question: str, teaching_content: str) -> bool:
 
         if question_words and content_words:
             overlap = question_words & content_words
-            # Any overlap with content words = likely course-related
-            if overlap:
+            # Require 2+ overlapping words to avoid false positives
+            # (e.g., "machine" alone shouldn't trigger RAG for "how does a washing machine work?")
+            if len(overlap) >= 2:
                 return True
 
     # General questions don't need RAG
@@ -508,12 +546,23 @@ class RealtimeOrchestrator:
         state.interruptions += 1
         if streaming_text:
             state.interrupted_text = streaming_text
-        self._transition(state, TeachingPhase.PAUSED_FOR_QUERY)
-        logger.info(
-            f"🗣️ Barge-in #{state.interruptions} at segment "
-            f"{state.current_segment_index}/{state.total_segments}"
-            f"{' (text saved for resume)' if streaming_text else ''}"
-        )
+
+        # Preserve PENDING_CONFIRMATION phase — the user is responding to
+        # a yes/no prompt (e.g. "should I mark complete?"), not interrupting
+        # teaching content. Resetting the phase here would destroy the
+        # pending_action and cause the confirmation flow to break.
+        if state.phase == TeachingPhase.PENDING_CONFIRMATION.value:
+            logger.info(
+                f"🗣️ Barge-in #{state.interruptions} during confirmation prompt "
+                f"(preserving PENDING_CONFIRMATION)"
+            )
+        else:
+            self._transition(state, TeachingPhase.PAUSED_FOR_QUERY)
+            logger.info(
+                f"🗣️ Barge-in #{state.interruptions} at segment "
+                f"{state.current_segment_index}/{state.total_segments}"
+                f"{' (text saved for resume)' if streaming_text else ''}"
+            )
         return state
 
     def process_user_input(self, session_id: str, user_input: str) -> Dict[str, Any]:
@@ -546,7 +595,8 @@ class RealtimeOrchestrator:
             pending_data_str = state.pending_action_data
             state.pending_action = ""
             state.pending_action_data = ""
-            self._persist(state)
+            state.topic_marked_complete = True  # User confirmed marking complete
+            self._transition(state, TeachingPhase.TEACHING)
             import json as _json
             pending_data = _json.loads(pending_data_str) if pending_data_str else {}
             if pending_act == "advance_next_topic":
@@ -565,9 +615,13 @@ class RealtimeOrchestrator:
                     "state": state,
                 }
             # Fallback: just mark complete
+            adv = self._compute_next_topic(state)
             return {
                 "action": "mark_complete",
                 "intent": intent.value,
+                "has_next": adv is not None,
+                "next_module_index": adv["module_index"] if adv else None,
+                "next_sub_topic_index": adv["sub_topic_index"] if adv else None,
                 "state": state,
             }
 
@@ -576,7 +630,6 @@ class RealtimeOrchestrator:
             pending_data_str = state.pending_action_data
             state.pending_action = ""
             state.pending_action_data = ""
-            self._persist(state)
             import json as _json
             pending_data = _json.loads(pending_data_str) if pending_data_str else {}
             # Proceed without marking
@@ -590,6 +643,7 @@ class RealtimeOrchestrator:
                     "state": state,
                 }
             elif pending_act == "next_course":
+                self._transition(state, TeachingPhase.TEACHING)
                 return {
                     "action": "next_course",
                     "intent": intent.value,
@@ -603,16 +657,39 @@ class RealtimeOrchestrator:
                 "state": state,
             }
 
+        # ── Compound: mark complete AND move to next course ──
+        if intent == UserIntent.MARK_AND_NEXT_COURSE:
+            state.topic_marked_complete = True
+            return {
+                "action": "mark_and_next_course",
+                "intent": intent.value,
+                "state": state,
+            }
+
         # ── Mark complete (explicit request) ──
         if intent == UserIntent.MARK_COMPLETE:
+            state.topic_marked_complete = True
+            # After marking complete, set up follow-up to ask about advancing
+            adv = self._compute_next_topic(state)
             return {
                 "action": "mark_complete",
                 "intent": intent.value,
+                "has_next": adv is not None,
+                "next_module_index": adv["module_index"] if adv else None,
+                "next_sub_topic_index": adv["sub_topic_index"] if adv else None,
                 "state": state,
             }
 
         # ── Next course ──
         if intent == UserIntent.NEXT_COURSE:
+            # If topic was already marked complete, skip confirmation and go directly
+            if state.topic_marked_complete:
+                state.topic_marked_complete = False  # Reset for next topic
+                return {
+                    "action": "next_course",
+                    "intent": intent.value,
+                    "state": state,
+                }
             name = _clean_first_name(state.user_name)
             # Ask for confirmation to mark current course complete
             import json as _json
@@ -841,6 +918,7 @@ class RealtimeOrchestrator:
         state.sub_topic_index = sub_topic_index
         state.module_title = module_title
         state.sub_topic_title = sub_topic_title
+        state.topic_marked_complete = False  # Reset for new topic
         if total_sub_topics:
             state.total_sub_topics = total_sub_topics
         # Reset segment state — set_content() will fill these in

@@ -86,7 +86,7 @@ class TeachingService:
             # Generate teaching content using LLM with timeout
             teaching_content = await asyncio.wait_for(
                 self.llm_service.generate_response(teaching_prompt, temperature=1),
-                timeout=5.0  # 5 second timeout for LLM generation
+                timeout=30.0  # 30 second timeout for LLM content generation
             )
             
             # Post-process the content for better TTS delivery
@@ -277,20 +277,12 @@ Begin teaching the live classroom now:"""
         for pattern, replacement in replacements.items():
             content = re.sub(pattern, replacement, content, flags=re.IGNORECASE)
         
-        # Add natural pauses
-        content = content.replace(". ", ". ... ")
-        content = content.replace("? ", "? ... ")
-        content = content.replace("! ", "! ... ")
-        
-        # Add longer pauses for paragraph breaks
-        content = content.replace("\n\n", " ... ... ")
-        
         # Ensure proper sentence endings
         if not content.endswith(('.', '!', '?')):
             content += "."
         
         # Add a natural ending
-        content += " ... Thank you for your attention. Feel free to ask any questions about this topic."
+        content += " Thank you for your attention. Feel free to ask any questions about this topic."
         
         return content
     
