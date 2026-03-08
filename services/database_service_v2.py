@@ -1367,6 +1367,317 @@ class DatabaseServiceV2:
                     pass
                 self.return_connection(conn)
     
+    # ============= INTERACTIVE SESSION OPERATIONS =============
+    
+    def get_user_learning_summary(self, user_id: int) -> Dict:
+        """
+        Get aggregated learning summary across all courses for a user.
+        Used for the intelligent session-start greeting.
+        Returns: {
+            courses_started, courses_completed, total_topics_completed,
+            last_course_id, last_course_title, last_module_title, last_topic_title,
+            last_accessed, course_details: [{course_id, title, completed, total, pct}]
+        }
+        """
+        conn = None
+        try:
+            conn = self.get_connection()
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            
+            # Per-course completion stats
+            cur.execute("""
+                SELECT 
+                    c.id as course_id,
+                    c.title as course_title,
+                    COUNT(DISTINCT up.topic_id) FILTER (WHERE up.status = 'completed') as completed_topics,
+                    (SELECT COUNT(*) FROM topics t2 
+                     JOIN modules m2 ON t2.module_id = m2.id 
+                     WHERE m2.course_id = c.id) as total_topics,
+                    MAX(up.last_accessed) as last_accessed
+                FROM user_progress up
+                JOIN courses c ON up.course_id = c.id
+                WHERE up.user_id = %s
+                GROUP BY c.id, c.title
+                ORDER BY MAX(up.last_accessed) DESC
+            """, (user_id,))
+            course_rows = cur.fetchall()
+            
+            course_details = []
+            total_completed = 0
+            courses_completed = 0
+            last_course = None
+            
+            for row in course_rows:
+                completed = row['completed_topics'] or 0
+                total = row['total_topics'] or 0
+                pct = round(completed / total * 100, 1) if total > 0 else 0
+                total_completed += completed
+                if pct >= 100:
+                    courses_completed += 1
+                course_details.append({
+                    'course_id': row['course_id'],
+                    'title': row['course_title'],
+                    'completed_topics': completed,
+                    'total_topics': total,
+                    'completion_pct': pct,
+                    'last_accessed': row['last_accessed'].isoformat() if row['last_accessed'] else None,
+                })
+            
+            # Most recently accessed course details
+            if course_details:
+                last_course = course_details[0]
+            
+            # Get the last topic the user was on
+            last_topic_info = {}
+            if last_course:
+                cur.execute("""
+                    SELECT up.module_id, up.topic_id,
+                           m.title as module_title, m.week as module_week,
+                           t.title as topic_title, t.order_index as topic_order
+                    FROM user_progress up
+                    LEFT JOIN modules m ON up.module_id = m.id
+                    LEFT JOIN topics t ON up.topic_id = t.id
+                    WHERE up.user_id = %s AND up.course_id = %s
+                    ORDER BY up.last_accessed DESC
+                    LIMIT 1
+                """, (user_id, last_course['course_id']))
+                lt = cur.fetchone()
+                if lt:
+                    last_topic_info = dict(lt)
+            
+            conn.commit()
+            
+            return {
+                'courses_started': len(course_details),
+                'courses_completed': courses_completed,
+                'total_topics_completed': total_completed,
+                'last_course_id': last_course['course_id'] if last_course else None,
+                'last_course_title': last_course['title'] if last_course else None,
+                'last_module_title': last_topic_info.get('module_title'),
+                'last_topic_title': last_topic_info.get('topic_title'),
+                'last_module_id': last_topic_info.get('module_id'),
+                'last_topic_id': last_topic_info.get('topic_id'),
+                'last_accessed': last_course['last_accessed'] if last_course else None,
+                'course_details': course_details,
+            }
+        except Exception as e:
+            logger.error(f"Error fetching learning summary for user {user_id}: {e}")
+            if conn:
+                try:
+                    conn.rollback()
+                except:
+                    pass
+            return {
+                'courses_started': 0, 'courses_completed': 0,
+                'total_topics_completed': 0, 'course_details': [],
+            }
+        finally:
+            if conn:
+                try:
+                    cur.close()
+                except:
+                    pass
+                self.return_connection(conn)
+    
+    def get_or_update_course_progress(
+        self, user_id: int, course_id: int, progress_data: Dict = None
+    ) -> Optional[Dict]:
+        """
+        Get or upsert course_progress for a user.
+        
+        The course_progress table uses (user_id, course_key, course_version) as unique key.
+        We use course_id as the course_key and '1.0' as default version.
+        
+        progress_data JSONB example:
+        {
+            "current_module_index": 1,
+            "current_topic_index": 2,
+            "completed_modules": [0],
+            "completed_topics": {"0": [0,1,2], "1": [0,1]},
+            "overall_pct": 45.5,
+            "last_module_title": "Arrays",
+            "last_topic_title": "Sorting"
+        }
+        """
+        course_key = str(course_id)
+        course_version = "1.0"
+        
+        if progress_data is not None:
+            # Upsert
+            query = """
+                INSERT INTO course_progress (user_id, course_key, course_version, progress, updated_at)
+                VALUES (%s, %s, %s, %s, NOW())
+                ON CONFLICT (user_id, course_key, course_version)
+                DO UPDATE SET progress = %s, updated_at = NOW()
+                RETURNING id, user_id, course_key, course_version, progress, created_at, updated_at
+            """
+            try:
+                progress_json = json.dumps(progress_data)
+                result = self.execute_query(
+                    query,
+                    (user_id, course_key, course_version, progress_json, progress_json),
+                    fetch='one'
+                )
+                if result:
+                    row = dict(result)
+                    for f in ['created_at', 'updated_at']:
+                        if row.get(f):
+                            row[f] = row[f].isoformat()
+                    return row
+                return None
+            except Exception as e:
+                logger.error(f"Error upserting course_progress: {e}")
+                return None
+        else:
+            # Read only
+            query = """
+                SELECT id, user_id, course_key, course_version, progress, created_at, updated_at
+                FROM course_progress
+                WHERE user_id = %s AND course_key = %s AND course_version = %s
+            """
+            try:
+                result = self.execute_query(
+                    query, (user_id, course_key, course_version), fetch='one'
+                )
+                if result:
+                    row = dict(result)
+                    for f in ['created_at', 'updated_at']:
+                        if row.get(f):
+                            row[f] = row[f].isoformat()
+                    return row
+                return None
+            except Exception as e:
+                logger.error(f"Error fetching course_progress: {e}")
+                return None
+    
+    def get_last_session_context(self, user_id: int) -> Optional[Dict]:
+        """
+        Get the user's last active session info including course context.
+        Returns: {session_id, current_course_id, course_title, started_at, 
+                  last_activity_at, message_count, is_active}
+        """
+        query = """
+            SELECT us.id, us.session_id, us.current_course_id,
+                   us.started_at, us.last_activity_at, us.message_count,
+                   us.is_active,
+                   c.title as course_title
+            FROM user_sessions us
+            LEFT JOIN courses c ON us.current_course_id = c.id
+            WHERE us.user_id = %s
+            ORDER BY us.last_activity_at DESC
+            LIMIT 1
+        """
+        try:
+            result = self.execute_query(query, (user_id,), fetch='one')
+            if result:
+                row = dict(result)
+                for f in ['started_at', 'last_activity_at']:
+                    if row.get(f):
+                        row[f] = row[f].isoformat()
+                return row
+            return None
+        except Exception as e:
+            logger.error(f"Error fetching last session context: {e}")
+            return None
+    
+    def update_session_course(self, session_id: str, course_id: int) -> bool:
+        """Update the current_course_id for a user session."""
+        query = """
+            UPDATE user_sessions 
+            SET current_course_id = %s, last_activity_at = NOW()
+            WHERE session_id = %s
+        """
+        try:
+            self.execute_query(query, (course_id, session_id), fetch=None)
+            logger.info(f"✅ Updated session {session_id} → course {course_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Error updating session course: {e}")
+            return False
+    
+    def mark_topic_in_progress(
+        self, user_id: int, course_id: int, module_id: int, topic_id: int
+    ) -> bool:
+        """Mark a topic as in_progress for a user (when teaching starts)."""
+        query = """
+            INSERT INTO user_progress (
+                user_id, course_id, module_id, topic_id,
+                status, progress_percentage, last_accessed
+            ) VALUES (%s, %s, %s, %s, 'in_progress', 0, %s)
+            ON CONFLICT (user_id, course_id, module_id, topic_id)
+            DO UPDATE SET
+                status = CASE 
+                    WHEN user_progress.status = 'completed' THEN 'completed'
+                    ELSE 'in_progress'
+                END,
+                last_accessed = %s
+            RETURNING id
+        """
+        try:
+            now = datetime.utcnow()
+            result = self.execute_query(
+                query, (user_id, course_id, module_id, topic_id, now, now),
+                fetch='one'
+            )
+            return result is not None
+        except Exception as e:
+            logger.error(f"Error marking topic in_progress: {e}")
+            return False
+    
+    def get_all_courses_summary(self) -> List[Dict]:
+        """
+        Get all courses with module/topic counts for the session-start listing.
+        More lightweight than get_course_with_content.
+        """
+        query = """
+            SELECT c.id, c.title, c.description, c.level, c.course_order,
+                   COUNT(DISTINCT m.id) as module_count,
+                   COUNT(DISTINCT t.id) as topic_count
+            FROM courses c
+            LEFT JOIN modules m ON m.course_id = c.id
+            LEFT JOIN topics t ON t.module_id = m.id
+            GROUP BY c.id, c.title, c.description, c.level, c.course_order
+            ORDER BY c.course_order, c.id
+        """
+        try:
+            result = self.execute_query(query, fetch='all')
+            if not result:
+                return []
+            return [dict(row) for row in result]
+        except Exception as e:
+            logger.error(f"Error fetching courses summary: {e}")
+            return []
+    
+    def get_course_modules_summary(self, course_id: int) -> List[Dict]:
+        """
+        Get modules for a course with topic counts and user-facing info.
+        """
+        query = """
+            SELECT m.id, m.title, m.week, m.description, m.order_index,
+                   COUNT(t.id) as topic_count,
+                   ARRAY_AGG(t.title ORDER BY t.order_index) as topic_titles
+            FROM modules m
+            LEFT JOIN topics t ON t.module_id = m.id
+            WHERE m.course_id = %s
+            GROUP BY m.id, m.title, m.week, m.description, m.order_index
+            ORDER BY m.order_index, m.week
+        """
+        try:
+            result = self.execute_query(query, (course_id,), fetch='all')
+            if not result:
+                return []
+            modules = []
+            for row in result:
+                mod = dict(row)
+                # Convert array to list
+                if mod.get('topic_titles') and mod['topic_titles'][0] is None:
+                    mod['topic_titles'] = []
+                modules.append(mod)
+            return modules
+        except Exception as e:
+            logger.error(f"Error fetching modules summary: {e}")
+            return []
+    
     def close(self):
         """Close all connections in pool"""
         if self.pool:

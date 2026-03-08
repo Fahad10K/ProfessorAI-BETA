@@ -1,0 +1,892 @@
+================================================================================
+NEON DB ??? FULL SCHEMA REPORT
+================================================================================
+
+Available schemas: ['dev_import', 'information_schema', 'public']
+
+Inspecting schemas: ['dev_import', 'public']
+
+
+################################################################################
+# SCHEMA: public
+################################################################################
+
+----------------------------------------------------------------------
+  TABLE: public.api_access_requests
+----------------------------------------------------------------------
+
+  Column                         Type                      Nullable   Default
+  ------------------------------ ------------------------- ---------- ------------------------------
+  id                             INTEGER                   NO         nextval('"public".api_access_requests_id_seq'::regclass)
+  first_name                     TEXT                      NO         None
+  last_name                      TEXT                      NO         None
+  email                          TEXT                      NO         None
+  phone                          TEXT                      NO         None
+  company                        TEXT                      NO         None
+  job_title                      TEXT                      NO         None
+  use_case                       TEXT                      YES        None
+  status                         TEXT                      NO         'pending'::text
+  created_at                     TIMESTAMP                 YES        now()
+  updated_at                     TIMESTAMP                 YES        now()
+
+  PRIMARY KEY: ['id']
+    constraint name: api_access_requests_pkey
+
+  CHECK CONSTRAINTS:
+    api_access_requests_status_check: status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text])
+
+  INDEXES:
+    idx_api_access_requests_created_at: ['created_at']
+    idx_api_access_requests_email: ['email']
+    idx_api_access_requests_status: ['status']
+
+----------------------------------------------------------------------
+  TABLE: public.assessment_questions
+----------------------------------------------------------------------
+
+  Column                         Type                      Nullable   Default
+  ------------------------------ ------------------------- ---------- ------------------------------
+  id                             INTEGER                   NO         nextval('"public".assessment_questions_id_seq'::regclass)
+  assessment_id                  INTEGER                   NO         None
+  question_number                INTEGER                   NO         None
+  question_text                  TEXT                      NO         None
+  question_type                  TEXT                      YES        'multiple_choice'::text
+  options                        JSONB                     YES        None
+  correct_answer                 TEXT                      NO         None
+  explanation                    TEXT                      YES        None
+  difficulty                     TEXT                      YES        None
+  points                         INTEGER                   YES        1
+  source_snippet                 TEXT                      YES        None
+  created_at                     TIMESTAMP                 YES        now()
+
+  PRIMARY KEY: ['id']
+    constraint name: assessment_questions_pkey
+
+  FOREIGN KEYS:
+    assessment_questions_assessment_id_fkey: ['assessment_id'] -> public.assessments(['id'])
+
+  UNIQUE CONSTRAINTS:
+    unique_assessment_question: ['assessment_id', 'question_number']
+
+  CHECK CONSTRAINTS:
+    assessment_questions_difficulty_check: difficulty = ANY (ARRAY['easy'::text, 'medium'::text, 'hard'::text])
+    assessment_questions_question_type_check: question_type = ANY (ARRAY['multiple_choice'::text, 'true_false'::text, 'short_answer'::text, 'essay'::text])
+
+  INDEXES:
+    idx_assessment_questions_assessment_id: ['assessment_id']
+    idx_assessment_questions_difficulty: ['difficulty']
+    idx_assessment_questions_type: ['question_type']
+    unique_assessment_question: ['assessment_id', 'question_number'] (UNIQUE)
+
+----------------------------------------------------------------------
+  TABLE: public.assessments
+----------------------------------------------------------------------
+
+  Column                         Type                      Nullable   Default
+  ------------------------------ ------------------------- ---------- ------------------------------
+  id                             INTEGER                   NO         nextval('"public".assessments_id_seq'::regclass)
+  user_id                        INTEGER                   NO         None
+  session_id                     INTEGER                   YES        None
+  uploaded_note_id               INTEGER                   NO         None
+  title                          TEXT                      NO         None
+  description                    TEXT                      YES        None
+  difficulty_level               TEXT                      YES        'medium'::text
+  total_questions                INTEGER                   NO         0
+  passing_score                  INTEGER                   YES        70
+  time_limit                     INTEGER                   YES        None
+  topics_covered                 ARRAY                     YES        None
+  generation_prompt              TEXT                      YES        None
+  status                         TEXT                      YES        'draft'::text
+  generated_at                   TIMESTAMP                 YES        now()
+  created_at                     TIMESTAMP                 YES        now()
+  updated_at                     TIMESTAMP                 YES        now()
+
+  PRIMARY KEY: ['id']
+    constraint name: assessments_pkey
+
+  FOREIGN KEYS:
+    assessments_session_id_fkey: ['session_id'] -> public.user_sessions(['id'])
+    assessments_uploaded_note_id_fkey: ['uploaded_note_id'] -> public.uploaded_notes(['id'])
+    assessments_user_id_fkey: ['user_id'] -> public.users(['id'])
+
+  CHECK CONSTRAINTS:
+    assessments_difficulty_level_check: difficulty_level = ANY (ARRAY['easy'::text, 'medium'::text, 'hard'::text])
+    assessments_status_check: status = ANY (ARRAY['draft'::text, 'active'::text, 'archived'::text])
+
+  INDEXES:
+    idx_assessments_generated_at: ['generated_at']
+    idx_assessments_note_id: ['uploaded_note_id']
+    idx_assessments_session_id: ['session_id']
+    idx_assessments_status: ['status']
+    idx_assessments_user_id: ['user_id']
+
+----------------------------------------------------------------------
+  TABLE: public.course_id_mapping
+----------------------------------------------------------------------
+
+  Column                         Type                      Nullable   Default
+  ------------------------------ ------------------------- ---------- ------------------------------
+  id                             INTEGER                   NO         nextval('"public".course_id_mapping_id_seq'::regclass)
+  new_course_id                  INTEGER                   NO         None
+  old_course_id                  TEXT                      NO         None
+  description                    TEXT                      YES        None
+  created_at                     TIMESTAMP                 YES        now()
+  updated_at                     TIMESTAMP                 YES        now()
+
+  PRIMARY KEY: ['id']
+    constraint name: course_id_mapping_pkey
+
+  FOREIGN KEYS:
+    course_id_mapping_new_course_id_fkey: ['new_course_id'] -> public.courses(['id'])
+
+  UNIQUE CONSTRAINTS:
+    course_id_mapping_new_course_id_key: ['new_course_id']
+    course_id_mapping_old_course_id_key: ['old_course_id']
+
+  INDEXES:
+    course_id_mapping_new_course_id_key: ['new_course_id'] (UNIQUE)
+    course_id_mapping_old_course_id_key: ['old_course_id'] (UNIQUE)
+    idx_course_id_mapping_new_id: ['new_course_id']
+    idx_course_id_mapping_old_id: ['old_course_id']
+
+----------------------------------------------------------------------
+  TABLE: public.course_images
+----------------------------------------------------------------------
+
+  Column                         Type                      Nullable   Default
+  ------------------------------ ------------------------- ---------- ------------------------------
+  id                             INTEGER                   NO         nextval('"public".course_images_id_seq'::regclass)
+  course_id                      INTEGER                   NO         None
+  image_url                      TEXT                      NO         None
+  course_name                    TEXT                      YES        None
+  created_at                     TIMESTAMP                 YES        now()
+  updated_at                     TIMESTAMP                 YES        now()
+
+  PRIMARY KEY: ['id']
+    constraint name: course_images_pkey
+
+  FOREIGN KEYS:
+    course_images_course_id_fkey: ['course_id'] -> public.courses(['id'])
+
+  UNIQUE CONSTRAINTS:
+    course_images_course_id_key: ['course_id']
+
+  INDEXES:
+    course_images_course_id_key: ['course_id'] (UNIQUE)
+    idx_course_images_course_id: ['course_id']
+
+----------------------------------------------------------------------
+  TABLE: public.course_pricing
+----------------------------------------------------------------------
+
+  Column                         Type                      Nullable   Default
+  ------------------------------ ------------------------- ---------- ------------------------------
+  id                             INTEGER                   NO         nextval('"public".course_pricing_id_seq'::regclass)
+  course_id                      INTEGER                   NO         None
+  price                          NUMERIC(10, 2)            NO         0.00
+  currency                       TEXT                      NO         'INR'::text
+  is_free                        BOOLEAN                   NO         false
+  display_order                  INTEGER                   YES        None
+  course_name                    TEXT                      YES        None
+  created_at                     TIMESTAMP                 YES        now()
+  updated_at                     TIMESTAMP                 YES        now()
+
+  PRIMARY KEY: ['id']
+    constraint name: course_pricing_pkey
+
+  FOREIGN KEYS:
+    course_pricing_course_id_fkey: ['course_id'] -> public.courses(['id'])
+
+  UNIQUE CONSTRAINTS:
+    course_pricing_course_id_key: ['course_id']
+
+  INDEXES:
+    course_pricing_course_id_key: ['course_id'] (UNIQUE)
+    idx_course_pricing_course_id: ['course_id']
+    idx_course_pricing_display_order: ['display_order']
+    idx_course_pricing_is_free: ['is_free']
+
+----------------------------------------------------------------------
+  TABLE: public.course_progress
+----------------------------------------------------------------------
+
+  Column                         Type                      Nullable   Default
+  ------------------------------ ------------------------- ---------- ------------------------------
+  id                             INTEGER                   NO         nextval('"public".course_progress_id_seq'::regclass)
+  user_id                        INTEGER                   NO         None
+  course_key                     TEXT                      NO         None
+  course_version                 TEXT                      NO         None
+  progress                       JSONB                     NO         None
+  created_at                     TIMESTAMP                 YES        now()
+  updated_at                     TIMESTAMP                 YES        now()
+
+  PRIMARY KEY: ['id']
+    constraint name: course_progress_pkey
+
+  FOREIGN KEYS:
+    course_progress_user_id_fkey: ['user_id'] -> public.users(['id'])
+
+  UNIQUE CONSTRAINTS:
+    course_progress_user_id_course_key_course_version_key: ['user_id', 'course_key', 'course_version']
+
+  INDEXES:
+    course_progress_user_id_course_key_course_version_key: ['user_id', 'course_key', 'course_version'] (UNIQUE)
+    idx_course_progress_course_key: ['course_key']
+    idx_course_progress_user_id: ['user_id']
+
+----------------------------------------------------------------------
+  TABLE: public.courses
+----------------------------------------------------------------------
+
+  Column                         Type                      Nullable   Default
+  ------------------------------ ------------------------- ---------- ------------------------------
+  id                             INTEGER                   NO         nextval('"public".courses_id_seq'::regclass)
+  title                          TEXT                      NO         None
+  description                    TEXT                      YES        None
+  level                          TEXT                      YES        'Beginner'::text
+  teacher_id                     INTEGER                   NO         None
+  course_order                   INTEGER                   YES        None
+  course_number                  INTEGER                   YES        None
+  country                        TEXT                      YES        None
+  file_metadata                  JSONB                     YES        None
+  created_by                     VARCHAR(255)              YES        None
+  created_at                     TIMESTAMP                 YES        now()
+  updated_at                     TIMESTAMP                 YES        now()
+  price                          NUMERIC(10, 2)            YES        0.00
+  is_free                        BOOLEAN                   YES        true
+
+  PRIMARY KEY: ['id']
+    constraint name: courses_pkey
+
+  FOREIGN KEYS:
+    courses_teacher_id_fkey: ['teacher_id'] -> public.users(['id'])
+
+  CHECK CONSTRAINTS:
+    courses_level_check: level = ANY (ARRAY['Beginner'::text, 'Intermediate'::text, 'Advanced'::text])
+
+  INDEXES:
+    idx_courses_course_order: ['course_order']
+    idx_courses_level: ['level']
+    idx_courses_teacher_id: ['teacher_id']
+
+----------------------------------------------------------------------
+  TABLE: public.enrollments
+----------------------------------------------------------------------
+
+  Column                         Type                      Nullable   Default
+  ------------------------------ ------------------------- ---------- ------------------------------
+  id                             INTEGER                   NO         nextval('"public".enrollments_id_seq'::regclass)
+  student_id                     INTEGER                   NO         None
+  course_id                      INTEGER                   NO         None
+  is_paid                        BOOLEAN                   NO         false
+  enrolled_at                    TIMESTAMP                 YES        now()
+
+  PRIMARY KEY: ['id']
+    constraint name: enrollments_pkey
+
+  FOREIGN KEYS:
+    enrollments_course_id_fkey: ['course_id'] -> public.courses(['id'])
+    enrollments_student_id_fkey: ['student_id'] -> public.users(['id'])
+
+  UNIQUE CONSTRAINTS:
+    unique_enrollment: ['student_id', 'course_id']
+
+  INDEXES:
+    idx_enrollments_course_id: ['course_id']
+    idx_enrollments_is_paid: ['is_paid']
+    idx_enrollments_student_id: ['student_id']
+    unique_enrollment: ['student_id', 'course_id'] (UNIQUE)
+
+----------------------------------------------------------------------
+  TABLE: public.messages
+----------------------------------------------------------------------
+
+  Column                         Type                      Nullable   Default
+  ------------------------------ ------------------------- ---------- ------------------------------
+  id                             INTEGER                   NO         nextval('"public".messages_id_seq'::regclass)
+  user_id                        INTEGER                   NO         None
+  session_id                     INTEGER                   NO         None
+  role                           TEXT                      NO         None
+  content                        TEXT                      NO         None
+  message_type                   TEXT                      YES        'text'::text
+  course_id                      INTEGER                   YES        None
+  module_id                      INTEGER                   YES        None
+  topic_id                       INTEGER                   YES        None
+  metadata                       JSONB                     YES        '{}'::jsonb
+  tokens_used                    INTEGER                   YES        None
+  model_used                     TEXT                      YES        None
+  audio_url                      TEXT                      YES        None
+  transcript                     TEXT                      YES        None
+  created_at                     TIMESTAMP                 YES        now()
+  updated_at                     TIMESTAMP                 YES        now()
+
+  PRIMARY KEY: ['id']
+    constraint name: messages_pkey
+
+  FOREIGN KEYS:
+    messages_course_id_fkey: ['course_id'] -> public.courses(['id'])
+    messages_module_id_fkey: ['module_id'] -> public.modules(['id'])
+    messages_session_id_fkey: ['session_id'] -> public.user_sessions(['id'])
+    messages_topic_id_fkey: ['topic_id'] -> public.topics(['id'])
+    messages_user_id_fkey: ['user_id'] -> public.users(['id'])
+
+  CHECK CONSTRAINTS:
+    messages_message_type_check: message_type = ANY (ARRAY['text'::text, 'voice'::text, 'image'::text, 'document'::text])
+    messages_role_check: role = ANY (ARRAY['user'::text, 'assistant'::text, 'system'::text])
+
+  INDEXES:
+    idx_messages_course_id: ['course_id']
+    idx_messages_created_at: ['created_at']
+    idx_messages_role: ['role']
+    idx_messages_session_id: ['session_id']
+    idx_messages_user_id: ['user_id']
+    idx_messages_user_session: ['user_id', 'session_id']
+
+----------------------------------------------------------------------
+  TABLE: public.modules
+----------------------------------------------------------------------
+
+  Column                         Type                      Nullable   Default
+  ------------------------------ ------------------------- ---------- ------------------------------
+  id                             INTEGER                   NO         nextval('"public".modules_id_seq'::regclass)
+  course_id                      INTEGER                   NO         None
+  week                           INTEGER                   NO         None
+  title                          VARCHAR(500)              NO         None
+  description                    TEXT                      YES        None
+  learning_objectives            ARRAY                     YES        None
+  order_index                    INTEGER                   YES        None
+  created_at                     TIMESTAMP                 YES        now()
+
+  PRIMARY KEY: ['id']
+    constraint name: modules_pkey
+
+  FOREIGN KEYS:
+    modules_course_id_fkey: ['course_id'] -> public.courses(['id'])
+
+  UNIQUE CONSTRAINTS:
+    unique_course_week: ['course_id', 'week']
+
+  INDEXES:
+    idx_modules_course_id: ['course_id']
+    idx_modules_order_index: ['order_index']
+    unique_course_week: ['course_id', 'week'] (UNIQUE)
+
+----------------------------------------------------------------------
+  TABLE: public.payment_transactions
+----------------------------------------------------------------------
+
+  Column                         Type                      Nullable   Default
+  ------------------------------ ------------------------- ---------- ------------------------------
+  id                             INTEGER                   NO         nextval('"public".payment_transactions_id_seq'::regclass)
+  user_id                        INTEGER                   NO         None
+  course_id                      TEXT                      NO         None
+  order_id                       TEXT                      NO         None
+  ccavenue_order_id              TEXT                      YES        None
+  amount                         NUMERIC(10, 2)            NO         None
+  currency                       TEXT                      NO         'INR'::text
+  status                         TEXT                      NO         'initiated'::text
+  payment_response               TEXT                      YES        None
+  created_at                     TIMESTAMP                 YES        now()
+  updated_at                     TIMESTAMP                 YES        now()
+
+  PRIMARY KEY: ['id']
+    constraint name: payment_transactions_pkey
+
+  FOREIGN KEYS:
+    payment_transactions_user_id_fkey: ['user_id'] -> public.users(['id'])
+
+  UNIQUE CONSTRAINTS:
+    payment_transactions_order_id_key: ['order_id']
+
+  CHECK CONSTRAINTS:
+    payment_transactions_status_check: status = ANY (ARRAY['initiated'::text, 'pending'::text, 'success'::text, 'failed'::text])
+
+  INDEXES:
+    idx_payment_transactions_order_id: ['order_id']
+    idx_payment_transactions_status: ['status']
+    idx_payment_transactions_user_id: ['user_id']
+    payment_transactions_order_id_key: ['order_id'] (UNIQUE)
+
+----------------------------------------------------------------------
+  TABLE: public.payments
+----------------------------------------------------------------------
+
+  Column                         Type                      Nullable   Default
+  ------------------------------ ------------------------- ---------- ------------------------------
+  id                             INTEGER                   NO         nextval('"public".payments_id_seq'::regclass)
+  student_id                     INTEGER                   NO         None
+  course_id                      INTEGER                   NO         None
+  enrollment_id                  INTEGER                   YES        None
+  order_id                       TEXT                      NO         None
+  amount                         NUMERIC(10, 2)            NO         None
+  currency                       TEXT                      YES        'INR'::text
+  status                         TEXT                      NO         'pending'::text
+  payment_method                 TEXT                      YES        None
+  transaction_id                 TEXT                      YES        None
+  tracking_id                    TEXT                      YES        None
+  bank_ref_no                    TEXT                      YES        None
+  ccavenue_response              JSONB                     YES        None
+  created_at                     TIMESTAMP                 YES        now()
+  updated_at                     TIMESTAMP                 YES        now()
+
+  PRIMARY KEY: ['id']
+    constraint name: payments_pkey
+
+  FOREIGN KEYS:
+    payments_course_id_fkey: ['course_id'] -> public.courses(['id'])
+    payments_enrollment_id_fkey: ['enrollment_id'] -> public.enrollments(['id'])
+    payments_student_id_fkey: ['student_id'] -> public.users(['id'])
+
+  UNIQUE CONSTRAINTS:
+    payments_order_id_key: ['order_id']
+
+  CHECK CONSTRAINTS:
+    payments_status_check: status = ANY (ARRAY['pending'::text, 'success'::text, 'failed'::text, 'refunded'::text])
+
+  INDEXES:
+    idx_payments_course_id: ['course_id']
+    idx_payments_order_id: ['order_id']
+    idx_payments_status: ['status']
+    idx_payments_student_id: ['student_id']
+    payments_order_id_key: ['order_id'] (UNIQUE)
+
+----------------------------------------------------------------------
+  TABLE: public.quiz_questions
+----------------------------------------------------------------------
+
+  Column                         Type                      Nullable   Default
+  ------------------------------ ------------------------- ---------- ------------------------------
+  id                             INTEGER                   NO         nextval('"public".quiz_questions_id_seq'::regclass)
+  quiz_id                        VARCHAR(100)              NO         None
+  question_number                INTEGER                   NO         None
+  question_text                  TEXT                      NO         None
+  options                        JSONB                     NO         None
+  correct_answer                 CHAR(1)                   NO         None
+  explanation                    TEXT                      YES        None
+  difficulty                     VARCHAR(20)               YES        None
+  created_at                     TIMESTAMP                 YES        now()
+
+  PRIMARY KEY: ['id']
+    constraint name: quiz_questions_pkey
+
+  FOREIGN KEYS:
+    quiz_questions_quiz_id_fkey: ['quiz_id'] -> public.quizzes(['quiz_id'])
+
+  UNIQUE CONSTRAINTS:
+    unique_quiz_question: ['quiz_id', 'question_number']
+
+  CHECK CONSTRAINTS:
+    quiz_questions_difficulty_check: difficulty::text = ANY (ARRAY['easy'::character varying, 'medium'::character varying, 'hard'::character varying]::text[])
+
+  INDEXES:
+    idx_quiz_questions_difficulty: ['difficulty']
+    idx_quiz_questions_quiz_id: ['quiz_id']
+    unique_quiz_question: ['quiz_id', 'question_number'] (UNIQUE)
+
+----------------------------------------------------------------------
+  TABLE: public.quiz_responses
+----------------------------------------------------------------------
+
+  Column                         Type                      Nullable   Default
+  ------------------------------ ------------------------- ---------- ------------------------------
+  id                             INTEGER                   NO         nextval('"public".quiz_responses_id_seq'::regclass)
+  quiz_id                        VARCHAR(100)              NO         None
+  user_id                        INTEGER                   NO         None
+  answers                        JSONB                     NO         None
+  score                          INTEGER                   YES        None
+  total_questions                INTEGER                   YES        None
+  correct_answers                INTEGER                   YES        None
+  time_taken                     INTEGER                   YES        None
+  submitted_at                   TIMESTAMP                 YES        now()
+
+  PRIMARY KEY: ['id']
+    constraint name: quiz_responses_pkey
+
+  FOREIGN KEYS:
+    quiz_responses_quiz_id_fkey: ['quiz_id'] -> public.quizzes(['quiz_id'])
+    quiz_responses_user_id_fkey: ['user_id'] -> public.users(['id'])
+
+  INDEXES:
+    idx_quiz_responses_quiz_id: ['quiz_id']
+    idx_quiz_responses_user_id: ['user_id']
+    idx_quiz_responses_user_quiz: ['user_id', 'quiz_id']
+
+----------------------------------------------------------------------
+  TABLE: public.quizzes
+----------------------------------------------------------------------
+
+  Column                         Type                      Nullable   Default
+  ------------------------------ ------------------------- ---------- ------------------------------
+  id                             INTEGER                   NO         nextval('"public".quizzes_id_seq'::regclass)
+  quiz_id                        VARCHAR(100)              NO         None
+  course_id                      INTEGER                   NO         None
+  module_id                      INTEGER                   YES        None
+  title                          VARCHAR(500)              NO         None
+  description                    TEXT                      YES        None
+  quiz_type                      VARCHAR(50)               YES        'module'::character varying
+  passing_score                  INTEGER                   YES        70
+  time_limit                     INTEGER                   YES        None
+  created_at                     TIMESTAMP                 YES        now()
+
+  PRIMARY KEY: ['id']
+    constraint name: quizzes_pkey
+
+  FOREIGN KEYS:
+    quizzes_course_id_fkey: ['course_id'] -> public.courses(['id'])
+    quizzes_module_id_fkey: ['module_id'] -> public.modules(['id'])
+
+  UNIQUE CONSTRAINTS:
+    quizzes_quiz_id_key: ['quiz_id']
+
+  CHECK CONSTRAINTS:
+    quizzes_quiz_type_check: quiz_type::text = ANY (ARRAY['module'::character varying, 'course'::character varying, 'practice'::character varying, 'final'::character varying]::text[])
+
+  INDEXES:
+    idx_quizzes_course_id: ['course_id']
+    idx_quizzes_module_id: ['module_id']
+    idx_quizzes_quiz_type: ['quiz_type']
+    quizzes_quiz_id_key: ['quiz_id'] (UNIQUE)
+
+----------------------------------------------------------------------
+  TABLE: public.session
+----------------------------------------------------------------------
+
+  Column                         Type                      Nullable   Default
+  ------------------------------ ------------------------- ---------- ------------------------------
+  sid                            VARCHAR                   NO         None
+  sess                           JSON                      NO         None
+  expire                         TIMESTAMP                 NO         None
+
+  PRIMARY KEY: ['sid']
+    constraint name: session_pkey
+
+  INDEXES:
+    idx_session_expire: ['expire']
+
+----------------------------------------------------------------------
+  TABLE: public.topics
+----------------------------------------------------------------------
+
+  Column                         Type                      Nullable   Default
+  ------------------------------ ------------------------- ---------- ------------------------------
+  id                             INTEGER                   NO         nextval('"public".topics_id_seq'::regclass)
+  module_id                      INTEGER                   NO         None
+  title                          VARCHAR(500)              NO         None
+  content                        TEXT                      NO         None
+  order_index                    INTEGER                   YES        None
+  estimated_time                 INTEGER                   YES        None
+  created_at                     TIMESTAMP                 YES        now()
+
+  PRIMARY KEY: ['id']
+    constraint name: topics_pkey
+
+  FOREIGN KEYS:
+    topics_module_id_fkey: ['module_id'] -> public.modules(['id'])
+
+  INDEXES:
+    idx_topics_module_id: ['module_id']
+    idx_topics_order: ['module_id', 'order_index']
+
+----------------------------------------------------------------------
+  TABLE: public.uploaded_notes
+----------------------------------------------------------------------
+
+  Column                         Type                      Nullable   Default
+  ------------------------------ ------------------------- ---------- ------------------------------
+  id                             INTEGER                   NO         nextval('"public".uploaded_notes_id_seq'::regclass)
+  user_id                        INTEGER                   NO         None
+  session_id                     INTEGER                   YES        None
+  file_name                      TEXT                      NO         None
+  file_type                      TEXT                      YES        None
+  file_size                      INTEGER                   YES        None
+  file_url                       TEXT                      YES        None
+  content                        TEXT                      NO         None
+  content_summary                TEXT                      YES        None
+  metadata                       JSONB                     YES        '{}'::jsonb
+  processing_status              TEXT                      YES        'pending'::text
+  error_message                  TEXT                      YES        None
+  uploaded_at                    TIMESTAMP                 YES        now()
+  processed_at                   TIMESTAMP                 YES        None
+  created_at                     TIMESTAMP                 YES        now()
+  updated_at                     TIMESTAMP                 YES        now()
+
+  PRIMARY KEY: ['id']
+    constraint name: uploaded_notes_pkey
+
+  FOREIGN KEYS:
+    uploaded_notes_session_id_fkey: ['session_id'] -> public.user_sessions(['id'])
+    uploaded_notes_user_id_fkey: ['user_id'] -> public.users(['id'])
+
+  CHECK CONSTRAINTS:
+    uploaded_notes_processing_status_check: processing_status = ANY (ARRAY['pending'::text, 'processing'::text, 'completed'::text, 'failed'::text])
+
+  INDEXES:
+    idx_uploaded_notes_session_id: ['session_id']
+    idx_uploaded_notes_status: ['processing_status']
+    idx_uploaded_notes_uploaded_at: ['uploaded_at']
+    idx_uploaded_notes_user_id: ['user_id']
+
+----------------------------------------------------------------------
+  TABLE: public.user_assessment_responses
+----------------------------------------------------------------------
+
+  Column                         Type                      Nullable   Default
+  ------------------------------ ------------------------- ---------- ------------------------------
+  id                             INTEGER                   NO         nextval('"public".user_assessment_responses_id_seq'::regclass)
+  user_id                        INTEGER                   NO         None
+  session_id                     INTEGER                   YES        None
+  assessment_id                  INTEGER                   NO         None
+  attempt_number                 INTEGER                   NO         1
+  answers                        JSONB                     NO         None
+  score                          INTEGER                   YES        None
+  percentage                     NUMERIC(5, 2)             YES        None
+  total_questions                INTEGER                   YES        None
+  correct_answers                INTEGER                   YES        None
+  incorrect_answers              INTEGER                   YES        None
+  unanswered                     INTEGER                   YES        None
+  time_taken                     INTEGER                   YES        None
+  started_at                     TIMESTAMP                 YES        now()
+  submitted_at                   TIMESTAMP                 YES        None
+  status                         TEXT                      YES        'in_progress'::text
+  feedback                       TEXT                      YES        None
+  ai_feedback                    JSONB                     YES        None
+  created_at                     TIMESTAMP                 YES        now()
+  updated_at                     TIMESTAMP                 YES        now()
+
+  PRIMARY KEY: ['id']
+    constraint name: user_assessment_responses_pkey
+
+  FOREIGN KEYS:
+    user_assessment_responses_assessment_id_fkey: ['assessment_id'] -> public.assessments(['id'])
+    user_assessment_responses_session_id_fkey: ['session_id'] -> public.user_sessions(['id'])
+    user_assessment_responses_user_id_fkey: ['user_id'] -> public.users(['id'])
+
+  CHECK CONSTRAINTS:
+    user_assessment_responses_status_check: status = ANY (ARRAY['in_progress'::text, 'submitted'::text, 'graded'::text])
+
+  INDEXES:
+    idx_user_assessment_responses_assessment_id: ['assessment_id']
+    idx_user_assessment_responses_session_id: ['session_id']
+    idx_user_assessment_responses_status: ['status']
+    idx_user_assessment_responses_submitted_at: ['submitted_at']
+    idx_user_assessment_responses_user_assessment: ['user_id', 'assessment_id']
+    idx_user_assessment_responses_user_id: ['user_id']
+
+----------------------------------------------------------------------
+  TABLE: public.user_progress
+----------------------------------------------------------------------
+
+  Column                         Type                      Nullable   Default
+  ------------------------------ ------------------------- ---------- ------------------------------
+  id                             INTEGER                   NO         nextval('"public".user_progress_id_seq'::regclass)
+  user_id                        INTEGER                   NO         None
+  course_id                      INTEGER                   NO         None
+  module_id                      INTEGER                   YES        None
+  topic_id                       INTEGER                   YES        None
+  status                         VARCHAR(50)               YES        'not_started'::character varying
+  progress_percentage            INTEGER                   YES        0
+  last_accessed                  TIMESTAMP                 YES        now()
+  completion_date                TIMESTAMP                 YES        None
+
+  PRIMARY KEY: ['id']
+    constraint name: user_progress_pkey
+
+  FOREIGN KEYS:
+    user_progress_course_id_fkey: ['course_id'] -> public.courses(['id'])
+    user_progress_module_id_fkey: ['module_id'] -> public.modules(['id'])
+    user_progress_topic_id_fkey: ['topic_id'] -> public.topics(['id'])
+    user_progress_user_id_fkey: ['user_id'] -> public.users(['id'])
+
+  UNIQUE CONSTRAINTS:
+    unique_user_progress: ['user_id', 'course_id', 'module_id', 'topic_id']
+
+  CHECK CONSTRAINTS:
+    user_progress_progress_percentage_check: progress_percentage >= 0 AND progress_percentage <= 100
+    user_progress_status_check: status::text = ANY (ARRAY['not_started'::character varying, 'in_progress'::character varying, 'completed'::character varying]::text[])
+
+  INDEXES:
+    idx_user_progress_course_id: ['course_id']
+    idx_user_progress_status: ['status']
+    idx_user_progress_user_course: ['user_id', 'course_id']
+    idx_user_progress_user_id: ['user_id']
+    unique_user_progress: ['user_id', 'course_id', 'module_id', 'topic_id'] (UNIQUE)
+
+----------------------------------------------------------------------
+  TABLE: public.user_purchases
+----------------------------------------------------------------------
+
+  Column                         Type                      Nullable   Default
+  ------------------------------ ------------------------- ---------- ------------------------------
+  id                             INTEGER                   NO         nextval('"public".user_purchases_id_seq'::regclass)
+  user_id                        INTEGER                   NO         None
+  course_id                      TEXT                      NO         None
+  payment_id                     TEXT                      YES        None
+  amount                         NUMERIC(10, 2)            NO         None
+  currency                       TEXT                      NO         'INR'::text
+  status                         TEXT                      NO         'pending'::text
+  payment_method                 TEXT                      YES        'ccavenue'::text
+  purchased_at                   TIMESTAMP                 YES        now()
+  expires_at                     TIMESTAMP                 YES        None
+
+  PRIMARY KEY: ['id']
+    constraint name: user_purchases_pkey
+
+  FOREIGN KEYS:
+    user_purchases_user_id_fkey: ['user_id'] -> public.users(['id'])
+
+  CHECK CONSTRAINTS:
+    user_purchases_status_check: status = ANY (ARRAY['pending'::text, 'completed'::text, 'failed'::text, 'refunded'::text])
+
+  INDEXES:
+    idx_user_purchases_course_id: ['course_id']
+    idx_user_purchases_status: ['status']
+    idx_user_purchases_user_id: ['user_id']
+
+----------------------------------------------------------------------
+  TABLE: public.user_sessions
+----------------------------------------------------------------------
+
+  Column                         Type                      Nullable   Default
+  ------------------------------ ------------------------- ---------- ------------------------------
+  id                             INTEGER                   NO         nextval('"public".user_sessions_id_seq'::regclass)
+  user_id                        INTEGER                   NO         None
+  current_course_id              INTEGER                   YES        None
+  ip_address                     INET                      YES        None
+  user_agent                     TEXT                      YES        None
+  device_type                    TEXT                      YES        None
+  message_count                  INTEGER                   YES        0
+  is_active                      BOOLEAN                   YES        true
+  started_at                     TIMESTAMP                 YES        now()
+  last_activity_at               TIMESTAMP                 YES        now()
+  expires_at                     TIMESTAMP                 YES        None
+  ended_at                       TIMESTAMP                 YES        None
+  session_id                     TEXT                      NO         None
+
+  PRIMARY KEY: ['id']
+    constraint name: user_sessions_pkey
+
+  FOREIGN KEYS:
+    user_sessions_current_course_id_fkey: ['current_course_id'] -> public.courses(['id'])
+    user_sessions_user_id_fkey: ['user_id'] -> public.users(['id'])
+
+  UNIQUE CONSTRAINTS:
+    user_sessions_session_id_key: ['session_id']
+
+  INDEXES:
+    idx_user_sessions_active: ['is_active', 'last_activity_at']
+    idx_user_sessions_session_id: ['session_id']
+    idx_user_sessions_user_active: ['user_id', 'is_active']
+    idx_user_sessions_user_id: ['user_id']
+    user_sessions_session_id_key: ['session_id'] (UNIQUE)
+
+----------------------------------------------------------------------
+  TABLE: public.users
+----------------------------------------------------------------------
+
+  Column                         Type                      Nullable   Default
+  ------------------------------ ------------------------- ---------- ------------------------------
+  id                             INTEGER                   NO         nextval('"public".users_id_seq'::regclass)
+  username                       TEXT                      NO         None
+  email                          TEXT                      NO         None
+  password                       TEXT                      NO         None
+  role                           TEXT                      NO         'student'::text
+  student_type                   TEXT                      YES        None
+  college_name                   TEXT                      YES        None
+  degree                         TEXT                      YES        None
+  school_class                   TEXT                      YES        None
+  school_affiliation             TEXT                      YES        None
+  institution                    TEXT                      YES        None
+  subject                        TEXT                      YES        None
+  experience                     TEXT                      YES        None
+  terms_accepted                 BOOLEAN                   NO         false
+  email_verified                 BOOLEAN                   YES        false
+  is_active                      BOOLEAN                   YES        true
+  last_login_at                  TIMESTAMP                 YES        None
+  created_at                     TIMESTAMP                 YES        now()
+  updated_at                     TIMESTAMP                 YES        now()
+  user_number                    INTEGER                   YES        None
+
+  PRIMARY KEY: ['id']
+    constraint name: users_pkey
+
+  UNIQUE CONSTRAINTS:
+    users_email_key: ['email']
+    users_username_key: ['username']
+
+  CHECK CONSTRAINTS:
+    users_role_check: role = ANY (ARRAY['student'::text, 'teacher'::text, 'admin'::text])
+    users_student_type_check: (student_type = ANY (ARRAY['high_school'::text, 'undergrad'::text, 'postgrad'::text, 'professional'::text])) OR student_type IS NULL
+
+  INDEXES:
+    idx_users_email: ['email']
+    idx_users_is_active: ['is_active']
+    idx_users_role: ['role']
+    idx_users_username: ['username']
+    users_created_at_idx: ['created_at']
+    users_email_idx: ['email'] (UNIQUE)
+    users_email_key: ['email'] (UNIQUE)
+    users_email_uniq_idx: ['email'] (UNIQUE)
+    users_role_idx: ['role']
+    users_username_idx: ['username'] (UNIQUE)
+    users_username_key: ['username'] (UNIQUE)
+
+
+================================================================================
+SEQUENCES
+================================================================================
+  public.api_access_requests_id_seq
+  public.assessment_questions_id_seq
+  public.assessments_id_seq
+  public.course_id_mapping_id_seq
+  public.course_images_id_seq
+  public.course_pricing_id_seq
+  public.course_progress_id_seq
+  public.courses_id_seq
+  public.enrollments_id_seq
+  public.messages_id_seq
+  public.modules_id_seq
+  public.payment_transactions_id_seq
+  public.payments_id_seq
+  public.quiz_questions_id_seq
+  public.quiz_responses_id_seq
+  public.quizzes_id_seq
+  public.topics_id_seq
+  public.uploaded_notes_id_seq
+  public.user_assessment_responses_id_seq
+  public.user_progress_id_seq
+  public.user_purchases_id_seq
+  public.user_sessions_id_seq
+  public.users_id_seq
+
+
+================================================================================
+TABLE ROW COUNTS (public schema)
+================================================================================
+  public.api_access_requests: 0 rows
+  public.assessment_questions: 0 rows
+  public.assessments: 0 rows
+  public.course_id_mapping: 18 rows
+  public.course_images: 12 rows
+  public.course_pricing: 18 rows
+  public.course_progress: 0 rows
+  public.courses: 18 rows
+  public.enrollments: 0 rows
+  public.messages: 867 rows
+  public.modules: 231 rows
+  public.payment_transactions: 73 rows
+  public.payments: 0 rows
+  public.quiz_questions: 2320 rows
+  public.quiz_responses: 0 rows
+  public.quizzes: 90 rows
+  public.session: 1 rows
+  public.topics: 1081 rows
+  public.uploaded_notes: 0 rows
+  public.user_assessment_responses: 0 rows
+  public.user_progress: 5 rows
+  public.user_purchases: 12 rows
+  public.user_sessions: 25 rows
+  public.users: 307 rows
+
+================================================================================
+Done.
+================================================================================

@@ -60,6 +60,15 @@ class TeachingState(TypedDict):
     persona_style: Optional[str]
     persona_personality: Optional[str]
 
+    # Rich context for natural responses
+    course_title: Optional[str]
+    module_title: Optional[str]
+    sub_topic_title: Optional[str]
+    progress_summary: Optional[str]       # e.g. "3/53 topics completed (6%)"
+    previous_topic_title: Optional[str]
+    next_topic_title: Optional[str]
+    conversation_history_text: Optional[str]  # pre-formatted recent exchanges
+
 
 # ============================================================================
 # TOOLS
@@ -354,7 +363,7 @@ Keep segments concise (2-3 minutes of speaking)."""),
 def answer_question(state: TeachingState) -> TeachingState:
     """
     Answer student question using RAG + pedagogical approach.
-    Uses conversation history and course content as context.
+    Uses full session context (course, module, topic, progress, conversation history).
     """
     messages = state["messages"]
     user_question = state.get("last_user_input", "")
@@ -362,14 +371,20 @@ def answer_question(state: TeachingState) -> TeachingState:
     if not user_question and messages:
         user_question = messages[-1].content if isinstance(messages[-1], HumanMessage) else ""
     
-    # Get conversation history for context
-    history_context = query_conversation_history.invoke({
-        "session_id": state["session_id"],
-        "user_id": state["user_id"],
-        "limit": 5
-    })
+    # --- Build rich context strings ---
+    # Conversation history: prefer pre-formatted text from orchestrator,
+    # fall back to DB query
+    history_context = state.get("conversation_history_text") or ""
+    if not history_context:
+        try:
+            history_context = query_conversation_history.invoke({
+                "session_id": state["session_id"],
+                "user_id": state["user_id"],
+                "limit": 5
+            })
+        except Exception:
+            history_context = "(no prior conversation)"
     
-    # Get course content for context
     course_context = state.get("teaching_content", "")
     
     raw_name2 = state.get("user_name", "") or ""
@@ -377,46 +392,64 @@ def answer_question(state: TeachingState) -> TeachingState:
     _parts2 = _re2.split(r'[_\-.\s]+', raw_name2.strip())
     student_name = _parts2[0].capitalize() if _parts2 and _parts2[0] else "student"
     
-    # Persona injection
+    # Persona
     p_name = state.get("persona_name") or "Professor"
     p_style = state.get("persona_style") or "Engaging, Socratic, and encouraging"
     p_personality = state.get("persona_personality") or (
         "An expert professor who uses storytelling and real-world examples."
     )
     
-    # Pedagogical answer prompt
+    # Session context
+    course_title = state.get("course_title") or "the current course"
+    module_title = state.get("module_title") or ""
+    sub_topic_title = state.get("sub_topic_title") or ""
+    progress_summary = state.get("progress_summary") or ""
+    prev_topic = state.get("previous_topic_title") or ""
+    next_topic = state.get("next_topic_title") or ""
+    
+    # Build a concise session-status block for the prompt
+    status_lines = []
+    if course_title:
+        status_lines.append(f"Course: {course_title}")
+    if module_title:
+        status_lines.append(f"Current module: {module_title}")
+    if sub_topic_title:
+        status_lines.append(f"Current topic: {sub_topic_title}")
+    if progress_summary:
+        status_lines.append(f"Student progress: {progress_summary}")
+    if prev_topic:
+        status_lines.append(f"Previously covered: {prev_topic}")
+    if next_topic:
+        status_lines.append(f"Coming up next: {next_topic}")
+    session_status = "\n".join(status_lines) if status_lines else "(no status available)"
+    
+    # Pedagogical answer prompt — fully contextual
     answer_prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are {persona_name}, answering a student's question during a lesson.
-The student's first name is {student_name}.
+        ("system", """You are {persona_name}, a professor in a live, one-on-one teaching session with a student.
+Student first name: {student_name}
 
 Your persona: {persona_style}. {persona_personality}
 
-Your approach:
-- Directly address the question first
-- Connect the answer to the broader lesson context
-- Provide a clear example to illustrate the concept
-- Keep it concise — 1-2 minutes of speaking maximum
+═══ SESSION STATUS ═══
+{session_status}
 
-ASSESSMENT MODE — when the student is answering a question YOU asked:
-- Evaluate their understanding: is the answer correct, partially correct, or off-track?
-- If correct/mostly correct: praise briefly and reinforce the key point, then move on.
-- If partially correct: acknowledge what's right, gently correct what's missing, explain the gap.
-- If incorrect: don't just say "wrong" — re-explain the concept from a different angle with a new example, then ask a simpler follow-up.
-- Always end by asking if they'd like to continue or have more questions.
-
-IMPORTANT — sound natural:
-- Use the student's first name sparingly (at most once). Do NOT start every response with their name.
-- Vary your opening — don't always say "Great question!" Use different, natural transitions.
-- Write as spoken language — short sentences, contractions, conversational tone.
-- Stay in character as {persona_name}.
-
-Context from lesson:
+═══ CURRENT TOPIC CONTENT (what you just taught) ═══
 {course_context}
 
-Recent conversation:
+═══ RECENT CONVERSATION ═══
 {history_context}
 
-Answer the question naturally and pedagogically."""),
+═══ RULES — READ CAREFULLY ═══
+1. ANSWER THE QUESTION DIRECTLY — address exactly what the student asked. Do not deflect or redirect unless the question is truly off-topic.
+2. CONNECT to the current topic when relevant, but don't force it. If the student asks something personal or off-topic (like "what is my name?"), just answer it naturally and briefly.
+3. KEEP IT SHORT — this is spoken audio. Aim for 30-90 seconds of speech (roughly 80-200 words). No essays.
+4. SOUND HUMAN — use contractions, short sentences, natural pauses. Write as you would SPEAK, not as you would write an article.
+5. DO NOT start your response with the student's name. Use their name at most once, and only mid-sentence or at the end.
+6. DO NOT say "Great question!" or "That's a great question!" — vary your openings naturally. Sometimes just start answering.
+7. DO NOT end with "Is your doubt clear?" or "Do you have any other questions?" or any formulaic closing. Just end your answer naturally. If you want to offer to continue, do it casually like "Want me to go deeper on this?" or "Should we keep going?"
+8. When the student is answering YOUR question (assessment mode): evaluate briefly, correct if needed, reinforce the key point, then move on. Don't over-praise.
+9. STAY IN CHARACTER as {persona_name} throughout. You are a real professor in a real class.
+10. If you don't know the answer or it's outside the course scope, say so honestly — don't make things up."""),
         ("user", "{question}")
     ])
     
@@ -426,8 +459,9 @@ Answer the question naturally and pedagogically."""),
     try:
         result = chain.invoke({
             "question": user_question,
-            "course_context": course_context[:2000],
+            "course_context": course_context[:3000],
             "history_context": history_context,
+            "session_status": session_status,
             "student_name": student_name,
             "persona_name": p_name,
             "persona_style": p_style,

@@ -19,6 +19,7 @@ from services.audio_service import AudioService
 from services.teaching_service import TeachingService
 from services.session_manager import get_session_manager
 from services.database_service_v2 import get_database_service
+from services.session_init_service import SessionInitService
 
 # Real-time Teaching Orchestrator (replaces broken LangGraph supervisor)
 from services.realtime_orchestrator import (
@@ -30,6 +31,31 @@ from services.realtime_orchestrator import (
 )
 
 import config
+
+# ═══════════════════════════════════════════════════════════
+# SHARED SERVICE SINGLETONS — initialized once, reused across all clients
+# ═══════════════════════════════════════════════════════════
+_shared_chat_service = None
+_shared_audio_service = None
+_shared_teaching_service = None
+
+def _get_shared_chat_service():
+    global _shared_chat_service
+    if _shared_chat_service is None:
+        _shared_chat_service = ChatService()
+    return _shared_chat_service
+
+def _get_shared_audio_service():
+    global _shared_audio_service
+    if _shared_audio_service is None:
+        _shared_audio_service = AudioService()
+    return _shared_audio_service
+
+def _get_shared_teaching_service():
+    global _shared_teaching_service
+    if _shared_teaching_service is None:
+        _shared_teaching_service = TeachingService()
+    return _shared_teaching_service
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -183,37 +209,40 @@ class ProfAIAgent:
             log(f"Failed to get session manager for {self.client_id}: {e}")
             self.session_manager = None
         
-        # Initialize services with error handling
+        # Reuse shared service singletons (initialized once, not per-client)
         self.services_available = {}
         try:
-            self.chat_service = ChatService()
+            self.chat_service = _get_shared_chat_service()
             self.services_available["chat"] = True
-            log(f"Chat service initialized for client {self.client_id}")
+            log(f"Chat service ready for client {self.client_id}")
         except Exception as e:
-            log(f"Failed to initialize chat service for {self.client_id}: {e}")
+            log(f"Failed to get chat service for {self.client_id}: {e}")
             self.chat_service = None
             self.services_available["chat"] = False
         
         try:
-            self.audio_service = AudioService()
+            self.audio_service = _get_shared_audio_service()
             self.services_available["audio"] = True
-            log(f"Audio service initialized for client {self.client_id}")
+            log(f"Audio service ready for client {self.client_id}")
         except Exception as e:
-            log(f"Failed to initialize audio service for {self.client_id}: {e}")
+            log(f"Failed to get audio service for {self.client_id}: {e}")
             self.audio_service = None
             self.services_available["audio"] = False
         
         try:
-            self.teaching_service = TeachingService()
+            self.teaching_service = _get_shared_teaching_service()
             self.services_available["teaching"] = True
-            log(f"Teaching service initialized for client {self.client_id}")
+            log(f"Teaching service ready for client {self.client_id}")
         except Exception as e:
-            log(f"Failed to initialize teaching service for {self.client_id}: {e}")
+            log(f"Failed to get teaching service for {self.client_id}: {e}")
             self.teaching_service = None
             self.services_available["teaching"] = False
         
         # Real-time Teaching Orchestrator (replaces broken LangGraph supervisor)
         self.orchestrator = RealtimeOrchestrator()
+        
+        # Session initialization service (greeting, progress, navigation)
+        self.session_init_service = SessionInitService(self.database_service) if self.database_service else None
         
         # Performance tracking
         self.conversation_metrics = {
@@ -287,6 +316,8 @@ class ProfAIAgent:
                         await self.handle_ping(data)
                     elif message_type == "chat_with_audio":
                         await self.handle_chat_with_audio(data)
+                    elif message_type == "start_session":
+                        await self.handle_start_session(data)
                     elif message_type == "start_class":
                         await self.handle_start_class(data)
                     elif message_type == "start_class_interactive":
@@ -925,6 +956,147 @@ class ProfAIAgent:
                 "error": f"Class processing failed: {str(e)}"
             })
 
+    async def handle_start_session(self, data: dict):
+        """
+        Handle intelligent session start — greet user, show progress, offer choices.
+        This is the new entry point that replaces directly jumping into teaching.
+        The user can then voice-navigate to resume, switch course, or ask questions.
+        """
+        try:
+            user_id = data.get("user_id") or self.user_id
+            language = data.get("language", self.current_language)
+            ip_address = data.get("ip_address") or self.ip_address or "127.0.0.1"
+            user_agent = data.get("user_agent") or self.user_agent
+            persona_id = data.get("persona_id") or getattr(config, "DEFAULT_PERSONA", "prof_sarah")
+            personas = getattr(config, "PROFESSOR_PERSONAS", {})
+            persona = personas.get(persona_id, {})
+            voice_id = persona.get("voice_id")
+
+            if not user_id:
+                await self.websocket.send({"type": "error", "error": "user_id is required for start_session"})
+                return
+
+            self.user_id = user_id
+            self.ip_address = ip_address
+            self.user_agent = user_agent
+
+            # Get or create DB session (one user = one session)
+            if self.session_manager:
+                try:
+                    session = self.session_manager.get_or_create_session(
+                        user_id=user_id, ip_address=ip_address, user_agent=user_agent
+                    )
+                    self.session_id = session['session_id']
+                    log(f"Session for start_session: {self.session_id}")
+                except Exception as e:
+                    log(f"Session creation failed: {e}")
+
+            # Fetch username
+            user_name = ""
+            if self.database_service and user_id:
+                try:
+                    user_info = self.database_service.get_user_by_id(int(user_id))
+                    if user_info:
+                        user_name = user_info.get('username', '')
+                except Exception as e:
+                    log(f"⚠️ Could not fetch username: {e}")
+
+            # Build welcome payload via SessionInitService
+            welcome = {}
+            if self.session_init_service:
+                try:
+                    welcome = await asyncio.get_event_loop().run_in_executor(
+                        None, self.session_init_service.build_welcome, int(user_id), user_name
+                    )
+                except Exception as e:
+                    log(f"⚠️ SessionInitService.build_welcome failed: {e}")
+                    import traceback; traceback.print_exc()
+
+            greeting_text = welcome.get('greeting_text', f"Welcome! Let's get started.")
+            summary = welcome.get('summary', {})
+            resume_info = welcome.get('resume_info')
+            suggested_action = welcome.get('suggested_action', 'choose_course')
+
+            # Initialize orchestrator in SESSION_INIT phase
+            thread_id = self.session_id or f"ws_{self.client_id}"
+            # Use resume course_id if available, else 0
+            init_course_id = (resume_info or {}).get('course_id', 0) if resume_info else 0
+            orch_state = self.orchestrator.create_session(
+                session_id=thread_id,
+                user_id=str(user_id),
+                course_id=init_course_id,
+                module_index=0,
+                sub_topic_index=0,
+                user_name=user_name,
+                persona_id=persona_id,
+            )
+            if orch_state:
+                orch_state.phase = TeachingPhase.SESSION_INIT.value
+
+            # Pre-load course_data if we have a resume course, so select_module/select_topic work
+            preloaded_course_data = None
+            if init_course_id and self.database_service:
+                try:
+                    preloaded_course_data = self.database_service.get_course_with_content(init_course_id)
+                    if preloaded_course_data and orch_state:
+                        orch_state.total_modules = len(preloaded_course_data.get('modules', []))
+                    log(f"📦 Pre-loaded course_data for course {init_course_id}")
+                except Exception as e:
+                    log(f"⚠️ Could not pre-load course_data: {e}")
+
+            # Set up teaching_session state for STT + TTS
+            self.teaching_session = {
+                'active': True,
+                'thread_id': thread_id,
+                'course_id': init_course_id,
+                'course_data': preloaded_course_data,
+                'module_index': 0,
+                'sub_topic_index': 0,
+                'current_tts_task': None,
+                'stt_service': None,
+                'user_id': user_id,
+                'user_name': user_name,
+                'language': language,
+                'last_latency_ms': 0,
+                '_streaming_text': '',
+                'persona_id': persona_id,
+                'persona': persona,
+                'voice_id': voice_id,
+                'mode': 'session_init',
+            }
+
+            # Send structured summary to frontend
+            await self.websocket.send({
+                "type": "session_init",
+                "greeting": greeting_text,
+                "summary": summary,
+                "suggested_action": suggested_action,
+                "resume_info": resume_info,
+            })
+
+            # Initialize Deepgram STT for voice interaction
+            try:
+                from services.deepgram_stt_service import DeepgramSTTService
+                stt_service = DeepgramSTTService(sample_rate=16000, language_hint=language)
+                stt_started = await stt_service.start()
+                if stt_started:
+                    self.teaching_session['stt_service'] = stt_service
+                    asyncio.create_task(self._handle_teaching_interruptions())
+                    log("✅ STT started for session_init")
+                else:
+                    log("⚠️ STT not available for session_init")
+            except Exception as e:
+                log(f"⚠️ STT init failed for session_init: {e}")
+
+            # Stream the greeting via TTS
+            log(f"🎙️ Streaming session greeting ({len(greeting_text)} chars)")
+            await self._stream_answer_response(greeting_text, "session_greeting")
+
+        except Exception as e:
+            log(f"❌ handle_start_session error: {e}")
+            import traceback; traceback.print_exc()
+            await self.websocket.send({"type": "error", "error": f"Session start failed: {str(e)}"})
+
     async def handle_interactive_teaching(self, data: dict):
         """Handle interactive teaching with two-way voice communication and barge-in support."""
         request_start_time = time.time()
@@ -1108,6 +1280,7 @@ class ProfAIAgent:
                 if orch_state:
                     orch_state.module_title = module_title
                     orch_state.sub_topic_title = sub_topic_title
+                    orch_state.course_title = course_data.get('course_title', course_data.get('title', ''))
                     orch_state.total_modules = len(modules)
                     orch_state.total_sub_topics = len(sub_topics)
                 
@@ -1414,7 +1587,61 @@ class ProfAIAgent:
             log(f"Traceback: {traceback.format_exc()}")
         finally:
             log("🏁 _handle_teaching_interruptions() task ENDED")
+            # --- STT auto-reconnect ---
+            if self.teaching_session and self.teaching_session.get('active', False):
+                await self._attempt_stt_reconnect()
     
+    async def _attempt_stt_reconnect(self):
+        """Try to reconnect Deepgram STT after a connection drop."""
+        max_retries = 3
+        for attempt in range(1, max_retries + 1):
+            delay = attempt * 2  # 2s, 4s, 6s
+            log(f"🔄 STT reconnect attempt {attempt}/{max_retries} in {delay}s...")
+            await asyncio.sleep(delay)
+
+            if not self.teaching_session or not self.teaching_session.get('active', False):
+                log("🛑 Session ended during STT reconnect — aborting")
+                return
+
+            try:
+                # Close old STT gracefully
+                old_stt = self.teaching_session.get('stt_service')
+                if old_stt:
+                    try:
+                        await old_stt.close()
+                    except Exception:
+                        pass
+
+                from services.deepgram_stt_service import DeepgramSTTService
+                lang = self.teaching_session.get('language', self.current_language)
+                new_stt = DeepgramSTTService(sample_rate=16000, language_hint=lang)
+                started = await new_stt.start()
+                if started:
+                    self.teaching_session['stt_service'] = new_stt
+                    asyncio.create_task(self._handle_teaching_interruptions())
+                    log(f"✅ STT reconnected on attempt {attempt}")
+                    try:
+                        await self.websocket.send({
+                            "type": "system_message",
+                            "message": "Voice input reconnected.",
+                        })
+                    except Exception:
+                        pass
+                    return
+                else:
+                    log(f"⚠️ STT reconnect attempt {attempt} — start() returned False")
+            except Exception as e:
+                log(f"❌ STT reconnect attempt {attempt} failed: {e}")
+
+        log("❌ STT reconnect exhausted all retries — voice input unavailable")
+        try:
+            await self.websocket.send({
+                "type": "stt_unavailable",
+                "message": "Voice input lost. Use text commands or buttons instead.",
+            })
+        except Exception:
+            pass
+
     async def _dispatch_action(self, act: str, rt: dict, ui: str, tid: str, save_user_msg: bool = False):
         """
         Shared action dispatcher for both STT and text-input paths.
@@ -1478,7 +1705,7 @@ class ProfAIAgent:
             elif act == 'ask_confirmation':
                 msg = rt.get('message', "Should I mark this as complete?")
                 await self.websocket.send({"type": "ask_confirmation", "message": msg})
-                await self._stream_answer_response(msg, "confirmation")
+                await self._stream_answer_response(msg, "confirmation", skip_text_send=True)
             elif act == 'mark_complete':
                 await self._handle_mark_complete()
                 # After marking complete, offer to advance if there's a next topic/course
@@ -1496,7 +1723,7 @@ class ProfAIAgent:
                         orch_state.phase = "pending_confirmation"
                         follow_up = f"Great {name}, shall we move on to the next topic?"
                         await self.websocket.send({"type": "ask_confirmation", "message": follow_up})
-                        await self._stream_answer_response(follow_up, "confirmation")
+                        await self._stream_answer_response(follow_up, "confirmation", skip_text_send=True)
             elif act == 'mark_and_advance':
                 await self._handle_mark_complete()
                 await self._handle_advance_next_topic(tid, rt)
@@ -1507,6 +1734,23 @@ class ProfAIAgent:
                 await self._handle_next_course()
             elif act == 'greeting':
                 await self._stream_answer_response(rt.get('message', "Hello!"), "greeting")
+            # --- Navigation actions (session init + course browsing) ---
+            elif act == 'list_courses':
+                await self._handle_list_courses()
+            elif act == 'list_modules':
+                await self._handle_list_modules(rt.get('course_id'))
+            elif act == 'list_topics':
+                await self._handle_list_topics(rt.get('course_id'), rt.get('module_index', 0))
+            elif act == 'select_course':
+                await self._handle_select_course(rt.get('requested_number'), rt.get('raw_input', ''), tid)
+            elif act == 'select_module':
+                await self._handle_select_module(rt.get('requested_number'), tid)
+            elif act == 'select_topic':
+                await self._handle_select_topic(rt.get('requested_number'), tid)
+            elif act == 'resume_session':
+                await self._handle_resume_session(tid)
+            elif act == 'check_progress':
+                await self._handle_check_progress()
             elif act in ('answer_with_rag', 'answer_general'):
                 if self.teaching_session:
                     self.teaching_session['mode'] = 'query_resolution'
@@ -1527,7 +1771,32 @@ class ProfAIAgent:
                 self.teaching_session['current_answer_task'] = None
 
     def _schedule_action(self, act: str, rt: dict, ui: str, tid: str, save_user_msg: bool = False):
-        """Schedule _dispatch_action as a cancellable background task."""
+        """Schedule _dispatch_action as a cancellable background task.
+        
+        Guards:
+        - Cancels any already-running action task before starting a new one
+        - Deduplicates identical actions within a 2-second window
+        """
+        log = lambda msg: logging.info(f"[WebSocket] {msg}")
+        now = time.time()
+
+        if self.teaching_session:
+            # --- Dedup guard: skip if same action was dispatched < 2s ago ---
+            last_act = self.teaching_session.get('_last_scheduled_action', '')
+            last_t = self.teaching_session.get('_last_scheduled_time', 0)
+            if act == last_act and (now - last_t) < 2.0:
+                log(f"⏭️ Dedup: skipping duplicate '{act}' (dispatched {now - last_t:.1f}s ago)")
+                return None
+
+            # --- Cancel any in-flight action task ---
+            existing = self.teaching_session.get('current_answer_task')
+            if existing and not existing.done():
+                existing.cancel()
+                log(f"🛑 Cancelled previous action task before scheduling '{act}'")
+
+            self.teaching_session['_last_scheduled_action'] = act
+            self.teaching_session['_last_scheduled_time'] = now
+
         task = asyncio.create_task(self._dispatch_action(act, rt, ui, tid, save_user_msg=save_user_msg))
         if self.teaching_session:
             self.teaching_session['current_answer_task'] = task
@@ -1631,12 +1900,9 @@ class ProfAIAgent:
             except Exception:
                 pass
         
-        # --- 4. Stream answer + resume prompt via TTS ---
-        resume_prompt = self.orchestrator.get_resume_text(thread_id)
-        full_response = f"{answer_text} {resume_prompt}"
-        
+        # --- 4. Stream answer via TTS (no resume prompt — ends naturally) ---
         await self._stream_answer_response(
-            full_response,
+            answer_text,
             "qa_rag" if use_rag else "qa_general",
             skip_text_send=True,  # Already sent above
         )
@@ -1789,23 +2055,55 @@ class ProfAIAgent:
             module_idx = self.teaching_session.get('module_index', 0)
             topic_idx = self.teaching_session.get('sub_topic_index', 0)
             if user_id and course_id:
-                # Resolve topic_id from course_data if available
+                # Resolve actual DB module.id and topic.id from course_data
+                # (user_progress FK constraints require real IDs, not 0-based indices)
+                db_module_id = None
+                db_topic_id = None
                 topic_title = ""
                 course_data = self.teaching_session.get('course_data')
                 if course_data:
                     modules = course_data.get("modules", [])
                     if module_idx < len(modules):
                         mod = modules[module_idx]
+                        db_module_id = mod.get("id")  # Actual DB PK
                         subs = mod.get("topics", mod.get("sub_topics", []))
                         if topic_idx < len(subs):
                             topic_title = subs[topic_idx].get("title", "")
+                            db_topic_id = subs[topic_idx].get("id")  # Actual DB PK
+                
+                if db_module_id is None or db_topic_id is None:
+                    log(f"⚠️ Could not resolve DB IDs for module_idx={module_idx}, topic_idx={topic_idx}")
+                
                 self.database_service.mark_topic_complete(
                     user_id=int(user_id),
                     course_id=int(course_id),
-                    module_id=module_idx,
-                    topic_id=topic_idx,
+                    module_id=db_module_id if db_module_id is not None else module_idx,
+                    topic_id=db_topic_id if db_topic_id is not None else topic_idx,
                 )
                 log(f"✅ Marked complete: course={course_id} module={module_idx} topic={topic_idx} ({topic_title})")
+
+                # Update course_progress JSONB table
+                try:
+                    stats = self.database_service.get_course_completion_stats(int(user_id), int(course_id))
+                    module_title = ""
+                    if course_data and module_idx < len(course_data.get("modules", [])):
+                        module_title = course_data["modules"][module_idx].get("title", "")
+                    self.database_service.get_or_update_course_progress(
+                        user_id=int(user_id),
+                        course_id=int(course_id),
+                        progress_data={
+                            "current_module_index": module_idx,
+                            "current_topic_index": topic_idx,
+                            "last_module_title": module_title,
+                            "last_topic_title": topic_title,
+                            "completed_topics": stats.get('completed_topics', 0),
+                            "total_topics": stats.get('total_topics', 0),
+                            "overall_pct": stats.get('completion_percentage', 0),
+                        }
+                    )
+                except Exception as cp_err:
+                    log(f"⚠️ course_progress update failed (non-critical): {cp_err}")
+
                 await self.websocket.send({
                     "type": "progress_updated",
                     "message": f"Marked as complete: {topic_title or f'Module {module_idx+1}, Topic {topic_idx+1}'}",
@@ -1892,6 +2190,13 @@ class ProfAIAgent:
             # Update course_id FIRST so any barge-in during loading uses correct course
             self.teaching_session['course_id'] = next_id
 
+            # Update session's current_course_id in database
+            if self.session_id and self.database_service:
+                try:
+                    self.database_service.update_session_course(self.session_id, next_id)
+                except Exception as e:
+                    log(f"⚠️ Failed to update session course: {e}")
+
             # Load full course content
             course_data = self.database_service.get_course_with_content(next_id)
             if not course_data:
@@ -1931,6 +2236,7 @@ class ProfAIAgent:
             orch_state = self.orchestrator.get_session(tid)
             if orch_state:
                 orch_state.course_id = next_id
+                orch_state.course_title = next_title
                 orch_state.total_modules = len(modules)
 
             # Notify client
@@ -1966,6 +2272,475 @@ class ProfAIAgent:
                 "type": "error",
                 "error": f"Failed to load next course: {str(e)}"
             })
+
+    # ============= NAVIGATION ACTION HANDLERS =============
+
+    async def _handle_list_courses(self):
+        """List available courses via TTS."""
+        if not self.session_init_service:
+            await self._stream_answer_response("I'm sorry, the course listing service is not available right now.", "error")
+            return
+        try:
+            text = await asyncio.get_event_loop().run_in_executor(
+                None, self.session_init_service.build_course_list_text, self.user_id
+            )
+            await self.websocket.send({"type": "course_list", "text": text})
+            await self._stream_answer_response(text, "course_list")
+        except Exception as e:
+            log(f"❌ _handle_list_courses error: {e}")
+            await self._stream_answer_response("I couldn't load the course list right now.", "error")
+
+    async def _handle_list_modules(self, course_id):
+        """List modules in the current course via TTS."""
+        if not self.session_init_service or not course_id:
+            await self._stream_answer_response("Please select a course first.", "error")
+            return
+        try:
+            text = await asyncio.get_event_loop().run_in_executor(
+                None, self.session_init_service.build_module_list_text, int(course_id)
+            )
+            await self.websocket.send({"type": "module_list", "text": text, "course_id": course_id})
+            await self._stream_answer_response(text, "module_list")
+        except Exception as e:
+            log(f"❌ _handle_list_modules error: {e}")
+            await self._stream_answer_response("I couldn't load the module list right now.", "error")
+
+    async def _handle_list_topics(self, course_id, module_index):
+        """List topics in the current module via TTS."""
+        if not self.session_init_service or not course_id:
+            await self._stream_answer_response("Please select a course first.", "error")
+            return
+        try:
+            text = await asyncio.get_event_loop().run_in_executor(
+                None, self.session_init_service.build_topic_list_text, int(course_id), int(module_index)
+            )
+            await self.websocket.send({"type": "topic_list", "text": text, "course_id": course_id, "module_index": module_index})
+            await self._stream_answer_response(text, "topic_list")
+        except Exception as e:
+            log(f"❌ _handle_list_topics error: {e}")
+            await self._stream_answer_response("I couldn't load the topic list right now.", "error")
+
+    async def _handle_select_course(self, requested_number, raw_input, tid):
+        """Switch to a specific course by number or name match, then start teaching."""
+        if not self.database_service:
+            await self._stream_answer_response("Course selection is not available right now.", "error")
+            return
+        try:
+            log(f"📚 select_course: number={requested_number}, raw='{raw_input}'")
+            all_courses = self.database_service.get_all_courses()
+            if not all_courses:
+                await self._stream_answer_response("No courses are available.", "error")
+                return
+
+            sorted_courses = sorted(all_courses, key=lambda c: c.get('course_order', c.get('id', 0)))
+            target = None
+
+            # Try by number (1-indexed)
+            if requested_number is not None:
+                idx = requested_number - 1 if requested_number > 0 else len(sorted_courses) - 1
+                if 0 <= idx < len(sorted_courses):
+                    target = sorted_courses[idx]
+                else:
+                    log(f"⚠️ Course number {requested_number} out of range (1-{len(sorted_courses)})")
+
+            # Try by name match if number didn't work
+            if not target and raw_input:
+                raw_lower = raw_input.lower()
+                for c in sorted_courses:
+                    title_lower = c.get('title', '').lower()
+                    if title_lower in raw_lower or raw_lower in title_lower:
+                        target = c
+                        break
+                    # Also try partial word overlap (e.g. "cyber" matches "Cyber Security")
+                    raw_words = set(raw_lower.split())
+                    title_words = set(title_lower.split())
+                    if raw_words & title_words - {'course', 'start', 'switch', 'to', 'the', 'a', 'go'}:
+                        target = c
+                        break
+
+            if not target:
+                course_names = ', '.join([f"{i+1}. {c.get('title','')}" for i, c in enumerate(sorted_courses[:5])])
+                await self._stream_answer_response(
+                    f"I couldn't find that course. Available courses include: {course_names}. "
+                    f"Say the course number to start.",
+                    "error"
+                )
+                return
+
+            course_id = target['id']
+            course_title = target.get('title', 'Unknown')
+            log(f"📚 User selected course: {course_title} (id={course_id})")
+
+            # Load and start teaching this course from module 0, topic 0
+            self.teaching_session['course_id'] = course_id
+
+            # Update session in DB
+            if self.session_id and self.database_service:
+                try:
+                    self.database_service.update_session_course(self.session_id, course_id)
+                except Exception:
+                    pass
+
+            course_data = self.database_service.get_course_with_content(course_id)
+            if not course_data:
+                await self._stream_answer_response(f"I couldn't load {course_title}.", "error")
+                return
+
+            modules = course_data.get("modules", [])
+            if not modules:
+                await self._stream_answer_response(f"{course_title} has no modules yet.", "error")
+                return
+
+            self.teaching_session['course_data'] = course_data
+            self.teaching_session['module_index'] = 0
+            self.teaching_session['sub_topic_index'] = 0
+            self.teaching_session['mode'] = 'course_teaching'
+
+            first_mod = modules[0]
+            sub_topics = first_mod.get("topics", first_mod.get("sub_topics", []))
+            first_topic = sub_topics[0] if sub_topics else {}
+            module_title = first_mod.get('title', 'Module 1')
+            sub_topic_title = first_topic.get('title', 'Topic 1')
+
+            # Update orchestrator
+            self.orchestrator.advance_topic(
+                session_id=tid, module_index=0, sub_topic_index=0,
+                module_title=module_title, sub_topic_title=sub_topic_title,
+                total_sub_topics=len(sub_topics),
+            )
+            orch_state = self.orchestrator.get_session(tid)
+            if orch_state:
+                orch_state.course_id = course_id
+                orch_state.course_title = course_title
+                orch_state.total_modules = len(modules)
+
+            # Announce and start
+            intro = (
+                f"Great, let's start with {course_title}. "
+                f"This course has {len(modules)} modules. "
+                f"We'll begin with {module_title}, topic: {sub_topic_title}."
+            )
+            await self.websocket.send({
+                "type": "course_changed",
+                "course_id": course_id, "course_title": course_title,
+                "module_title": module_title, "sub_topic_title": sub_topic_title,
+            })
+            # Also send interactive_teaching_started so frontend fully initializes
+            persona = self.teaching_session.get('persona', {})
+            await self.websocket.send({
+                "type": "interactive_teaching_started",
+                "module_title": module_title, "sub_topic_title": sub_topic_title,
+                "persona": {
+                    "name": persona.get('name', self.teaching_session.get('persona_id', '')),
+                    "style": persona.get('style', ''),
+                    "gender": persona.get('gender', 'female'),
+                },
+            })
+
+            raw_content = first_topic.get('content', '') or f"This topic covers {sub_topic_title}."
+            if len(raw_content) > 8000:
+                raw_content = raw_content[:7500] + "..."
+            teaching_content = self._create_simple_teaching_content(module_title, sub_topic_title, raw_content)
+            self.teaching_session['teaching_content'] = teaching_content
+            self.orchestrator.set_content(tid, teaching_content, raw_content)
+
+            # Mark topic as in_progress in DB
+            if self.database_service and first_mod.get('id') and first_topic.get('id'):
+                try:
+                    self.database_service.mark_topic_in_progress(
+                        int(self.user_id), course_id, first_mod['id'], first_topic['id']
+                    )
+                except Exception:
+                    pass
+
+            # Stream intro then start teaching
+            await self._stream_answer_response(intro, "course_intro")
+            first_segment = self.orchestrator.start_teaching(tid)
+            if first_segment:
+                await self._stream_teaching_content(first_segment, self.teaching_session['language'])
+
+        except Exception as e:
+            log(f"❌ _handle_select_course error: {e}")
+            import traceback; traceback.print_exc()
+            await self._stream_answer_response("I couldn't switch to that course.", "error")
+
+    async def _handle_select_module(self, requested_number, tid):
+        """Jump to a specific module in the current course."""
+        if not self.teaching_session or not self.teaching_session.get('course_data'):
+            await self._stream_answer_response("Please select a course first.", "error")
+            return
+        try:
+            course_data = self.teaching_session['course_data']
+            modules = course_data.get("modules", [])
+            if requested_number is None:
+                await self._stream_answer_response("Which module number would you like to start with?", "clarify")
+                return
+
+            idx = requested_number - 1 if requested_number > 0 else len(modules) - 1
+            if idx < 0 or idx >= len(modules):
+                await self._stream_answer_response(
+                    f"Module {requested_number} doesn't exist. This course has {len(modules)} modules.", "error"
+                )
+                return
+
+            module = modules[idx]
+            sub_topics = module.get("topics", module.get("sub_topics", []))
+            first_topic = sub_topics[0] if sub_topics else {}
+            module_title = module.get('title', f'Module {idx + 1}')
+            topic_title = first_topic.get('title', 'Topic 1')
+
+            self.teaching_session['module_index'] = idx
+            self.teaching_session['sub_topic_index'] = 0
+            self.teaching_session['mode'] = 'course_teaching'
+
+            self.orchestrator.advance_topic(
+                session_id=tid, module_index=idx, sub_topic_index=0,
+                module_title=module_title, sub_topic_title=topic_title,
+                total_sub_topics=len(sub_topics),
+            )
+
+            intro = f"Starting Module {idx + 1}: {module_title}. It has {len(sub_topics)} topics. Let's begin with {topic_title}."
+            await self.websocket.send({
+                "type": "module_changed",
+                "module_index": idx, "module_title": module_title,
+                "sub_topic_title": topic_title,
+            })
+
+            raw_content = first_topic.get('content', '') or f"This topic covers {topic_title}."
+            if len(raw_content) > 8000:
+                raw_content = raw_content[:7500] + "..."
+            teaching_content = self._create_simple_teaching_content(module_title, topic_title, raw_content)
+            self.teaching_session['teaching_content'] = teaching_content
+            self.orchestrator.set_content(tid, teaching_content, raw_content)
+
+            await self._stream_answer_response(intro, "module_intro")
+            first_segment = self.orchestrator.start_teaching(tid)
+            if first_segment:
+                await self._stream_teaching_content(first_segment, self.teaching_session['language'])
+
+        except Exception as e:
+            log(f"❌ _handle_select_module error: {e}")
+            await self._stream_answer_response("I couldn't switch to that module.", "error")
+
+    async def _handle_select_topic(self, requested_number, tid):
+        """Jump to a specific topic in the current module."""
+        if not self.teaching_session or not self.teaching_session.get('course_data'):
+            await self._stream_answer_response("Please select a course first.", "error")
+            return
+        try:
+            course_data = self.teaching_session['course_data']
+            modules = course_data.get("modules", [])
+            m_idx = self.teaching_session.get('module_index', 0)
+            if m_idx >= len(modules):
+                await self._stream_answer_response("Current module is not valid.", "error")
+                return
+
+            module = modules[m_idx]
+            sub_topics = module.get("topics", module.get("sub_topics", []))
+            if requested_number is None:
+                await self._stream_answer_response("Which topic number would you like to start with?", "clarify")
+                return
+
+            idx = requested_number - 1 if requested_number > 0 else len(sub_topics) - 1
+            if idx < 0 or idx >= len(sub_topics):
+                await self._stream_answer_response(
+                    f"Topic {requested_number} doesn't exist. This module has {len(sub_topics)} topics.", "error"
+                )
+                return
+
+            topic = sub_topics[idx]
+            module_title = module.get('title', f'Module {m_idx + 1}')
+            topic_title = topic.get('title', f'Topic {idx + 1}')
+
+            self.teaching_session['sub_topic_index'] = idx
+            self.teaching_session['mode'] = 'course_teaching'
+
+            self.orchestrator.advance_topic(
+                session_id=tid, module_index=m_idx, sub_topic_index=idx,
+                module_title=module_title, sub_topic_title=topic_title,
+                total_sub_topics=len(sub_topics),
+            )
+
+            intro = f"Starting Topic {idx + 1}: {topic_title}."
+            await self.websocket.send({
+                "type": "topic_changed",
+                "module_index": m_idx, "sub_topic_index": idx,
+                "topic_title": topic_title,
+            })
+
+            raw_content = topic.get('content', '') or f"This topic covers {topic_title}."
+            if len(raw_content) > 8000:
+                raw_content = raw_content[:7500] + "..."
+            teaching_content = self._create_simple_teaching_content(module_title, topic_title, raw_content)
+            self.teaching_session['teaching_content'] = teaching_content
+            self.orchestrator.set_content(tid, teaching_content, raw_content)
+
+            await self._stream_answer_response(intro, "topic_intro")
+            first_segment = self.orchestrator.start_teaching(tid)
+            if first_segment:
+                await self._stream_teaching_content(first_segment, self.teaching_session['language'])
+
+        except Exception as e:
+            log(f"❌ _handle_select_topic error: {e}")
+            await self._stream_answer_response("I couldn't switch to that topic.", "error")
+
+    async def _handle_resume_session(self, tid):
+        """Resume from the last incomplete topic in the user's progress."""
+        if not self.session_init_service or not self.database_service:
+            await self._stream_answer_response("Resume is not available right now.", "error")
+            return
+        try:
+            # Immediate feedback so user knows we heard them
+            await self.websocket.send({
+                "type": "system_message",
+                "message": "📍 Resuming your session...",
+                "subtype": "processing",
+            })
+            user_id = int(self.user_id) if self.user_id else None
+            if not user_id:
+                await self._stream_answer_response("I need your user ID to resume.", "error")
+                return
+
+            # Run blocking DB calls in executor so they don't freeze the event loop
+            # (get_course_with_content alone takes 10-25s on cold DB)
+            loop = asyncio.get_event_loop()
+            learning = await loop.run_in_executor(
+                None, self.database_service.get_user_learning_summary, user_id
+            )
+            last_course_id = learning.get('last_course_id')
+            if not last_course_id:
+                await self._stream_answer_response(
+                    "I don't see any previous sessions. Would you like to start a new course? Say 'list courses' to see what's available.",
+                    "no_progress"
+                )
+                return
+
+            resume_info = await loop.run_in_executor(
+                None, self.session_init_service._find_resume_point, user_id, last_course_id
+            )
+            if not resume_info:
+                await self._stream_answer_response(
+                    f"You've completed all topics in {learning.get('last_course_title', 'your last course')}! "
+                    f"Would you like to move to the next course?",
+                    "course_complete"
+                )
+                return
+
+            # Load and start from resume point
+            log(f"📍 Resuming: course={resume_info['course_id']} module={resume_info['module_index']} topic={resume_info['sub_topic_index']}")
+            course_id = resume_info['course_id']
+            m_idx = resume_info['module_index']
+            t_idx = resume_info['sub_topic_index']
+
+            # Use cached course_data from _find_resume_point to avoid duplicate DB call
+            course_data = resume_info.pop('_course_data', None)
+            if not course_data:
+                course_data = self.database_service.get_course_with_content(course_id)
+            if not course_data:
+                await self._stream_answer_response("I couldn't load the course for resuming.", "error")
+                return
+
+            modules = course_data.get("modules", [])
+            if m_idx >= len(modules):
+                await self._stream_answer_response("The module from your last session is no longer available.", "error")
+                return
+
+            module = modules[m_idx]
+            sub_topics = module.get("topics", module.get("sub_topics", []))
+            if t_idx >= len(sub_topics):
+                t_idx = 0
+
+            topic = sub_topics[t_idx] if sub_topics else {}
+            module_title = module.get('title', f'Module {m_idx + 1}')
+            topic_title = topic.get('title', f'Topic {t_idx + 1}')
+
+            self.teaching_session['course_id'] = course_id
+            self.teaching_session['course_data'] = course_data
+            self.teaching_session['module_index'] = m_idx
+            self.teaching_session['sub_topic_index'] = t_idx
+            self.teaching_session['mode'] = 'course_teaching'
+
+            if self.session_id and self.database_service:
+                try:
+                    await loop.run_in_executor(
+                        None, self.database_service.update_session_course, self.session_id, course_id
+                    )
+                except Exception:
+                    pass
+
+            self.orchestrator.advance_topic(
+                session_id=tid, module_index=m_idx, sub_topic_index=t_idx,
+                module_title=module_title, sub_topic_title=topic_title,
+                total_sub_topics=len(sub_topics),
+            )
+            orch_state = self.orchestrator.get_session(tid)
+            if orch_state:
+                orch_state.course_id = course_id
+                orch_state.course_title = resume_info.get('course_title', '')
+                orch_state.total_modules = len(modules)
+
+            await self.websocket.send({
+                "type": "session_resumed",
+                "course_id": course_id,
+                "course_title": resume_info.get('course_title', ''),
+                "module_index": m_idx, "module_title": module_title,
+                "sub_topic_index": t_idx, "topic_title": topic_title,
+            })
+            # Send interactive_teaching_started so frontend fully initializes
+            persona = self.teaching_session.get('persona', {})
+            await self.websocket.send({
+                "type": "interactive_teaching_started",
+                "module_title": module_title, "sub_topic_title": topic_title,
+                "persona": {
+                    "name": persona.get('name', self.teaching_session.get('persona_id', '')),
+                    "style": persona.get('style', ''),
+                    "gender": persona.get('gender', 'female'),
+                },
+            })
+
+            intro = (
+                f"Let's pick up where we left off. "
+                f"We're in {resume_info.get('course_title', 'your course')}, "
+                f"{module_title}, topic: {topic_title}."
+            )
+
+            raw_content = topic.get('content', '') or f"This topic covers {topic_title}."
+            if len(raw_content) > 8000:
+                raw_content = raw_content[:7500] + "..."
+            teaching_content = self._create_simple_teaching_content(module_title, topic_title, raw_content)
+            self.teaching_session['teaching_content'] = teaching_content
+            self.orchestrator.set_content(tid, teaching_content, raw_content)
+
+            await self._stream_answer_response(intro, "resume_intro")
+            first_segment = self.orchestrator.start_teaching(tid)
+            if first_segment:
+                await self._stream_teaching_content(first_segment, self.teaching_session['language'])
+
+        except Exception as e:
+            log(f"❌ _handle_resume_session error: {e}")
+            import traceback; traceback.print_exc()
+            await self._stream_answer_response("I couldn't resume your previous session.", "error")
+
+    async def _handle_check_progress(self):
+        """Show user's progress report via TTS."""
+        if not self.session_init_service:
+            await self._stream_answer_response("Progress tracking is not available right now.", "error")
+            return
+        try:
+            user_id = int(self.user_id) if self.user_id else None
+            user_name = self.teaching_session.get('user_name', '') if self.teaching_session else ''
+            if not user_id:
+                await self._stream_answer_response("I need your user ID to check progress.", "error")
+                return
+
+            text = await asyncio.get_event_loop().run_in_executor(
+                None, self.session_init_service.build_progress_text, user_id, user_name
+            )
+            await self.websocket.send({"type": "progress_report", "text": text})
+            await self._stream_answer_response(text, "progress_report")
+        except Exception as e:
+            log(f"❌ _handle_check_progress error: {e}")
+            await self._stream_answer_response("I couldn't load your progress right now.", "error")
 
     async def _handle_advance_next_topic(self, thread_id: str, routing: dict):
         """
@@ -2063,22 +2838,24 @@ class ProfAIAgent:
         try:
             self.teaching_session['is_teaching'] = True
             self.teaching_session['_streaming_text'] = content  # Track for barge-in resume
+            tts_content = self._sanitize_for_tts(content)
             
             async def send_teaching_audio():
                 # Accumulate small TTS chunks into larger buffers for gapless
-                # playback.  At 32kbps MP3, 16 KB ≈ 4 s of audio — enough for
-                # the browser to decode and queue seamlessly.
-                _MIN_SEND = 16_384  # 16 KB minimum buffer before sending
+                # playback.  First chunk uses smaller threshold for faster start.
+                _MIN_FIRST = 4_096   # 4 KB — get audio playing ASAP (~1s)
+                _MIN_SEND = 16_384   # 16 KB for subsequent chunks (~4s)
                 
                 chunk_count = 0
                 total_audio_size = 0
                 audio_start_time = time.time()
                 audio_buf = b''
+                first_chunk_sent = False
                 
-                log(f"🎙️ Starting teaching audio stream ({len(content)} chars)")
+                log(f"🎙️ Starting teaching audio stream ({len(tts_content)} chars)")
                 
                 async for audio_chunk in self.audio_service.stream_audio_from_text(
-                    content, language, self.websocket,
+                    tts_content, language, self.websocket,
                     voice_id=self.teaching_session.get('voice_id'),
                 ):
                     if not self.teaching_session.get('is_teaching', False):
@@ -2090,8 +2867,9 @@ class ProfAIAgent:
                         audio_buf += audio_chunk
                         total_audio_size += len(audio_chunk)
                         
-                        # Flush buffer when large enough
-                        if len(audio_buf) >= _MIN_SEND:
+                        # Flush buffer when large enough (first chunk faster)
+                        threshold = _MIN_FIRST if not first_chunk_sent else _MIN_SEND
+                        if len(audio_buf) >= threshold:
                             chunk_count += 1
                             audio_base64 = base64.b64encode(audio_buf).decode('utf-8')
                             await self.websocket.send({
@@ -2101,6 +2879,7 @@ class ProfAIAgent:
                                 "size": len(audio_buf)
                             })
                             audio_buf = b''
+                            first_chunk_sent = True
                 
                 # Flush remaining bytes
                 if audio_buf:
@@ -2209,6 +2988,7 @@ class ProfAIAgent:
                         pass
             
             # Stream audio (cancellable for barge-in)
+            tts_text = self._sanitize_for_tts(response_text)
             async def send_audio_chunks():
                 if not self.teaching_session:
                     return
@@ -2216,14 +2996,16 @@ class ProfAIAgent:
                     log("🛑 Skipping TTS: user is speaking")
                     return
                 
-                _MIN_SEND = 16_384  # 16 KB — same as teaching audio
+                _MIN_FIRST = 4_096   # 4 KB — get audio playing ASAP (~1s)
+                _MIN_SEND = 16_384   # 16 KB for subsequent chunks (~4s)
                 chunk_count = 0
                 audio_start = time.time()
                 audio_buf = b''
+                first_chunk_sent = False
                 
                 try:
                     async for audio_chunk in self.audio_service.stream_audio_from_text(
-                        response_text,
+                        tts_text,
                         self.teaching_session.get('language', self.current_language),
                         self.websocket,
                         voice_id=self.teaching_session.get('voice_id'),
@@ -2235,7 +3017,8 @@ class ProfAIAgent:
                         if audio_chunk and len(audio_chunk) > 0:
                             audio_buf += audio_chunk
                             
-                            if len(audio_buf) >= _MIN_SEND:
+                            threshold = _MIN_FIRST if not first_chunk_sent else _MIN_SEND
+                            if len(audio_buf) >= threshold:
                                 chunk_count += 1
                                 audio_base64 = base64.b64encode(audio_buf).decode('utf-8')
                                 await self.websocket.send({
@@ -2246,6 +3029,7 @@ class ProfAIAgent:
                                     "agent": agent_name
                                 })
                                 audio_buf = b''
+                                first_chunk_sent = True
                     
                     # Flush remaining
                     if audio_buf:
@@ -2307,6 +3091,29 @@ class ProfAIAgent:
             except Exception:
                 pass
     
+    @staticmethod
+    def _sanitize_for_tts(text: str) -> str:
+        """Strip special characters and markdown that TTS engines read aloud."""
+        import re
+        # Remove markdown bold/italic
+        text = re.sub(r'\*{1,3}([^*]+)\*{1,3}', r'\1', text)
+        # Remove markdown headers
+        text = re.sub(r'^#{1,6}\s*', '', text, flags=re.MULTILINE)
+        # Replace underscores with spaces (prevents "vivek underscore sapra")
+        text = text.replace('_', ' ')
+        # Remove hashtags but keep the word
+        text = re.sub(r'#(\w)', r'\1', text)
+        # Remove bullet point markers
+        text = re.sub(r'^\s*[-*•]\s*', '', text, flags=re.MULTILINE)
+        # Remove backticks (code formatting)
+        text = text.replace('`', '')
+        # Remove URLs
+        text = re.sub(r'https?://\S+', '', text)
+        # Clean up multiple spaces / newlines
+        text = re.sub(r'[ \t]+', ' ', text)
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        return text.strip()
+
     def _create_simple_teaching_content(self, module_title: str, topic_title: str, raw_content: str) -> str:
         """
         Create simple teaching content as fallback when teaching service is unavailable.

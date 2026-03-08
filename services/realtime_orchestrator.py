@@ -55,6 +55,7 @@ def _try_import_langgraph():
 class TeachingPhase(str, Enum):
     """Teaching session phases - stored per session."""
     IDLE = "idle"
+    SESSION_INIT = "session_init"      # Greeting + progress summary, waiting for user choice
     INITIALIZING = "initializing"
     TEACHING = "teaching"
     PAUSED_FOR_QUERY = "paused_for_query"
@@ -82,6 +83,15 @@ class UserIntent(str, Enum):
     MARK_AND_NEXT_COURSE = "mark_and_next_course"
     GREETING = "greeting"
     FAREWELL = "farewell"
+    # Navigation intents (session init + course browsing)
+    SELECT_COURSE = "select_course"         # "start Machine Learning", "switch to course 3"
+    SELECT_MODULE = "select_module"         # "start module 3", "go to module 2"
+    SELECT_TOPIC = "select_topic"           # "start topic 2", "go to topic 3"
+    LIST_COURSES = "list_courses"           # "what courses are available?"
+    LIST_MODULES = "list_modules"           # "how many modules?", "show modules"
+    LIST_TOPICS = "list_topics"             # "what topics in this module?"
+    RESUME_SESSION = "resume_session"       # "continue where we left off"
+    CHECK_PROGRESS = "check_progress"       # "how am I doing?", "show my progress"
     UNKNOWN = "unknown"
 
 
@@ -122,6 +132,7 @@ class TeachingState:
     pending_action_data: str = ""  # JSON-encoded payload for the pending action
 
     # Teaching metadata
+    course_title: str = ""         # Full course name for context
     module_title: str = ""
     sub_topic_title: str = ""
     raw_content: str = ""
@@ -202,14 +213,15 @@ _ADVANCE_KW = frozenset([
 
 _MARK_COMPLETE_KW = frozenset([
     'mark as complete', 'mark complete', 'mark it complete',
-    'mark this complete', 'mark this as complete', 'completed',
-    'i have completed', 'mark done', 'mark it done',
+    'mark this complete', 'mark this as complete',
+    'i have completed this', 'mark done', 'mark it done',
     'mark as done', 'i am done with this', 'finished this',
     'mark finished', 'complete this', "i'm done with this",
     "i'm done", 'done with this', 'finished with this',
     "that's all for this", 'done with this topic',
     'market complete', 'market is complete', 'market as complete',  # STT mishearings
     'market it complete', 'march complete', 'march as complete',
+    'mark it as completed', 'it is complete', 'this is complete',
 ])
 
 _NEXT_COURSE_KW = frozenset([
@@ -242,6 +254,95 @@ _FAREWELL_KW = frozenset([
     'bye', 'goodbye', 'see you', 'thank you', 'thanks',
     'end class', 'end session', 'end the class', 'end the session',
 ])
+
+# --- Navigation intents (session init + course browsing) ---
+
+_SELECT_COURSE_KW = frozenset([
+    'start course', 'switch to course', 'go to course', 'open course',
+    'take course', 'begin course', 'start the course', 'teach me course',
+    'i want to learn', 'i want to study', 'let me study',
+    'switch to', 'change to', 'start with course',
+])
+
+_SELECT_MODULE_KW = frozenset([
+    'start module', 'go to module', 'open module', 'begin module',
+    'start with module', 'jump to module', 'switch to module',
+    'module number', 'start from module',
+])
+
+_SELECT_TOPIC_KW = frozenset([
+    'start topic', 'go to topic', 'open topic', 'begin topic',
+    'start with topic', 'jump to topic', 'switch to topic',
+    'topic number', 'start from topic',
+])
+
+_LIST_COURSES_KW = frozenset([
+    'what courses', 'which courses', 'show courses', 'list courses',
+    'available courses', 'courses available', 'all courses',
+    'what can i learn', 'what subjects', 'show me courses',
+    'how many courses', 'what are the courses',
+    'courses do i have', 'my courses', 'enrolled courses',
+])
+
+_LIST_MODULES_KW = frozenset([
+    'what modules', 'which modules', 'show modules', 'list modules',
+    'how many modules', 'modules in this', 'what are the modules',
+    'show me the modules', 'module list', 'available modules',
+])
+
+_LIST_TOPICS_KW = frozenset([
+    'what topics', 'which topics', 'show topics', 'list topics',
+    'how many topics', 'topics in this', 'what are the topics',
+    'show me the topics', 'topic list', 'available topics',
+])
+
+_RESUME_SESSION_KW = frozenset([
+    'continue where', 'pick up where', 'resume where', 'resume session',
+    'resume last', 'continue last', 'continue previous',
+    'where did we leave', 'where we left', 'left off',
+    'pick up from', 'start from where', 'continue from where',
+    'resume from where', 'last session', 'previous session',
+])
+
+_CHECK_PROGRESS_KW = frozenset([
+    'my progress', 'show progress', 'how am i doing', 'how far',
+    'check progress', 'progress report', 'what have i completed',
+    'how much have i', 'completion status', 'show my progress',
+    'current progress', 'what progress', 'where am i',
+    'how is my progress', 'tell me my progress', 'my current progress',
+    'which ones have i completed', 'which topics have i completed',
+    'topics i completed', 'what i completed', 'topics completed',
+    'completed topics', 'completed so far', 'which have i done',
+    'what have i done', 'what did i finish', 'what did i complete',
+])
+
+def _extract_number(text: str) -> Optional[int]:
+    """Extract the first number from text. Returns None if no number found."""
+    import re
+    match = re.search(r'\b(\d+)\b', text)
+    if match:
+        return int(match.group(1))
+    # Number words (voice transcripts often use words instead of digits)
+    number_words = {
+        'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+        'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+        'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14,
+        'fifteen': 15, 'sixteen': 16, 'seventeen': 17, 'eighteen': 18,
+        'nineteen': 19, 'twenty': 20,
+    }
+    # Ordinal words
+    ordinals = {
+        'first': 1, 'second': 2, 'third': 3, 'fourth': 4, 'fifth': 5,
+        'sixth': 6, 'seventh': 7, 'eighth': 8, 'ninth': 9, 'tenth': 10,
+        'last': -1,
+    }
+    words = text.lower().split()
+    for word in words:
+        if word in number_words:
+            return number_words[word]
+        if word in ordinals:
+            return ordinals[word]
+    return None
 
 
 def _clean_first_name(raw_name: str) -> str:
@@ -287,11 +388,32 @@ def classify_intent(user_input: str, pending_confirmation: bool = False) -> User
         if has_next_course or has_mark:
             return UserIntent.CONFIRM_YES
 
+    # --- Navigation intents that mention "completed" (check BEFORE mark_complete) ---
+    if any(kw in text for kw in _CHECK_PROGRESS_KW):
+        return UserIntent.CHECK_PROGRESS
+    if any(kw in text for kw in _RESUME_SESSION_KW):
+        return UserIntent.RESUME_SESSION
+
     # --- Mark-complete / next-course (check before advance) ---
     if has_mark:
         return UserIntent.MARK_COMPLETE
     if has_next_course:
         return UserIntent.NEXT_COURSE
+
+    # --- Navigation intents (session init + course browsing) ---
+    if any(kw in text for kw in _LIST_COURSES_KW):
+        return UserIntent.LIST_COURSES
+    if any(kw in text for kw in _LIST_MODULES_KW):
+        return UserIntent.LIST_MODULES
+    if any(kw in text for kw in _LIST_TOPICS_KW):
+        return UserIntent.LIST_TOPICS
+    # SELECT intents (must check after LIST to avoid "list modules" → select)
+    if any(kw in text for kw in _SELECT_MODULE_KW):
+        return UserIntent.SELECT_MODULE
+    if any(kw in text for kw in _SELECT_TOPIC_KW):
+        return UserIntent.SELECT_TOPIC
+    if any(kw in text for kw in _SELECT_COURSE_KW):
+        return UserIntent.SELECT_COURSE
 
     # --- Long inputs (>15 words): almost certainly a question, not a command ---
     # Skip short-phrase intents that could be embedded in a longer sentence
@@ -706,6 +828,75 @@ class RealtimeOrchestrator:
                 "state": state,
             }
 
+        # ── Navigation intents (session init + course browsing) ──
+        if intent == UserIntent.LIST_COURSES:
+            return {
+                "action": "list_courses",
+                "intent": intent.value,
+                "state": state,
+            }
+
+        if intent == UserIntent.LIST_MODULES:
+            return {
+                "action": "list_modules",
+                "intent": intent.value,
+                "course_id": state.course_id,
+                "state": state,
+            }
+
+        if intent == UserIntent.LIST_TOPICS:
+            return {
+                "action": "list_topics",
+                "intent": intent.value,
+                "course_id": state.course_id,
+                "module_index": state.module_index,
+                "state": state,
+            }
+
+        if intent == UserIntent.SELECT_COURSE:
+            num = _extract_number(user_input)
+            return {
+                "action": "select_course",
+                "intent": intent.value,
+                "requested_number": num,
+                "raw_input": user_input,
+                "state": state,
+            }
+
+        if intent == UserIntent.SELECT_MODULE:
+            num = _extract_number(user_input)
+            return {
+                "action": "select_module",
+                "intent": intent.value,
+                "requested_number": num,
+                "raw_input": user_input,
+                "state": state,
+            }
+
+        if intent == UserIntent.SELECT_TOPIC:
+            num = _extract_number(user_input)
+            return {
+                "action": "select_topic",
+                "intent": intent.value,
+                "requested_number": num,
+                "raw_input": user_input,
+                "state": state,
+            }
+
+        if intent == UserIntent.RESUME_SESSION:
+            return {
+                "action": "resume_session",
+                "intent": intent.value,
+                "state": state,
+            }
+
+        if intent == UserIntent.CHECK_PROGRESS:
+            return {
+                "action": "check_progress",
+                "intent": intent.value,
+                "state": state,
+            }
+
         # Route based on intent
         if intent == UserIntent.CONTINUE:
             self._transition(state, TeachingPhase.TEACHING)
@@ -884,18 +1075,17 @@ class RealtimeOrchestrator:
         return self._current_segment_text(state)
 
     def get_resume_text(self, session_id: str) -> str:
-        """Get the text to say when asking user to resume."""
+        """Get a short, natural prompt to resume the lesson."""
         state = self.get_session(session_id)
         if not state:
-            return "Shall we continue?"
+            return "Ready to continue?"
 
-        name = _clean_first_name(state.user_name)
         remaining = state.total_segments - state.current_segment_index
-        return (
-            f"Is your doubt clear, {name}? "
-            f"We have {remaining} more section{'s' if remaining > 1 else ''} to cover. "
-            f"Say 'continue' when you're ready to resume."
-        )
+        if remaining > 1:
+            return f"We still have {remaining} sections left. Say 'continue' whenever you're ready."
+        elif remaining == 1:
+            return "One more section to go. Say 'continue' when you're ready."
+        return "Say 'continue' when you'd like to move on."
 
     def advance_topic(
         self,
@@ -1114,6 +1304,48 @@ class RealtimeOrchestrator:
                         msgs.append(_AI(content=entry['content']))
             msgs.append(HumanMessage(content=question))
 
+            # Build pre-formatted conversation history text
+            conv_text = ""
+            if conversation_context:
+                lines = []
+                for entry in conversation_context:
+                    role = "Student" if entry.get('role') == 'user' else "Professor"
+                    lines.append(f"{role}: {entry['content']}")
+                conv_text = "\n".join(lines[-10:])  # last 10 turns
+
+            # Compute progress summary
+            completed = state.sub_topic_index
+            total = state.total_sub_topics or 0
+            if state.topic_marked_complete:
+                completed += 1
+            pct = int(completed / total * 100) if total > 0 else 0
+            progress_str = f"{completed}/{total} topics completed ({pct}%)" if total > 0 else ""
+
+            # Determine previous and next topic titles (best-effort)
+            prev_title = ""
+            next_title = ""
+            # Previous: the topic before the current one
+            if state.sub_topic_index > 0:
+                prev_title = f"(topic {state.sub_topic_index} in same module)"
+            # Next: compute next
+            _adv = self._compute_next_topic(state)
+            if _adv:
+                next_title = f"module {_adv['module_index']+1}, topic {_adv['sub_topic_index']+1}"
+
+            # Persona info
+            _persona_name = ""
+            _persona_style = ""
+            _persona_personality = ""
+            _course_title = state.course_title or ""
+            # Try to get persona from config
+            if hasattr(state, 'persona_id') and state.persona_id:
+                import config as _cfg
+                _personas = getattr(_cfg, "PROFESSOR_PERSONAS", {})
+                _p = _personas.get(state.persona_id, {})
+                _persona_name = _p.get("name", "Professor")
+                _persona_style = _p.get("style", "")
+                _persona_personality = _p.get("personality", "")
+
             lg_state = {
                 "messages": msgs,
                 "session_id": state.session_id,
@@ -1131,6 +1363,17 @@ class RealtimeOrchestrator:
                 "last_user_input": question,
                 "is_teaching": False,
                 "waiting_for_continue": False,
+                # Rich context for natural responses
+                "course_title": _course_title or "",
+                "module_title": state.module_title or "",
+                "sub_topic_title": state.sub_topic_title or "",
+                "progress_summary": progress_str,
+                "previous_topic_title": prev_title,
+                "next_topic_title": next_title,
+                "conversation_history_text": conv_text,
+                "persona_name": _persona_name or None,
+                "persona_style": _persona_style or None,
+                "persona_personality": _persona_personality or None,
             }
 
             t0 = time.time()

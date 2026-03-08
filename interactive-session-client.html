@@ -1,0 +1,1341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prof_AI - Interactive Session with Wake Word</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+            color: #e2e8f0;
+        }
+
+        /* ── PHASE CONTAINERS ── */
+        .phase { display: none; }
+        .phase.active { display: flex; }
+
+        /* ── WAKE WORD PHASE ── */
+        #wakeWordPhase {
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .wake-orb-container { position: relative; margin-bottom: 40px; }
+
+        .wake-orb {
+            width: 200px; height: 200px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #667eea, #764ba2);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 4em;
+            box-shadow: 0 0 60px rgba(102, 126, 234, 0.3);
+            transition: all 0.5s ease;
+            cursor: pointer;
+        }
+        .wake-orb.listening {
+            animation: orbPulse 2s ease-in-out infinite;
+            box-shadow: 0 0 80px rgba(102, 126, 234, 0.5);
+        }
+        .wake-orb.detected {
+            background: radial-gradient(circle at 30% 30%, #10b981, #059669);
+            box-shadow: 0 0 100px rgba(16, 185, 129, 0.6);
+            animation: orbBounce 0.6s ease;
+        }
+
+        @keyframes orbPulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 60px rgba(102, 126, 234, 0.3); }
+            50% { transform: scale(1.05); box-shadow: 0 0 100px rgba(102, 126, 234, 0.6); }
+        }
+        @keyframes orbBounce {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.15); }
+            100% { transform: scale(1); }
+        }
+
+        .wake-rings {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+        .wake-rings .ring {
+            position: absolute; border-radius: 50%;
+            border: 2px solid rgba(102, 126, 234, 0.3);
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+        }
+        .wake-rings .ring:nth-child(1) { width: 240px; height: 240px; animation: ringPulse 3s ease-in-out infinite; }
+        .wake-rings .ring:nth-child(2) { width: 280px; height: 280px; animation: ringPulse 3s ease-in-out infinite 0.5s; }
+        .wake-rings .ring:nth-child(3) { width: 320px; height: 320px; animation: ringPulse 3s ease-in-out infinite 1s; }
+
+        @keyframes ringPulse {
+            0%, 100% { opacity: 0.2; transform: translate(-50%, -50%) scale(1); }
+            50% { opacity: 0.6; transform: translate(-50%, -50%) scale(1.05); }
+        }
+
+        .wake-title { font-size: 2.5em; font-weight: 700; margin-bottom: 12px; }
+        .wake-subtitle { font-size: 1.2em; color: #94a3b8; margin-bottom: 8px; }
+        .wake-hint { font-size: 0.9em; color: #64748b; margin-top: 20px; }
+        .wake-hint kbd {
+            background: #334155; padding: 4px 10px; border-radius: 6px;
+            font-family: inherit; border: 1px solid #475569;
+        }
+        .wake-status {
+            margin-top: 16px; font-size: 0.95em; color: #94a3b8;
+            min-height: 24px;
+        }
+        .wake-status.error { color: #f87171; }
+
+        /* Manual start fallback */
+        .manual-start {
+            margin-top: 30px; display: flex; flex-direction: column;
+            align-items: center; gap: 12px;
+        }
+        .manual-start input, .manual-start select {
+            background: #1e293b; border: 1px solid #475569; color: #e2e8f0;
+            padding: 10px 16px; border-radius: 8px; font-size: 0.95em;
+            width: 260px; text-align: center;
+        }
+        .btn-manual {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white; border: none; padding: 12px 32px;
+            border-radius: 10px; font-size: 1em; font-weight: 600;
+            cursor: pointer; transition: all 0.3s; letter-spacing: 0.5px;
+        }
+        .btn-manual:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4); }
+
+        /* ── SESSION INIT PHASE ── */
+        #sessionInitPhase {
+            flex-direction: column; align-items: center;
+            min-height: 100vh; padding: 40px 20px;
+        }
+
+        .session-container {
+            max-width: 800px; width: 100%;
+            background: #1e293b; border-radius: 20px;
+            padding: 40px; box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+        }
+
+        .greeting-section {
+            text-align: center; margin-bottom: 30px;
+        }
+        .greeting-avatar {
+            width: 80px; height: 80px; border-radius: 50%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 2.5em; margin-bottom: 16px;
+        }
+        .greeting-text {
+            font-size: 1.15em; line-height: 1.6; color: #cbd5e1;
+            max-width: 600px; margin: 0 auto;
+        }
+
+        /* Progress cards */
+        .progress-section { margin-bottom: 30px; }
+        .progress-title {
+            font-size: 1.1em; font-weight: 700; margin-bottom: 14px;
+            color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; font-size: 0.8em;
+        }
+        .progress-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+        }
+        .progress-card {
+            background: #0f172a; border-radius: 12px; padding: 16px;
+            border: 1px solid #334155;
+        }
+        .progress-card .pc-title {
+            font-weight: 600; font-size: 0.95em; margin-bottom: 8px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .progress-card .pc-bar {
+            height: 6px; background: #334155; border-radius: 3px;
+            overflow: hidden; margin-bottom: 6px;
+        }
+        .progress-card .pc-bar-fill {
+            height: 100%; border-radius: 3px;
+            background: linear-gradient(90deg, #667eea, #10b981);
+            transition: width 0.6s ease;
+        }
+        .progress-card .pc-stats {
+            font-size: 0.8em; color: #64748b;
+            display: flex; justify-content: space-between;
+        }
+
+        /* Navigation buttons */
+        .nav-section {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px; margin-bottom: 20px;
+        }
+        .nav-btn {
+            background: #334155; border: 1px solid #475569; color: #e2e8f0;
+            padding: 16px; border-radius: 12px; font-size: 0.95em;
+            cursor: pointer; transition: all 0.3s; text-align: center;
+            display: flex; flex-direction: column; align-items: center; gap: 8px;
+        }
+        .nav-btn:hover { background: #475569; transform: translateY(-2px); }
+        .nav-btn .nav-icon { font-size: 1.5em; }
+        .nav-btn .nav-label { font-weight: 600; }
+        .nav-btn .nav-desc { font-size: 0.8em; color: #94a3b8; }
+
+        .nav-btn.primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none;
+        }
+        .nav-btn.primary:hover { box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4); }
+
+        .nav-btn.success {
+            background: linear-gradient(135deg, #059669, #10b981);
+            border: none;
+        }
+
+        /* Session init conversation log (shows nav responses) */
+        .session-log {
+            background: #0f172a; border-radius: 12px; padding: 16px;
+            max-height: 300px; overflow-y: auto; margin-bottom: 16px;
+            display: none; border: 1px solid #334155;
+        }
+        .session-log.has-messages { display: block; }
+        .session-log::-webkit-scrollbar { width: 6px; }
+        .session-log::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+
+        /* Voice indicator during session init */
+        .session-voice-indicator {
+            text-align: center; padding: 12px;
+            background: #0f172a; border-radius: 10px;
+            border: 1px solid #334155; margin-top: 16px;
+        }
+        .svi-text { font-size: 0.9em; color: #94a3b8; }
+
+        /* ── TEACHING PHASE ── */
+        #teachingPhase {
+            flex-direction: column; padding: 20px;
+            min-height: 100vh;
+        }
+
+        .teach-container {
+            max-width: 1000px; width: 100%; margin: 0 auto;
+        }
+
+        .teach-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 16px;
+        }
+        .teach-header h2 { font-size: 1.3em; font-weight: 700; }
+
+        /* Status bar */
+        .teach-status-bar {
+            display: flex; gap: 16px; align-items: center;
+            background: #1e293b; padding: 12px 20px; border-radius: 10px;
+            margin-bottom: 16px; font-size: 0.9em;
+        }
+        .tsb-item { display: flex; align-items: center; gap: 6px; }
+        .tsb-dot {
+            width: 10px; height: 10px; border-radius: 50%;
+        }
+        .tsb-dot.green { background: #10b981; box-shadow: 0 0 8px #10b981; }
+        .tsb-dot.blue { background: #3b82f6; animation: pulse 1.5s infinite; }
+        .tsb-dot.yellow { background: #f59e0b; animation: pulse 1s infinite; }
+        .tsb-dot.red { background: #ef4444; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* Topic banner */
+        .teach-topic-banner {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 12px; padding: 16px 20px; margin-bottom: 16px;
+            display: none;
+        }
+        .teach-topic-banner.visible { display: flex; justify-content: space-between; align-items: center; }
+        .ttb-info { flex: 1; }
+        .ttb-label { font-size: 0.7em; text-transform: uppercase; letter-spacing: 1px; opacity: 0.8; }
+        .ttb-module { font-size: 1.1em; font-weight: 700; }
+        .ttb-topic { font-size: 0.9em; opacity: 0.9; }
+        .ttb-position {
+            background: rgba(255,255,255,0.2); padding: 6px 14px;
+            border-radius: 8px; font-size: 0.85em; font-weight: 600;
+        }
+
+        /* Conversation log */
+        .teach-log {
+            background: #1e293b; border-radius: 12px; padding: 20px;
+            height: 450px; overflow-y: auto; margin-bottom: 16px;
+        }
+        .teach-log::-webkit-scrollbar { width: 6px; }
+        .teach-log::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+
+        .msg { margin-bottom: 12px; padding: 12px 16px; border-radius: 10px; animation: msgIn 0.3s ease; }
+        @keyframes msgIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .msg.user { background: #312e81; border-left: 3px solid #667eea; }
+        .msg.agent { background: #064e3b; border-left: 3px solid #10b981; }
+        .msg.system { background: #1e293b; border: 1px solid #334155; text-align: center; font-style: italic; color: #94a3b8; }
+        .msg.nav-info { background: #172554; border-left: 3px solid #3b82f6; }
+        .msg.confirmation { background: #451a03; border-left: 3px solid #f59e0b; text-align: center; }
+        .msg.progress-update { background: #052e16; border-left: 3px solid #10b981; text-align: center; }
+        .msg.course-change { background: #2e1065; border-left: 3px solid #7c3aed; text-align: center; }
+        .msg.thinking { background: #1e293b; border: 1px dashed #f59e0b; text-align: center; }
+
+        .msg-label { font-size: 0.8em; font-weight: 600; color: #94a3b8; margin-bottom: 4px; }
+        .msg-text { line-height: 1.5; }
+
+        .thinking-dots span {
+            display: inline-block; width: 8px; height: 8px; margin: 0 3px;
+            background: #f59e0b; border-radius: 50%;
+            animation: dotBounce 1.4s infinite ease-in-out both;
+        }
+        .thinking-dots span:nth-child(1) { animation-delay: -0.32s; }
+        .thinking-dots span:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes dotBounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+
+        /* Control bar */
+        .teach-controls {
+            display: flex; gap: 10px; flex-wrap: wrap;
+        }
+        .teach-controls button {
+            flex: 1; min-width: 120px; padding: 12px 16px;
+            border: none; border-radius: 10px; font-size: 0.9em;
+            font-weight: 600; cursor: pointer; transition: all 0.3s;
+            color: white;
+        }
+        .teach-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+        .tc-start { background: linear-gradient(135deg, #667eea, #764ba2); }
+        .tc-continue { background: #10b981; }
+        .tc-mark { background: #059669; }
+        .tc-next { background: #7c3aed; }
+        .tc-back { background: #475569; }
+        .tc-end { background: #ef4444; }
+        .tc-yes { background: #22c55e; }
+        .tc-no { background: #64748b; }
+
+        .teach-controls button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        /* VAD bar */
+        .teach-vad {
+            margin-top: 12px; display: flex; align-items: center; gap: 10px;
+        }
+        .teach-vad-label { font-size: 0.85em; color: #94a3b8; white-space: nowrap; }
+        .teach-vad-bar {
+            flex: 1; height: 8px; background: #334155; border-radius: 4px; overflow: hidden;
+        }
+        .teach-vad-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981, #3b82f6, #f59e0b);
+            width: 0%; transition: width 0.1s;
+        }
+
+        /* Confirmation controls */
+        .confirm-row { display: none; gap: 10px; margin-top: 10px; }
+        .confirm-row.visible { display: flex; }
+
+        /* Speaking indicator — pulsing glow on avatar and status dot */
+        .greeting-avatar.speaking {
+            box-shadow: 0 0 30px rgba(16, 185, 129, 0.6);
+            animation: speakPulse 1.2s ease-in-out infinite;
+        }
+        @keyframes speakPulse {
+            0%, 100% { box-shadow: 0 0 20px rgba(16, 185, 129, 0.3); }
+            50% { box-shadow: 0 0 40px rgba(16, 185, 129, 0.7); }
+        }
+        .tsb-dot.speaking {
+            background: #f59e0b;
+            box-shadow: 0 0 12px #f59e0b;
+            animation: pulse 0.8s infinite;
+        }
+
+        /* Persona banner in teaching phase */
+        .teach-persona {
+            display: none; align-items: center; gap: 10px;
+            background: #312e81; border-radius: 10px;
+            padding: 10px 16px; margin-bottom: 12px; font-size: 0.9em;
+        }
+        .teach-persona.visible { display: flex; }
+        .teach-persona-avatar { font-size: 1.3em; }
+        .teach-persona-name { font-weight: 700; }
+        .teach-persona-style { color: #94a3b8; font-size: 0.85em; margin-left: auto; }
+
+        /* Hidden utility */
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<!-- ════════════════ PHASE 1: WAKE WORD ════════════════ -->
+<div id="wakeWordPhase" class="phase active">
+    <div class="wake-orb-container">
+        <div class="wake-orb" id="wakeOrb" onclick="manualActivate()">🎓</div>
+        <div class="wake-rings">
+            <div class="ring"></div>
+            <div class="ring"></div>
+            <div class="ring"></div>
+        </div>
+    </div>
+    <div class="wake-title">Prof_AI</div>
+    <div class="wake-subtitle">Your AI Professor is ready</div>
+    <div class="wake-status" id="wakeStatus">Initializing wake word listener...</div>
+    <div class="wake-hint">
+        Say <kbd>Hey Professor</kbd> to begin, or click the orb
+    </div>
+
+    <div class="manual-start">
+        <input type="text" id="inputUserId" value="167" placeholder="Your User ID">
+        <select id="inputPersona">
+            <option value="prof_sarah" selected>👩‍🏫 Prof Sarah — Warm & Encouraging</option>
+            <option value="prof_james">👨‍🏫 Prof James — Socratic & Analytical</option>
+            <option value="prof_daniel">👨‍🏫 Prof Daniel — Direct & Structured</option>
+            <option value="prof_emily">👩‍🏫 Prof Emily — Methodical & Nurturing</option>
+        </select>
+        <select id="inputLanguage">
+            <option value="en-IN" selected>English (India)</option>
+            <option value="hi-IN">Hindi</option>
+            <option value="ta-IN">Tamil</option>
+            <option value="te-IN">Telugu</option>
+        </select>
+        <button class="btn-manual" onclick="manualActivate()">🎙️ Start Session Manually</button>
+    </div>
+</div>
+
+<!-- ════════════════ PHASE 2: SESSION INIT ════════════════ -->
+<div id="sessionInitPhase" class="phase">
+    <div class="session-container">
+        <div class="greeting-section">
+            <div class="greeting-avatar" id="greetingAvatar">👩‍🏫</div>
+            <div class="greeting-text" id="greetingText">Connecting to your professor...</div>
+        </div>
+
+        <div class="progress-section" id="progressSection" style="display:none;">
+            <div class="progress-title">📊 Your Progress</div>
+            <div class="progress-grid" id="progressGrid"></div>
+        </div>
+
+        <div class="nav-section" id="navSection">
+            <div class="nav-btn primary" onclick="sendNavAction('resume_session')">
+                <span class="nav-icon">▶️</span>
+                <span class="nav-label">Resume</span>
+                <span class="nav-desc">Continue where you left off</span>
+            </div>
+            <div class="nav-btn" onclick="sendNavAction('list_courses')">
+                <span class="nav-icon">📚</span>
+                <span class="nav-label">Browse Courses</span>
+                <span class="nav-desc">See all available courses</span>
+            </div>
+            <div class="nav-btn" onclick="sendNavAction('check_progress')">
+                <span class="nav-icon">📊</span>
+                <span class="nav-label">My Progress</span>
+                <span class="nav-desc">View your learning stats</span>
+            </div>
+            <div class="nav-btn success" onclick="quickStartCourse()">
+                <span class="nav-icon">🚀</span>
+                <span class="nav-label">Quick Start</span>
+                <span class="nav-desc">Jump into a specific course</span>
+            </div>
+        </div>
+
+        <!-- Session init conversation log (visible when nav responses arrive) -->
+        <div class="session-log" id="sessionLog"></div>
+
+        <div class="session-voice-indicator" id="sessionVoiceIndicator">
+            <div class="svi-text">🎤 Voice commands active — try saying "list courses" or "resume where we left off"</div>
+        </div>
+    </div>
+</div>
+
+<!-- ════════════════ PHASE 3: TEACHING ════════════════ -->
+<div id="teachingPhase" class="phase">
+    <div class="teach-container">
+        <div class="teach-header">
+            <h2>🎓 Interactive Teaching</h2>
+            <button class="tc-back" onclick="backToSession()" style="flex:none; padding: 8px 16px; border:none; border-radius:8px; color:white; cursor:pointer;">
+                ← Back to Session
+            </button>
+        </div>
+
+        <div class="teach-status-bar">
+            <div class="tsb-item">
+                <div class="tsb-dot green" id="tsbConnection"></div>
+                <span id="tsbConnectionText">Connected</span>
+            </div>
+            <div class="tsb-item">
+                <div class="tsb-dot blue" id="tsbMic"></div>
+                <span id="tsbMicText">Listening</span>
+            </div>
+            <div class="tsb-item">
+                <div class="tsb-dot" id="tsbState"></div>
+                <span id="tsbStateText">Idle</span>
+            </div>
+        </div>
+
+        <!-- Persona banner -->
+        <div class="teach-persona" id="teachPersona">
+            <span class="teach-persona-avatar" id="tpAvatar">👩‍🏫</span>
+            <span class="teach-persona-name" id="tpName">Professor</span>
+            <span class="teach-persona-style" id="tpStyle"></span>
+        </div>
+
+        <div class="teach-topic-banner" id="teachTopicBanner">
+            <div class="ttb-info">
+                <div class="ttb-label">📖 Currently Teaching</div>
+                <div class="ttb-module" id="ttbModule">—</div>
+                <div class="ttb-topic" id="ttbTopic">—</div>
+            </div>
+            <div class="ttb-position" id="ttbPosition">—</div>
+        </div>
+
+        <div class="teach-log" id="teachLog">
+            <div class="msg system"><div class="msg-text">Waiting to start teaching...</div></div>
+        </div>
+
+        <div class="teach-controls" id="mainControls">
+            <button class="tc-continue" id="btnContinue" onclick="sendTeachAction('continue')" disabled>▶️ Continue</button>
+            <button class="tc-mark" id="btnMark" onclick="sendTeachAction('mark_complete')" disabled>✅ Mark Complete</button>
+            <button class="tc-next" id="btnNextCourse" onclick="sendTeachAction('next_course')" disabled>⏭️ Next Course</button>
+            <button class="tc-end" onclick="endTeaching()">⏹️ End</button>
+        </div>
+
+        <div class="confirm-row" id="confirmRow">
+            <button class="tc-yes" onclick="sendTeachAction('yes')" style="flex:1;">👍 Yes</button>
+            <button class="tc-no" onclick="sendTeachAction('no')" style="flex:1;">👎 No</button>
+        </div>
+
+        <div class="teach-vad">
+            <span class="teach-vad-label" id="vadLabel">🎤 Listening</span>
+            <div class="teach-vad-bar">
+                <div class="teach-vad-fill" id="vadFill"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// CONFIGURATION
+// ═══════════════════════════════════════════════════════════
+const WS_URL = 'ws://localhost:8765';
+const WAKE_PHRASES = ['hey professor', 'hey prof', 'ok professor', 'okay professor'];
+
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+let websocket = null;
+let audioContext = null;
+let mediaStream = null;
+let processor = null;
+let isConnected = false;
+let isTeaching = false;
+let isSpeaking = false;
+let isAgentSpeaking = false;
+let audioQueue = [];          // Merged base64 strings ready to play
+let isPlayingAudio = false;
+let currentAudio = null;
+let audioPlaybackGen = 0;
+
+// Client-side audio chunk buffering — merges small server chunks into
+// larger blobs so fewer Audio elements are created (reduces gaps).
+let pendingAudioBytes = [];   // Array of Uint8Array chunks waiting to be merged
+let pendingAudioSize = 0;
+let audioFlushTimer = null;
+const AUDIO_FLUSH_MS = 600;   // Merge & enqueue every 600ms
+let wakeWordRecognition = null;
+let currentPhase = 'wake'; // 'wake' | 'session_init' | 'teaching'
+let resumeInfo = null; // Stored from session_init for quick resume
+let personaName = 'Professor'; // Tracked for agent message labels
+let personaGender = 'female'; // For avatar icon
+
+// ═══════════════════════════════════════════════════════════
+// WAKE WORD DETECTION (Web Speech API)
+// ═══════════════════════════════════════════════════════════
+function initWakeWord() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        setWakeStatus('Wake word not supported in this browser. Click the orb or press the button.', true);
+        return;
+    }
+
+    wakeWordRecognition = new SpeechRecognition();
+    wakeWordRecognition.continuous = true;
+    wakeWordRecognition.interimResults = true;
+    wakeWordRecognition.lang = 'en-US';
+    wakeWordRecognition.maxAlternatives = 3;
+
+    wakeWordRecognition.onresult = (event) => {
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+            // Check all alternatives for wake phrase
+            for (let alt = 0; alt < event.results[i].length; alt++) {
+                const transcript = event.results[i][alt].transcript.toLowerCase().trim();
+                console.log(`[Wake] heard: "${transcript}" (alt ${alt}, final: ${event.results[i].isFinal})`);
+
+                for (const phrase of WAKE_PHRASES) {
+                    if (transcript.includes(phrase)) {
+                        console.log(`✅ Wake word detected: "${phrase}" in "${transcript}"`);
+                        wakeWordDetected();
+                        return;
+                    }
+                }
+            }
+
+            // Show what we're hearing
+            if (!event.results[i].isFinal) {
+                const partial = event.results[i][0].transcript;
+                setWakeStatus(`Hearing: "${partial}"...`);
+            }
+        }
+    };
+
+    wakeWordRecognition.onstart = () => {
+        setWakeStatus('🎤 Listening for "Hey Professor"...');
+        document.getElementById('wakeOrb').classList.add('listening');
+    };
+
+    wakeWordRecognition.onend = () => {
+        // Auto-restart if still in wake phase
+        if (currentPhase === 'wake') {
+            try { wakeWordRecognition.start(); }
+            catch (e) { setTimeout(() => { try { wakeWordRecognition.start(); } catch(e2) {} }, 500); }
+        }
+    };
+
+    wakeWordRecognition.onerror = (event) => {
+        console.warn('[Wake] error:', event.error);
+        if (event.error === 'not-allowed') {
+            setWakeStatus('Microphone access denied. Please allow mic access and refresh.', true);
+        } else if (event.error !== 'aborted' && event.error !== 'no-speech') {
+            setWakeStatus(`Listening error: ${event.error}. Retrying...`);
+        }
+    };
+
+    try {
+        wakeWordRecognition.start();
+    } catch (e) {
+        setWakeStatus('Click the orb or button to start.', true);
+    }
+}
+
+function setWakeStatus(text, isError = false) {
+    const el = document.getElementById('wakeStatus');
+    el.textContent = text;
+    el.className = 'wake-status' + (isError ? ' error' : '');
+}
+
+function wakeWordDetected() {
+    if (currentPhase !== 'wake') return;
+    // Stop wake word listener
+    if (wakeWordRecognition) {
+        try { wakeWordRecognition.stop(); } catch(e) {}
+    }
+    // Visual feedback
+    document.getElementById('wakeOrb').classList.remove('listening');
+    document.getElementById('wakeOrb').classList.add('detected');
+    setWakeStatus('✅ Wake word detected! Starting session...');
+    // Start session after brief visual delay
+    setTimeout(() => startSession(), 600);
+}
+
+function manualActivate() {
+    if (currentPhase !== 'wake') return;
+    if (wakeWordRecognition) {
+        try { wakeWordRecognition.stop(); } catch(e) {}
+    }
+    document.getElementById('wakeOrb').classList.add('detected');
+    setWakeStatus('Starting session...');
+    setTimeout(() => startSession(), 300);
+}
+
+// ═══════════════════════════════════════════════════════════
+// SESSION INITIALIZATION
+// ═══════════════════════════════════════════════════════════
+async function startSession() {
+    currentPhase = 'session_init';
+    switchPhase('sessionInitPhase');
+
+    try {
+        websocket = new WebSocket(WS_URL);
+
+        websocket.onopen = async () => {
+            isConnected = true;
+            console.log('✅ WebSocket connected for session');
+
+            // Request mic access
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+                });
+                await startAudioProcessing();
+            } catch (e) {
+                console.warn('Mic access denied:', e);
+            }
+
+            // Send start_session
+            const req = {
+                type: 'start_session',
+                user_id: document.getElementById('inputUserId').value,
+                language: document.getElementById('inputLanguage').value,
+                persona_id: document.getElementById('inputPersona').value,
+            };
+            console.log('📤 Sending start_session:', req);
+            websocket.send(JSON.stringify(req));
+        };
+
+        websocket.onmessage = handleMessage;
+        websocket.onerror = (e) => { console.error('WS error:', e); };
+        websocket.onclose = () => {
+            isConnected = false;
+            console.log('WS closed');
+            if (currentPhase === 'wake') return;
+            // Could auto-reconnect here
+        };
+    } catch (e) {
+        console.error('Connection failed:', e);
+        document.getElementById('greetingText').textContent = 'Failed to connect. Please refresh and try again.';
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// AUDIO PROCESSING (mic → WS as PCM16 base64)
+// ═══════════════════════════════════════════════════════════
+async function startAudioProcessing() {
+    audioContext = new AudioContext({ sampleRate: 16000 });
+    const source = audioContext.createMediaStreamSource(mediaStream);
+    processor = audioContext.createScriptProcessor(1024, 1, 1);
+
+    processor.onaudioprocess = (e) => {
+        const inputData = e.inputBuffer.getChannelData(0);
+
+        // RMS for visual VAD
+        let sum = 0;
+        for (let i = 0; i < inputData.length; i++) sum += inputData[i] * inputData[i];
+        const rms = Math.sqrt(sum / inputData.length);
+        const level = Math.min(100, rms * 500);
+
+        const vadFill = document.getElementById('vadFill');
+        if (vadFill) vadFill.style.width = level + '%';
+
+        if (rms > 0.02) {
+            if (!isSpeaking) {
+                isSpeaking = true;
+                if (isAgentSpeaking) {
+                    stopAllAudio();
+                }
+            }
+        } else if (isSpeaking && rms < 0.01) {
+            isSpeaking = false;
+        }
+
+        // Stream audio to server
+        if (websocket && websocket.readyState === WebSocket.OPEN) {
+            const pcm16 = float32ToPCM16(inputData);
+            const audioBase64 = btoa(String.fromCharCode.apply(null, new Uint8Array(pcm16.buffer)));
+            websocket.send(JSON.stringify({ type: 'stt_audio_chunk', audio: audioBase64 }));
+        }
+    };
+
+    source.connect(processor);
+    processor.connect(audioContext.destination);
+}
+
+function float32ToPCM16(float32Array) {
+    const pcm16 = new Int16Array(float32Array.length);
+    for (let i = 0; i < float32Array.length; i++) {
+        const s = Math.max(-1, Math.min(1, float32Array[i]));
+        pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    }
+    return pcm16;
+}
+
+// ═══════════════════════════════════════════════════════════
+// AUDIO PLAYBACK
+// ═══════════════════════════════════════════════════════════
+function stopAllAudio() {
+    audioPlaybackGen++;
+    if (currentAudio) { currentAudio.pause(); }
+    audioQueue = [];
+    // Clear pending buffer
+    pendingAudioBytes = [];
+    pendingAudioSize = 0;
+    if (audioFlushTimer) { clearTimeout(audioFlushTimer); audioFlushTimer = null; }
+    isPlayingAudio = false;
+    isAgentSpeaking = false;
+    setSpeakingIndicator(false);
+}
+
+// ── Client-side chunk merging ──
+function bufferAudioChunk(base64Data) {
+    // Decode base64 to Uint8Array and buffer it
+    const raw = atob(base64Data);
+    const bytes = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+    pendingAudioBytes.push(bytes);
+    pendingAudioSize += bytes.length;
+
+    // Schedule a flush if not already pending
+    if (!audioFlushTimer) {
+        audioFlushTimer = setTimeout(flushPendingAudio, AUDIO_FLUSH_MS);
+    }
+}
+
+function flushPendingAudio() {
+    audioFlushTimer = null;
+    if (pendingAudioBytes.length === 0) return;
+
+    // Merge all buffered bytes into a single Uint8Array
+    const merged = new Uint8Array(pendingAudioSize);
+    let offset = 0;
+    for (const chunk of pendingAudioBytes) {
+        merged.set(chunk, offset);
+        offset += chunk.length;
+    }
+    pendingAudioBytes = [];
+    pendingAudioSize = 0;
+
+    // Re-encode to base64 for the existing prepareAudio pipeline
+    let binary = '';
+    const SLICE = 8192;
+    for (let i = 0; i < merged.length; i += SLICE) {
+        binary += String.fromCharCode.apply(null, merged.subarray(i, i + SLICE));
+    }
+    audioQueue.push(btoa(binary));
+    if (!isPlayingAudio) playAudioQueue();
+}
+
+function flushPendingAudioNow() {
+    if (audioFlushTimer) { clearTimeout(audioFlushTimer); audioFlushTimer = null; }
+    flushPendingAudio();
+}
+
+function prepareAudio(audioBase64) {
+    const raw = atob(audioBase64);
+    const bytes = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+    const blob = new Blob([bytes], { type: 'audio/mp3' });
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    audio.preload = 'auto';
+    return { audio, url };
+}
+
+function playPrepared({ audio, url }) {
+    return new Promise((resolve) => {
+        let settled = false;
+        const done = () => {
+            if (settled) return;
+            settled = true;
+            URL.revokeObjectURL(url);
+            if (currentAudio === audio) currentAudio = null;
+            resolve();
+        };
+        audio.onended = done;
+        audio.onpause = done;
+        audio.onabort = done;
+        audio.onerror = () => done();
+        currentAudio = audio;
+        audio.play().catch(done);
+    });
+}
+
+async function playAudioQueue() {
+    if (audioQueue.length === 0 || isPlayingAudio) return;
+    isPlayingAudio = true;
+    const myGen = audioPlaybackGen;
+    let nextReady = null;
+
+    while (audioPlaybackGen === myGen) {
+        let toPlay = nextReady;
+        nextReady = null;
+
+        if (!toPlay) {
+            if (audioQueue.length === 0) break;
+            toPlay = prepareAudio(audioQueue.shift());
+        }
+
+        if (audioQueue.length > 0) {
+            nextReady = prepareAudio(audioQueue.shift());
+        }
+
+        try { await playPrepared(toPlay); } catch (_) {}
+
+        if (!nextReady && audioQueue.length === 0) {
+            await new Promise(r => setTimeout(r, 80));
+            if (audioQueue.length === 0) break;
+        }
+    }
+
+    if (nextReady) { URL.revokeObjectURL(nextReady.url); }
+    isPlayingAudio = false;
+}
+
+// ═══════════════════════════════════════════════════════════
+// MESSAGE HANDLER (all WS events)
+// ═══════════════════════════════════════════════════════════
+function handleMessage(event) {
+    try {
+        const data = JSON.parse(event.data);
+        console.log('📨', data.type, data);
+
+        switch (data.type) {
+            case 'connection_ready':
+                break;
+
+            // ── Session Init events ──
+            case 'session_init':
+                handleSessionInit(data);
+                break;
+
+            case 'session_resumed':
+                handleSessionResumed(data);
+                break;
+
+            // ── Navigation events (route to correct log based on phase) ──
+            case 'course_list':
+            case 'module_list':
+            case 'topic_list':
+            case 'progress_report':
+                addSmartMsg('nav-info', `📋 ${data.text || ''}`);
+                break;
+
+            // ── Teaching events ──
+            case 'interactive_teaching_init':
+                addTeachMsg('system', '📚 Loading course content...');
+                break;
+
+            case 'interactive_teaching_started':
+                handleTeachingStarted(data);
+                break;
+
+            case 'teaching_audio_chunk':
+            case 'answer_audio_chunk':
+                bufferAudioChunk(data.audio_data);
+                isAgentSpeaking = true;
+                setSpeakingIndicator(true);
+                break;
+
+            case 'teaching_segment_complete':
+                flushPendingAudioNow(); // Ensure all buffered audio is enqueued
+                addTeachMsg('system', '✅ Section complete. Ask questions or say "continue".');
+                document.getElementById('btnContinue').disabled = false;
+                isAgentSpeaking = false;
+                setSpeakingIndicator(false);
+                break;
+
+            case 'user_interrupt_detected':
+                stopAllAudio();
+                addTeachMsg('system', '👂 Listening to you...');
+                break;
+
+            case 'thinking_acknowledgment':
+                stopAllAudio();
+                addTeachMsg('thinking', `🤔 ${data.message || 'Thinking...'} <div class="thinking-dots"><span></span><span></span><span></span></div>`);
+                break;
+
+            case 'partial_transcript':
+                const vadLabel = document.getElementById('vadLabel');
+                if (vadLabel) vadLabel.textContent = `🎤 "${data.text}"...`;
+                break;
+
+            case 'user_question':
+                addSmartMsg('user', data.text);
+                break;
+
+            case 'agent_response':
+            case 'teaching_question_answer':
+                removeMsgByClass('thinking');
+                addTeachMsg('agent', data.text);
+                break;
+
+            case 'answer_audio_complete':
+            case 'answer_complete':
+                flushPendingAudioNow(); // Ensure all buffered audio is enqueued
+                document.getElementById('btnContinue').disabled = false;
+                isAgentSpeaking = false;
+                setSpeakingIndicator(false);
+                break;
+
+            case 'topic_advanced':
+                handleTopicAdvanced(data);
+                break;
+
+            case 'course_complete':
+                addTeachMsg('progress-update', `🎉🎓 ${data.message || 'Congratulations!'}`);
+                break;
+
+            case 'all_courses_complete':
+                addTeachMsg('progress-update', `�🎓 ${data.message || 'All courses completed!'}`);
+                // Disable teaching controls, show option to go back
+                document.getElementById('btnMark').disabled = true;
+                document.getElementById('btnNextCourse').disabled = true;
+                break;
+
+            case 'ask_confirmation':
+                addTeachMsg('confirmation', `❓ ${data.message}`);
+                document.getElementById('confirmRow').classList.add('visible');
+                break;
+
+            case 'progress_updated':
+                addTeachMsg('progress-update', `✅ ${data.message}`);
+                document.getElementById('confirmRow').classList.remove('visible');
+                break;
+
+            case 'course_changed':
+                handleCourseChanged(data);
+                break;
+
+            case 'module_changed':
+                updateTopicBanner(data.module_title, data.sub_topic_title,
+                    (data.module_index || 0) + 1, 1);
+                addTeachMsg('course-change', `📖 ${data.module_title} → ${data.sub_topic_title}`);
+                break;
+
+            case 'topic_changed':
+                updateTopicBanner(null, data.topic_title, null, (data.sub_topic_index || 0) + 1);
+                addTeachMsg('course-change', `📄 Starting: ${data.topic_title}`);
+                break;
+
+            case 'teaching_resumed':
+                addTeachMsg('system', '▶️ Continuing the lesson...');
+                document.getElementById('btnContinue').disabled = true;
+                break;
+
+            case 'teaching_paused':
+                addTeachMsg('system', '⏸️ Paused. Say "continue" to resume.');
+                document.getElementById('btnContinue').disabled = false;
+                break;
+
+            case 'teaching_repeat':
+                addTeachMsg('system', '🔄 Repeating...');
+                break;
+
+            case 'teaching_ended':
+                addTeachMsg('system', data.message || 'Teaching ended.');
+                isTeaching = false;
+                break;
+
+            case 'stt_unavailable':
+                addSmartMsg('system', `⚠️ ${data.message}`);
+                break;
+
+            case 'system_message':
+                addSmartMsg('system', `ℹ️ ${data.message}`);
+                break;
+
+            case 'error':
+                addSmartMsg('system', `❌ ${data.error}`);
+                console.error('Server error:', data.error);
+                // If resume failed, go back to session init
+                if (currentPhase === 'teaching' && !isTeaching) {
+                    currentPhase = 'session_init';
+                    switchPhase('sessionInitPhase');
+                }
+                break;
+
+            default:
+                console.log('Unknown:', data.type);
+        }
+    } catch (e) {
+        console.error('Parse error:', e);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// EVENT HANDLERS
+// ═══════════════════════════════════════════════════════════
+function handleSessionInit(data) {
+    // Update greeting
+    document.getElementById('greetingText').textContent = data.greeting || 'Welcome!';
+
+    // Show progress cards
+    const summary = data.summary || {};
+    const details = summary.course_details || [];
+    if (details.length > 0) {
+        document.getElementById('progressSection').style.display = 'block';
+        const grid = document.getElementById('progressGrid');
+        grid.innerHTML = '';
+        for (const c of details.slice(0, 6)) {
+            const pct = c.completion_pct || 0;
+            grid.innerHTML += `
+                <div class="progress-card">
+                    <div class="pc-title">${c.title}</div>
+                    <div class="pc-bar"><div class="pc-bar-fill" style="width:${pct}%"></div></div>
+                    <div class="pc-stats">
+                        <span>${c.completed_topics}/${c.total_topics} topics</span>
+                        <span>${pct.toFixed(0)}%</span>
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    // Store resume info
+    resumeInfo = data.resume_info;
+
+    // Set persona info from the selected dropdown
+    const personaId = document.getElementById('inputPersona').value;
+    const personaMap = {
+        'prof_sarah': { name: 'Prof Sarah', style: 'Warm & Encouraging', gender: 'female' },
+        'prof_james': { name: 'Prof James', style: 'Socratic & Analytical', gender: 'male' },
+        'prof_daniel': { name: 'Prof Daniel', style: 'Direct & Structured', gender: 'male' },
+        'prof_emily': { name: 'Prof Emily', style: 'Methodical & Nurturing', gender: 'female' },
+    };
+    const pInfo = personaMap[personaId] || { name: 'Professor', style: '', gender: 'female' };
+    personaName = pInfo.name;
+    personaGender = pInfo.gender;
+    const isMale = pInfo.gender === 'male';
+    document.getElementById('greetingAvatar').textContent = isMale ? '👨‍🏫' : '👩‍🏫';
+}
+
+function handleSessionResumed(data) {
+    // Transition to teaching phase
+    currentPhase = 'teaching';
+    switchPhase('teachingPhase');
+    isTeaching = true;
+
+    updateTopicBanner(data.module_title, data.topic_title,
+        (data.module_index || 0) + 1, (data.sub_topic_index || 0) + 1);
+    addTeachMsg('course-change', `📍 Resuming: ${data.course_title || ''} → ${data.module_title} → ${data.topic_title}`);
+    enableTeachControls();
+}
+
+function handleTeachingStarted(data) {
+    currentPhase = 'teaching';
+    switchPhase('teachingPhase');
+    isTeaching = true;
+
+    // Update persona from server if provided
+    if (data.persona) {
+        personaName = data.persona.name || personaName;
+        personaGender = data.persona.gender || personaGender;
+    }
+
+    updateTopicBanner(data.module_title, data.sub_topic_title);
+    addTeachMsg('system', `✅ Teaching: ${data.module_title} → ${data.sub_topic_title}`);
+    enableTeachControls();
+}
+
+function handleTopicAdvanced(data) {
+    updateTopicBanner(data.module_title, data.sub_topic_title,
+        (data.module_index || 0) + 1, (data.sub_topic_index || 0) + 1);
+    addTeachMsg('course-change', `⏭️ ${data.module_title} → ${data.sub_topic_title}`);
+    document.getElementById('btnContinue').disabled = true;
+}
+
+function handleCourseChanged(data) {
+    updateTopicBanner(data.module_title, data.sub_topic_title, 1, 1);
+    addTeachMsg('course-change', `📖 New Course: ${data.course_title}<br>${data.module_title} → ${data.sub_topic_title}`);
+    document.getElementById('confirmRow').classList.remove('visible');
+
+    // If we were in session init, switch to teaching
+    if (currentPhase === 'session_init') {
+        currentPhase = 'teaching';
+        switchPhase('teachingPhase');
+        isTeaching = true;
+        enableTeachControls();
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// UI HELPERS
+// ═══════════════════════════════════════════════════════════
+function switchPhase(phaseId) {
+    document.querySelectorAll('.phase').forEach(p => p.classList.remove('active'));
+    document.getElementById(phaseId).classList.add('active');
+}
+
+function updateTopicBanner(module, topic, moduleNum, topicNum) {
+    const banner = document.getElementById('teachTopicBanner');
+    banner.classList.add('visible');
+    if (module != null) document.getElementById('ttbModule').textContent = module;
+    if (topic != null) document.getElementById('ttbTopic').textContent = topic;
+    if (moduleNum != null || topicNum != null) {
+        document.getElementById('ttbPosition').textContent =
+            `Module ${moduleNum || '?'} · Topic ${topicNum || '?'}`;
+    }
+}
+
+function addTeachMsg(cls, html) {
+    const log = document.getElementById('teachLog');
+    const div = document.createElement('div');
+    div.className = `msg ${cls}`;
+    // Add persona label for agent messages
+    if (cls === 'agent') {
+        const avatar = personaGender === 'male' ? '👨‍🏫' : '👩‍🏫';
+        div.innerHTML = `<div class="msg-label">${avatar} ${personaName}</div><div class="msg-text">${html}</div>`;
+    } else if (cls === 'user') {
+        div.innerHTML = `<div class="msg-label">👤 You</div><div class="msg-text">${html}</div>`;
+    } else {
+        div.innerHTML = `<div class="msg-text">${html}</div>`;
+    }
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+}
+
+function addSessionMsg(cls, html) {
+    const log = document.getElementById('sessionLog');
+    log.classList.add('has-messages');
+    const div = document.createElement('div');
+    div.className = `msg ${cls}`;
+    if (cls === 'user') {
+        div.innerHTML = `<div class="msg-label">👤 You</div><div class="msg-text">${html}</div>`;
+    } else if (cls === 'agent') {
+        const avatar = personaGender === 'male' ? '👨‍🏫' : '👩‍🏫';
+        div.innerHTML = `<div class="msg-label">${avatar} ${personaName}</div><div class="msg-text">${html}</div>`;
+    } else {
+        div.innerHTML = `<div class="msg-text">${html}</div>`;
+    }
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+}
+
+function addSmartMsg(cls, html) {
+    if (currentPhase === 'session_init') {
+        addSessionMsg(cls, html);
+    } else {
+        addTeachMsg(cls, html);
+    }
+}
+
+function removeMsgByClass(cls) {
+    const log = document.getElementById('teachLog');
+    const el = log.querySelector(`.msg.${cls}`);
+    if (el) el.remove();
+}
+
+function enableTeachControls() {
+    document.getElementById('btnMark').disabled = false;
+    document.getElementById('btnNextCourse').disabled = false;
+    // Show persona banner in teaching phase
+    const tp = document.getElementById('teachPersona');
+    tp.classList.add('visible');
+    const isMale = personaGender === 'male';
+    document.getElementById('tpAvatar').textContent = isMale ? '👨‍🏫' : '👩‍🏫';
+    document.getElementById('tpName').textContent = personaName;
+}
+
+function setSpeakingIndicator(speaking) {
+    // Session init phase: pulse the greeting avatar
+    const avatar = document.getElementById('greetingAvatar');
+    if (avatar) {
+        if (speaking) avatar.classList.add('speaking');
+        else avatar.classList.remove('speaking');
+    }
+    // Teaching phase: update status dot
+    const dot = document.getElementById('tsbState');
+    const label = document.getElementById('tsbStateText');
+    if (dot && label) {
+        if (speaking) {
+            dot.className = 'tsb-dot speaking';
+            label.textContent = 'Speaking';
+        } else {
+            dot.className = 'tsb-dot blue';
+            label.textContent = 'Listening';
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// USER ACTIONS
+// ═══════════════════════════════════════════════════════════
+function sendNavAction(action) {
+    if (!websocket || websocket.readyState !== WebSocket.OPEN) return;
+    // Map nav actions to voice commands
+    const textMap = {
+        'resume_session': 'continue where we left off',
+        'list_courses': 'what courses are available',
+        'check_progress': 'show my progress',
+    };
+    const text = textMap[action] || action;
+    websocket.send(JSON.stringify({ type: 'teaching_user_input', text }));
+    addSmartMsg('user', text);
+    // NOTE: Do NOT switch phase here — wait for server events
+    // (session_resumed or course_changed) to trigger the transition
+}
+
+function quickStartCourse() {
+    const courseNum = prompt('Enter course number (1, 2, 3...):');
+    if (!courseNum) return;
+    if (!websocket || websocket.readyState !== WebSocket.OPEN) return;
+    const text = `start course ${courseNum}`;
+    websocket.send(JSON.stringify({ type: 'teaching_user_input', text }));
+    addSmartMsg('user', text);
+    // NOTE: Do NOT switch phase here — wait for course_changed event
+}
+
+function sendTeachAction(action) {
+    if (!websocket || websocket.readyState !== WebSocket.OPEN) return;
+    const textMap = {
+        'continue': 'continue',
+        'mark_complete': 'mark this as complete',
+        'next_course': 'move to next course',
+        'yes': 'yes',
+        'no': 'no',
+    };
+    const text = textMap[action] || action;
+
+    if (action === 'continue') {
+        websocket.send(JSON.stringify({ type: 'continue_teaching' }));
+        document.getElementById('btnContinue').disabled = true;
+    } else if (action === 'yes' || action === 'no') {
+        websocket.send(JSON.stringify({ type: 'teaching_user_input', text }));
+        document.getElementById('confirmRow').classList.remove('visible');
+    } else {
+        websocket.send(JSON.stringify({ type: 'teaching_user_input', text }));
+    }
+    addTeachMsg('user', text);
+}
+
+function backToSession() {
+    currentPhase = 'session_init';
+    switchPhase('sessionInitPhase');
+    isTeaching = false;
+    // Reset confirm row if visible
+    document.getElementById('confirmRow').classList.remove('visible');
+}
+
+function endTeaching() {
+    if (websocket && websocket.readyState === WebSocket.OPEN) {
+        websocket.send(JSON.stringify({ type: 'end_teaching' }));
+    }
+    stopAllAudio();
+    if (websocket) websocket.close();
+    if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
+    if (audioContext) audioContext.close().catch(() => {});
+
+    // Back to wake word
+    currentPhase = 'wake';
+    switchPhase('wakeWordPhase');
+    document.getElementById('wakeOrb').classList.remove('detected', 'listening');
+    setWakeStatus('Session ended. Say "Hey Professor" to start again.');
+    setTimeout(() => initWakeWord(), 1000);
+}
+
+// ═══════════════════════════════════════════════════════════
+// CLEANUP
+// ═══════════════════════════════════════════════════════════
+window.addEventListener('beforeunload', () => {
+    if (wakeWordRecognition) try { wakeWordRecognition.stop(); } catch(e) {}
+    if (websocket) websocket.close();
+    if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
+});
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+    initWakeWord();
+});
+</script>
+</body>
+</html>
