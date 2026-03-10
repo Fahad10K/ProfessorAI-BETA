@@ -174,6 +174,22 @@ class DocumentService:
                         course_dict['course_id'] = course_id
                         logging.info(f" Course saved to database! Course ID: {course_id}")
                     
+                    # STEP 6: Add structured course content to ChromaDB with course_id metadata
+                    if config.USE_CHROMA_CLOUD and course_id:
+                        try:
+                            if progress_callback:
+                                progress_callback(95, "Indexing course content to ChromaDB...")
+                            from core.cloud_vectorizer import CloudVectorizer
+                            cloud_vec = CloudVectorizer()
+                            # Build the dict that add_course_content_to_vectorstore expects
+                            course_for_chroma = dict(course_dict)
+                            course_for_chroma['id'] = course_id
+                            course_for_chroma['title'] = course_dict.get('course_title', '')
+                            cloud_vec.add_course_content_to_vectorstore(course_for_chroma)
+                            logging.info(f"✅ STEP 6: Course content indexed to ChromaDB (course_id={course_id})")
+                        except Exception as chroma_err:
+                            logging.error(f"⚠️ STEP 6 FAILED: Could not index course to ChromaDB: {chroma_err}")
+                    
                     if progress_callback:
                         progress_callback(100, "Course generation completed!")
                     

@@ -34,10 +34,10 @@ Base = declarative_base()
 # ============================================================
 
 class User(Base):
-    """User accounts - ACTUAL schema with TEXT id"""
+    """User accounts - ACTUAL schema with INTEGER id"""
     __tablename__ = 'users'
     
-    id = Column(Text, primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(Text, unique=True, nullable=False)
     email = Column(Text, unique=True, nullable=False)
     password = Column(Text, nullable=False)
@@ -55,15 +55,15 @@ class User(Base):
 
 
 class Course(Base):
-    """Main course entities - ACTUAL schema with TEXT id"""
+    """Main course entities - ACTUAL schema with INTEGER id (autoincrement)"""
     __tablename__ = 'courses'
     
-    id = Column(Text, primary_key=True, default=lambda: str(uuid.uuid4()))
-    course_number = Column(Integer, unique=True, nullable=False)  # Simple integer: 1, 2, 3, 4...
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    course_number = Column(Integer)  # Simple integer: 1, 2, 3, 4...
     title = Column(Text, nullable=False)
     description = Column(Text)
     level = Column(Text, default='Beginner')
-    teacher_id = Column(Text, nullable=False)
+    teacher_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     is_free = Column(Boolean, default=False, nullable=False)
     price = Column(Numeric, default=0)
     currency = Column(Text, default='INR')
@@ -84,7 +84,7 @@ class Module(Base):
     __tablename__ = 'modules'
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    course_id = Column(Text, ForeignKey('courses.id', ondelete='CASCADE'), nullable=False)
+    course_id = Column(Integer, ForeignKey('courses.id', ondelete='CASCADE'), nullable=False)
     week = Column(Integer, nullable=False)
     title = Column(String, nullable=False)
     description = Column(Text)
@@ -119,7 +119,7 @@ class Quiz(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     quiz_id = Column(String, unique=True, nullable=False)
-    course_id = Column(Text, ForeignKey('courses.id', ondelete='CASCADE'), nullable=False)
+    course_id = Column(Integer, ForeignKey('courses.id', ondelete='CASCADE'), nullable=False)
     module_id = Column(Integer, ForeignKey('modules.id', ondelete='SET NULL'))
     title = Column(String, nullable=False)
     description = Column(Text)
@@ -157,7 +157,7 @@ class QuizResponse(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     quiz_id = Column(String, ForeignKey('quizzes.quiz_id', ondelete='CASCADE'), nullable=False)
-    user_id = Column(Text, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     answers = Column(JSONB, nullable=False)
     score = Column(Integer)
     total_questions = Column(Integer)
@@ -171,8 +171,8 @@ class UserProgress(Base):
     __tablename__ = 'user_progress'
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Text, nullable=False)
-    course_id = Column(Text, nullable=False)
+    user_id = Column(Integer, nullable=False)
+    course_id = Column(Integer, nullable=False)
     module_id = Column(Integer)
     topic_id = Column(Integer)
     status = Column(String, default='not_started')
@@ -223,37 +223,56 @@ class DatabaseService:
     # COURSE OPERATIONS
     # ============================================================
     
-    def create_course(self, course_data: Dict[str, Any], teacher_id: str = None) -> str:
-        """Create a new course with modules and topics - returns TEXT UUID"""
+    def _resolve_teacher_id(self, session, teacher_id) -> int:
+        """Resolve teacher_id to a valid INTEGER user id."""
+        # If already an integer, use it directly
+        if isinstance(teacher_id, int):
+            return teacher_id
+        # Try to parse as integer
+        try:
+            return int(teacher_id)
+        except (ValueError, TypeError):
+            pass
+        # Look up first admin/teacher user, fallback to first user
+        admin = session.query(User).filter(User.role.in_(['admin', 'teacher'])).first()
+        if admin:
+            return admin.id
+        first_user = session.query(User).order_by(User.id).first()
+        if first_user:
+            return first_user.id
+        # Absolute fallback
+        return 1
+
+    def create_course(self, course_data: Dict[str, Any], teacher_id: str = None) -> int:
+        """Create a new course with modules and topics - returns INTEGER course id"""
         with self.get_session() as session:
-            # Generate UUID for course
-            course_id = str(uuid.uuid4())
-            
             # Auto-assign next course_number
             result = session.execute(text("SELECT COALESCE(MAX(course_number), 0) + 1 FROM courses"))
             next_course_number = result.scalar()
             
-            # Create course
+            # Resolve teacher_id to a valid integer user id
+            resolved_teacher_id = self._resolve_teacher_id(session, teacher_id)
+            
+            # Create course (id is autoincrement — do NOT set it)
             course = Course(
-                id=course_id,
                 course_number=next_course_number,
                 title=course_data.get('course_title', 'Untitled Course'),
                 description=course_data.get('description', ''),
-                teacher_id=teacher_id or 'system',
+                teacher_id=resolved_teacher_id,
                 level='Beginner',
                 is_free=True,
                 price=0,
                 currency='INR',
                 country=course_data.get('country'),
-                created_by=teacher_id or 'system'
+                created_by=str(teacher_id or 'system')
             )
             session.add(course)
-            session.flush()  # Get course.id
+            session.flush()  # Get course.id (INTEGER autoincrement)
             
             # Create modules
             for module_data in course_data.get('modules', []):
                 module = Module(
-                    course_id=course.id,  # TEXT UUID
+                    course_id=course.id,  # INTEGER
                     week=module_data.get('week', 1),
                     title=module_data.get('title', ''),
                     description=module_data.get('description', ''),
@@ -274,8 +293,8 @@ class DatabaseService:
                     session.add(topic)
             
             session.commit()
-            logger.info(f"✅ Created course: {course.title} (ID: {course.id})")
-            return course.id  # Return TEXT UUID
+            logger.info(f"✅ Created course: {course.title} (ID: {course.id}, Number: {course.course_number})")
+            return course.id  # Return INTEGER id
     
     def get_course_by_number(self, course_number: int) -> Dict[str, Any]:
         """Get full course structure by integer course_number (convenience method)"""
@@ -287,18 +306,18 @@ class DatabaseService:
             
             return self.get_course(course.id)
     
-    def get_course(self, course_id: str) -> Dict[str, Any]:
-        """Get full course structure by UUID course_id"""
+    def get_course(self, course_id) -> Dict[str, Any]:
+        """Get full course structure by course_id (INTEGER)"""
         with self.get_session() as session:
-            course = session.query(Course).filter(Course.id == course_id).first()
+            course = session.query(Course).filter(Course.id == int(course_id)).first()
             
             if not course:
                 return None
             
             # Build course structure
             course_dict = {
-                'course_id': course.id,  # TEXT UUID
-                'course_number': course.course_number,  # INTEGER for easy reference
+                'course_id': course.id,  # INTEGER
+                'course_number': course.course_number,  # INTEGER
                 'course_title': course.title,
                 'description': course.description,
                 'created_at': course.created_at.isoformat() if course.created_at else None,
@@ -338,7 +357,7 @@ class DatabaseService:
             courses = query.all()
             
             return [{
-                'course_id': c.id,  # TEXT UUID
+                'course_id': c.id,  # INTEGER
                 'course_title': c.title,
                 'modules': len(c.modules),
                 'created_at': c.created_at.isoformat() if c.created_at else None
@@ -355,7 +374,7 @@ class DatabaseService:
                 module_count = len(course.modules)
                 
                 result.append({
-                    'course_id': course.id,  # TEXT UUID
+                    'course_id': course.id,  # INTEGER
                     'course_title': course.title,
                     'description': course.description,
                     'level': course.level,
@@ -375,24 +394,25 @@ class DatabaseService:
     # QUIZ OPERATIONS
     # ============================================================
     
-    def create_quiz(self, quiz_data: Dict[str, Any], course_id: str) -> str:
-        """Create a quiz with questions - accepts TEXT course_id"""
+    def create_quiz(self, quiz_data: Dict[str, Any], course_id) -> str:
+        """Create a quiz with questions - accepts INTEGER course_id"""
         with self.get_session() as session:
             # Get module_id if module quiz
             module_id = None
+            cid = int(course_id)
             if quiz_data.get('module_week'):
                 module = session.query(Module).filter(
-                    Module.course_id == course_id,  # TEXT UUID
+                    Module.course_id == cid,
                     Module.week == quiz_data['module_week']
                 ).first()
                 if module:
-                    module_id = module.id  # Integer
+                    module_id = module.id
             
             # Create quiz
             quiz = Quiz(
                 quiz_id=quiz_data.get('quiz_id', f"quiz_{uuid.uuid4().hex[:8]}"),
-                course_id=course_id,  # TEXT UUID
-                module_id=module_id,  # Integer or None
+                course_id=cid,  # INTEGER
+                module_id=module_id,
                 title=quiz_data.get('title', 'Quiz'),
                 quiz_type=quiz_data.get('quiz_type', 'module')
             )

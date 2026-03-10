@@ -133,7 +133,9 @@ def process_pdf_and_generate_course(
                 if quiz_id:
                     logging.info(f"[Job {job_id}] ✅ Auto-generated course quiz: {quiz_id}")
             except Exception as qe:
-                logging.warning(f"[Job {job_id}] ⚠️ Auto quiz generation failed (non-fatal): {qe}")
+                logging.error(f"[Job {job_id}] ❌ Auto quiz generation failed: {qe}")
+                import traceback as tb
+                logging.error(tb.format_exc())
             
             task_result = {
                 'status': 'completed',
@@ -141,7 +143,8 @@ def process_pdf_and_generate_course(
                 'result': {
                     'course_id': result.get('course_id'),
                     'course_title': result.get('course_title'),
-                    'modules': len(result.get('modules', []))
+                    'modules': len(result.get('modules', [])),
+                    'quiz_status': 'generated' if quiz_id else 'failed'
                 }
             }
             if quiz_id:
