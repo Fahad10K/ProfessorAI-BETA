@@ -92,6 +92,7 @@ class UserIntent(str, Enum):
     LIST_TOPICS = "list_topics"             # "what topics in this module?"
     RESUME_SESSION = "resume_session"       # "continue where we left off"
     CHECK_PROGRESS = "check_progress"       # "how am I doing?", "show my progress"
+    PREVIOUS_COURSE = "previous_course"     # "go back to previous course"
     UNKNOWN = "unknown"
 
 
@@ -230,6 +231,14 @@ _NEXT_COURSE_KW = frozenset([
     'another course', 'different course', 'change course',
 ])
 
+_PREVIOUS_COURSE_KW = frozenset([
+    'previous course', 'go back to', 'go back', 'last course',
+    'prior course', 'old course', 'earlier course', 'back to course',
+    'return to course', 'switch back', 'go back to the',
+    'the course before', 'course before this', 'course i was on',
+    'course we were on', 'back to my course', 'back to the previous',
+])
+
 _CONFIRM_YES_KW = frozenset([
     'yes', 'yeah', 'yep', 'sure', 'ok', 'okay', 'do it',
     'yes please', 'go ahead', 'mark it', 'confirm', 'absolutely',
@@ -243,6 +252,8 @@ _CONFIRM_YES_KW = frozenset([
 _CONFIRM_NO_KW = frozenset([
     'no', 'nope', 'not yet', 'don\'t', 'cancel', 'skip marking',
     'no thanks', 'not now', 'leave it', 'don\'t mark',
+    'move ahead', 'just move', 'skip', 'skip it', 'move on',
+    'no questions', 'no quiz', 'let\'s move', 'let\'s go',
 ])
 
 _GREETING_KW = frozenset([
@@ -262,6 +273,9 @@ _SELECT_COURSE_KW = frozenset([
     'take course', 'begin course', 'start the course', 'teach me course',
     'i want to learn', 'i want to study', 'let me study',
     'switch to', 'change to', 'start with course',
+    'start with', 'let me start', "let's start with", 'can we start',
+    'begin with', 'take me to course', 'select course',
+    'course number', 'course no',
 ])
 
 _SELECT_MODULE_KW = frozenset([
@@ -282,6 +296,9 @@ _LIST_COURSES_KW = frozenset([
     'what can i learn', 'what subjects', 'show me courses',
     'how many courses', 'what are the courses',
     'courses do i have', 'my courses', 'enrolled courses',
+    'list all', 'all the courses', 'courses we have',
+    'courses do we have', 'list the courses', 'show all courses',
+    'show me all', 'tell me the courses', 'tell me all courses',
 ])
 
 _LIST_MODULES_KW = frozenset([
@@ -314,6 +331,8 @@ _CHECK_PROGRESS_KW = frozenset([
     'topics i completed', 'what i completed', 'topics completed',
     'completed topics', 'completed so far', 'which have i done',
     'what have i done', 'what did i finish', 'what did i complete',
+    'courses have i completed', 'courses i completed', 'courses completed',
+    'how many have i completed', 'how many completed', 'how many courses have i',
 ])
 
 def _extract_number(text: str) -> Optional[int]:
@@ -338,10 +357,12 @@ def _extract_number(text: str) -> Optional[int]:
     }
     words = text.lower().split()
     for word in words:
-        if word in number_words:
-            return number_words[word]
-        if word in ordinals:
-            return ordinals[word]
+        # Strip punctuation (e.g. "ten?" → "ten", "five." → "five")
+        clean = word.strip('.,?!:;\'\"()[]{}')
+        if clean in number_words:
+            return number_words[clean]
+        if clean in ordinals:
+            return ordinals[clean]
     return None
 
 
@@ -393,6 +414,10 @@ def classify_intent(user_input: str, pending_confirmation: bool = False) -> User
         return UserIntent.CHECK_PROGRESS
     if any(kw in text for kw in _RESUME_SESSION_KW):
         return UserIntent.RESUME_SESSION
+
+    # --- Previous course (check before mark-complete/next-course) ---
+    if any(kw in text for kw in _PREVIOUS_COURSE_KW):
+        return UserIntent.PREVIOUS_COURSE
 
     # --- Mark-complete / next-course (check before advance) ---
     if has_mark:
@@ -528,21 +553,15 @@ def needs_rag(question: str, teaching_content: str) -> bool:
 # CONTENT SEGMENTER
 # =============================================================================
 
-def segment_content(content: str, max_segment_chars: int = 800) -> List[str]:
-    """
-    Split teaching content into segments for resumable delivery.
-    Splits at sentence boundaries for natural speech.
-    """
-    if not content:
+_CHECKPOINT_MARKER = "---CHECKPOINT---"
+
+def _split_by_sentences(text: str, max_chars: int) -> List[str]:
+    """Split text into chunks at sentence boundaries, respecting max_chars."""
+    if not text or not text.strip():
         return []
-
-    segments = []
-    current = ""
-
-    # Split by sentences (period, question mark, exclamation)
     sentences = []
     temp = ""
-    for char in content:
+    for char in text:
         temp += char
         if char in '.?!' and len(temp.strip()) > 10:
             sentences.append(temp.strip())
@@ -550,15 +569,43 @@ def segment_content(content: str, max_segment_chars: int = 800) -> List[str]:
     if temp.strip():
         sentences.append(temp.strip())
 
+    segments = []
+    current = ""
     for sentence in sentences:
-        if len(current) + len(sentence) > max_segment_chars and current:
+        if len(current) + len(sentence) > max_chars and current:
             segments.append(current.strip())
             current = sentence
         else:
             current += " " + sentence if current else sentence
-
     if current.strip():
         segments.append(current.strip())
+    return segments
+
+
+def segment_content(content: str, max_segment_chars: int = 2000) -> List[str]:
+    """
+    Split teaching content into segments for resumable delivery.
+
+    1. Splits at ---CHECKPOINT--- markers first (forced pause points where
+       the system waits for user input before continuing).
+    2. Then splits each chunk at sentence boundaries if it exceeds max_segment_chars.
+    """
+    if not content:
+        return []
+
+    # Step 1: split on checkpoint markers
+    raw_chunks = content.split(_CHECKPOINT_MARKER)
+
+    segments = []
+    for chunk in raw_chunks:
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        # Step 2: further split by sentence boundaries if too long
+        if len(chunk) <= max_segment_chars:
+            segments.append(chunk)
+        else:
+            segments.extend(_split_by_sentences(chunk, max_segment_chars))
 
     return segments if segments else [content]
 
@@ -711,16 +758,36 @@ class RealtimeOrchestrator:
 
         logger.info(f"⚡ Intent classified: {intent.value} in {(time.time()-t0)*1000:.1f}ms")
 
-        # ── Confirmation flow (yes/no after "should I mark complete?") ──
+        # ── Confirmation flow (yes/no after "should I ask questions?" / "mark complete?") ──
         if intent == UserIntent.CONFIRM_YES and pending:
             pending_act = state.pending_action
             pending_data_str = state.pending_action_data
             state.pending_action = ""
             state.pending_action_data = ""
-            state.topic_marked_complete = True  # User confirmed marking complete
-            self._transition(state, TeachingPhase.TEACHING)
             import json as _json
             pending_data = _json.loads(pending_data_str) if pending_data_str else {}
+
+            # Quiz flow: user said YES to "should I ask you questions?"
+            if pending_act == "quiz_or_next_course":
+                self._transition(state, TeachingPhase.TEACHING)
+                return {
+                    "action": "start_quiz",
+                    "intent": intent.value,
+                    "after_quiz_action": "next_course",
+                    "state": state,
+                }
+            if pending_act == "quiz_or_advance_topic":
+                self._transition(state, TeachingPhase.TEACHING)
+                return {
+                    "action": "start_quiz",
+                    "intent": intent.value,
+                    "after_quiz_action": "advance_next_topic",
+                    "after_quiz_data": pending_data,
+                    "state": state,
+                }
+
+            state.topic_marked_complete = True  # User confirmed marking complete
+            self._transition(state, TeachingPhase.TEACHING)
             if pending_act == "advance_next_topic":
                 return {
                     "action": "mark_and_advance",
@@ -754,6 +821,28 @@ class RealtimeOrchestrator:
             state.pending_action_data = ""
             import json as _json
             pending_data = _json.loads(pending_data_str) if pending_data_str else {}
+
+            # Quiz flow: user said NO ("move ahead") → skip quiz, mark complete, proceed
+            if pending_act == "quiz_or_next_course":
+                state.topic_marked_complete = True
+                self._transition(state, TeachingPhase.TEACHING)
+                return {
+                    "action": "mark_and_next_course",
+                    "intent": intent.value,
+                    "state": state,
+                }
+            if pending_act == "quiz_or_advance_topic":
+                state.topic_marked_complete = True
+                self._transition(state, TeachingPhase.TEACHING)
+                return {
+                    "action": "mark_and_advance",
+                    "intent": intent.value,
+                    "mark_type": "topic",
+                    "next_module_index": pending_data.get("next_module_index"),
+                    "next_sub_topic_index": pending_data.get("next_sub_topic_index"),
+                    "state": state,
+                }
+
             # Proceed without marking
             if pending_act == "advance_next_topic":
                 self._transition(state, TeachingPhase.TEACHING)
@@ -813,18 +902,28 @@ class RealtimeOrchestrator:
                     "state": state,
                 }
             name = _clean_first_name(state.user_name)
-            # Ask for confirmation to mark current course complete
+            topic = state.sub_topic_title or "this topic"
+            # Offer comprehension quiz before moving
             import json as _json
-            state.pending_action = "next_course"
+            state.pending_action = "quiz_or_next_course"
             state.pending_action_data = ""
             self._transition(state, TeachingPhase.PENDING_CONFIRMATION)
             return {
                 "action": "ask_confirmation",
                 "intent": intent.value,
                 "message": (
-                    f"Sure {name}, before we move to the next course, "
-                    f"should I mark the current course as complete?"
+                    f"Sure {name}, we can move on. "
+                    f"But before that, should I ask you a few quick questions on {topic} "
+                    f"to test your understanding? Or if you prefer, just say 'move ahead'."
                 ),
+                "state": state,
+            }
+
+        # ── Previous course ──
+        if intent == UserIntent.PREVIOUS_COURSE:
+            return {
+                "action": "previous_course",
+                "intent": intent.value,
                 "state": state,
             }
 
@@ -966,10 +1065,11 @@ class RealtimeOrchestrator:
                     ),
                     "state": state,
                 }
-            # Ask confirmation to mark current topic complete before advancing
+            # Offer comprehension quiz before advancing
             name = _clean_first_name(state.user_name)
+            topic = state.sub_topic_title or "this topic"
             import json as _json
-            state.pending_action = "advance_next_topic"
+            state.pending_action = "quiz_or_advance_topic"
             state.pending_action_data = _json.dumps({
                 "next_module_index": adv["module_index"],
                 "next_sub_topic_index": adv["sub_topic_index"],
@@ -979,8 +1079,9 @@ class RealtimeOrchestrator:
                 "action": "ask_confirmation",
                 "intent": intent.value,
                 "message": (
-                    f"Sure {name}, before we move on, "
-                    f"should I mark the current topic as complete?"
+                    f"Sure {name}, we can move on to the next topic. "
+                    f"But before that, should I ask you a few quick questions on {topic} "
+                    f"to check your understanding? Or just say 'move ahead'."
                 ),
                 "state": state,
             }

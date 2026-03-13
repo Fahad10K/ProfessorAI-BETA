@@ -29,6 +29,7 @@ from services.realtime_orchestrator import (
     classify_intent,
     needs_rag,
 )
+from services.llm_intent_classifier import classify_navigation_intent
 
 import config
 
@@ -272,6 +273,11 @@ class ProfAIAgent:
         # Chat audio barge-in: generation counter incremented on each new
         # chat_with_audio request so the previous audio loop stops.
         self._chat_audio_gen = 0
+
+        # Action generation counter: incremented when a new action is scheduled.
+        # Long-running handlers check this to bail out early if a newer action
+        # has superseded them (e.g. user spoke again during a slow DB call).
+        self._action_gen = 0
         
         log(f"ProfAI agent initialized for client {self.client_id} - Services: {self.services_available}")
 
@@ -445,10 +451,12 @@ class ProfAIAgent:
             # Get or create session for user
             if self.session_manager:
                 try:
-                    session = self.session_manager.get_or_create_session(
-                        user_id=user_id,
-                        ip_address=ip_address,
-                        user_agent=user_agent
+                    session = await asyncio.get_event_loop().run_in_executor(
+                        None, lambda: self.session_manager.get_or_create_session(
+                            user_id=user_id,
+                            ip_address=ip_address,
+                            user_agent=user_agent
+                        )
                     )
                     self.session_id = session['session_id']
                     log(f"Session retrieved: {self.session_id}")
@@ -460,7 +468,9 @@ class ProfAIAgent:
             conversation_history = []
             if self.session_manager and self.session_id:
                 try:
-                    conversation_history = self.session_manager.get_conversation_history(self.session_id, limit=5)
+                    conversation_history = await asyncio.get_event_loop().run_in_executor(
+                        None, lambda: self.session_manager.get_conversation_history(self.session_id, limit=5)
+                    )
                     log(f"Retrieved {len(conversation_history)} messages from conversation history")
                 except Exception as e:
                     log(f"Failed to get conversation history: {e}")
@@ -504,24 +514,28 @@ class ProfAIAgent:
                 # Save messages to database (matching REST API format)
                 if self.session_manager and self.session_id:
                     try:
-                        self.session_manager.add_message(
-                            user_id=user_id,
-                            session_id=self.session_id,
-                            role="user",
-                            content=query,
-                            message_type='voice'
+                        await asyncio.get_event_loop().run_in_executor(
+                            None, lambda: self.session_manager.add_message(
+                                user_id=user_id,
+                                session_id=self.session_id,
+                                role="user",
+                                content=query,
+                                message_type='voice'
+                            )
                         )
-                        self.session_manager.add_message(
-                            user_id=user_id,
-                            session_id=self.session_id,
-                            role="assistant",
-                            content=response_text,
-                            message_type='voice',
-                            metadata={
-                                'route': response_data.get('route'),
-                                'confidence': response_data.get('confidence'),
-                                'has_audio': True
-                            }
+                        await asyncio.get_event_loop().run_in_executor(
+                            None, lambda: self.session_manager.add_message(
+                                user_id=user_id,
+                                session_id=self.session_id,
+                                role="assistant",
+                                content=response_text,
+                                message_type='voice',
+                                metadata={
+                                    'route': response_data.get('route'),
+                                    'confidence': response_data.get('confidence'),
+                                    'has_audio': True
+                                }
+                            )
                         )
                         log(f"Messages saved to database")
                     except Exception as e:
@@ -708,7 +722,9 @@ class ProfAIAgent:
                 if self.database_service:
                     try:
                         log(f"Loading course {course_id} from Neon database...")
-                        course_data = self.database_service.get_course_with_content(course_id)
+                        course_data = await asyncio.get_event_loop().run_in_executor(
+                            None, lambda: self.database_service.get_course_with_content(course_id)
+                        )
                         if course_data:
                             log(f"✅ Found course from DB: {course_data.get('title', 'Unknown')}")
                     except Exception as db_err:
@@ -983,8 +999,10 @@ class ProfAIAgent:
             # Get or create DB session (one user = one session)
             if self.session_manager:
                 try:
-                    session = self.session_manager.get_or_create_session(
-                        user_id=user_id, ip_address=ip_address, user_agent=user_agent
+                    session = await asyncio.get_event_loop().run_in_executor(
+                        None, lambda: self.session_manager.get_or_create_session(
+                            user_id=user_id, ip_address=ip_address, user_agent=user_agent
+                        )
                     )
                     self.session_id = session['session_id']
                     log(f"Session for start_session: {self.session_id}")
@@ -995,7 +1013,9 @@ class ProfAIAgent:
             user_name = ""
             if self.database_service and user_id:
                 try:
-                    user_info = self.database_service.get_user_by_id(int(user_id))
+                    user_info = await asyncio.get_event_loop().run_in_executor(
+                        None, lambda: self.database_service.get_user_by_id(int(user_id))
+                    )
                     if user_info:
                         user_name = user_info.get('username', '')
                 except Exception as e:
@@ -1033,23 +1053,12 @@ class ProfAIAgent:
             if orch_state:
                 orch_state.phase = TeachingPhase.SESSION_INIT.value
 
-            # Pre-load course_data if we have a resume course, so select_module/select_topic work
-            preloaded_course_data = None
-            if init_course_id and self.database_service:
-                try:
-                    preloaded_course_data = self.database_service.get_course_with_content(init_course_id)
-                    if preloaded_course_data and orch_state:
-                        orch_state.total_modules = len(preloaded_course_data.get('modules', []))
-                    log(f"📦 Pre-loaded course_data for course {init_course_id}")
-                except Exception as e:
-                    log(f"⚠️ Could not pre-load course_data: {e}")
-
-            # Set up teaching_session state for STT + TTS
+            # Set up teaching_session state for STT + TTS (course_data loaded after greeting)
             self.teaching_session = {
                 'active': True,
                 'thread_id': thread_id,
                 'course_id': init_course_id,
-                'course_data': preloaded_course_data,
+                'course_data': None,
                 'module_index': 0,
                 'sub_topic_index': 0,
                 'current_tts_task': None,
@@ -1065,7 +1074,7 @@ class ProfAIAgent:
                 'mode': 'session_init',
             }
 
-            # Send structured summary to frontend
+            # Send structured summary to frontend IMMEDIATELY (before slow course pre-load)
             await self.websocket.send({
                 "type": "session_init",
                 "greeting": greeting_text,
@@ -1091,6 +1100,20 @@ class ProfAIAgent:
             # Stream the greeting via TTS
             log(f"🎙️ Streaming session greeting ({len(greeting_text)} chars)")
             await self._stream_answer_response(greeting_text, "session_greeting")
+
+            # Pre-load course_data AFTER greeting (runs while user listens)
+            if init_course_id and self.database_service:
+                try:
+                    preloaded_course_data = await asyncio.get_event_loop().run_in_executor(
+                        None, lambda: self.database_service.get_course_with_content(init_course_id)
+                    )
+                    if preloaded_course_data:
+                        self.teaching_session['course_data'] = preloaded_course_data
+                        if orch_state:
+                            orch_state.total_modules = len(preloaded_course_data.get('modules', []))
+                        log(f"📦 Pre-loaded course_data for course {init_course_id}")
+                except Exception as e:
+                    log(f"⚠️ Could not pre-load course_data: {e}")
 
         except Exception as e:
             log(f"❌ handle_start_session error: {e}")
@@ -1121,10 +1144,12 @@ class ProfAIAgent:
             # Get or create session for message persistence
             if self.session_manager:
                 try:
-                    session = self.session_manager.get_or_create_session(
-                        user_id=user_id,
-                        ip_address=ip_address,
-                        user_agent=user_agent
+                    session = await asyncio.get_event_loop().run_in_executor(
+                        None, lambda: self.session_manager.get_or_create_session(
+                            user_id=user_id,
+                            ip_address=ip_address,
+                            user_agent=user_agent
+                        )
                     )
                     self.session_id = session['session_id']
                     self.user_id = user_id
@@ -1136,7 +1161,9 @@ class ProfAIAgent:
             user_name = ""
             if self.database_service and user_id:
                 try:
-                    user_info = self.database_service.get_user_by_id(int(user_id))
+                    user_info = await asyncio.get_event_loop().run_in_executor(
+                        None, lambda: self.database_service.get_user_by_id(int(user_id))
+                    )
                     if user_info:
                         user_name = user_info.get('username', '')
                         log(f"👤 User: {user_name} (id={user_id})")
@@ -1177,6 +1204,7 @@ class ProfAIAgent:
                 'voice_id': voice_id,
                 # Mode: 'course_teaching' | 'query_resolution' | 'idle'
                 'mode': 'course_teaching',
+                'session_greeted': False,  # Set True after first course intro
             }
             
             log(f"✅ Orchestrator session ready (thread_id: {thread_id})")
@@ -1204,7 +1232,9 @@ class ProfAIAgent:
                 if self.database_service:
                     try:
                         log(f"Loading course {course_id} from Neon database...")
-                        course_data = self.database_service.get_course_with_content(course_id)
+                        course_data = await asyncio.get_event_loop().run_in_executor(
+                            None, lambda: self.database_service.get_course_with_content(course_id)
+                        )
                         if course_data:
                             log(f"✅ Found course from DB: {course_data.get('title', 'Unknown')} (id={course_data.get('id')})")
                     except Exception as db_err:
@@ -1384,6 +1414,9 @@ class ProfAIAgent:
             
             log(f"📚 Starting interactive teaching: {module['title']} → {sub_topic['title']}")
             
+            # Mark session as greeted — subsequent course switches will use shorter intros
+            self.teaching_session['session_greeted'] = True
+            
             # Start teaching audio (cancellable)
             await self._stream_teaching_content(teaching_content, language)
             
@@ -1555,9 +1588,43 @@ class ProfAIAgent:
                     except Exception as e:
                         log(f"❌ Failed to send user_question: {e}")
                     
+                    # ── Quiz mode: route answers directly to quiz handler ──
+                    if (self.teaching_session
+                            and self.teaching_session.get('mode') == 'quiz_in_progress'):
+                        log(f"🧠 Quiz answer received: {user_input[:80]}")
+                        asyncio.create_task(self._handle_quiz_answer(user_input))
+                        continue
+
+                    # ── Tier 1.5: LLM quiz-choice when awaiting quiz confirmation ──
+                    # The keyword classifier may misroute ambiguous phrases like
+                    # "test me", "ask away", "nah just continue".  Use LLM to
+                    # normalize the input BEFORE the keyword classifier sees it.
+                    effective_input = user_input
+                    orch_state = self.orchestrator.get_session(thread_id) if self.orchestrator else None
+                    if (orch_state
+                            and orch_state.pending_action.startswith("quiz_or_")
+                            and orch_state.phase == "pending_confirmation"):
+                        try:
+                            from services.llm_intent_classifier import classify_quiz_choice
+                            llm_choice = await classify_quiz_choice(
+                                user_input,
+                                topic_title=orch_state.sub_topic_title or "",
+                                timeout=2.0,
+                            )
+                            if llm_choice and llm_choice.get('confidence', 0) >= 0.5:
+                                choice = llm_choice['choice']
+                                if choice == 'take_quiz':
+                                    effective_input = "yes"
+                                    log(f"🤖 LLM quiz-choice: take_quiz → normalised to 'yes'")
+                                elif choice == 'skip_quiz':
+                                    effective_input = "move ahead"
+                                    log(f"🤖 LLM quiz-choice: skip_quiz → normalised to 'move ahead'")
+                        except Exception as llm_err:
+                            log(f"⚠️ LLM quiz-choice fallback to keywords: {llm_err}")
+
                     # ORCHESTRATOR ROUTING (<5ms, no LLM call)
                     route_t0 = time.time()
-                    routing = self.orchestrator.process_user_input(thread_id, user_input)
+                    routing = self.orchestrator.process_user_input(thread_id, effective_input)
                     action = routing.get('action', 'error')
                     intent = routing.get('intent', 'unknown')
                     route_ms = (time.time() - route_t0) * 1000
@@ -1642,7 +1709,11 @@ class ProfAIAgent:
         except Exception:
             pass
 
-    async def _dispatch_action(self, act: str, rt: dict, ui: str, tid: str, save_user_msg: bool = False):
+    def _action_is_stale(self, my_gen: int) -> bool:
+        """Return True if a newer action has been scheduled, meaning this one should bail out."""
+        return my_gen != self._action_gen
+
+    async def _dispatch_action(self, act: str, rt: dict, ui: str, tid: str, save_user_msg: bool = False, action_gen: int = 0):
         """
         Shared action dispatcher for both STT and text-input paths.
         Handles all orchestrator actions with proper mode transitions.
@@ -1654,11 +1725,13 @@ class ProfAIAgent:
             ui: Original user input text
             tid: Thread/session ID
             save_user_msg: If True, persist user message to DB (STT path)
+            action_gen: Generation counter — if a newer action is scheduled, this one bails out
         """
         try:
             # Optionally persist user message (STT path does this here; text path does it before)
             if save_user_msg and self.session_manager and self.session_id and self.teaching_session:
                 try:
+                    _cid = self.teaching_session.get('course_id')
                     await asyncio.get_event_loop().run_in_executor(
                         None,
                         lambda: self.session_manager.add_message(
@@ -1667,7 +1740,7 @@ class ProfAIAgent:
                             role='user',
                             content=ui,
                             message_type='voice',
-                            course_id=self.teaching_session['course_id']
+                            course_id=_cid if _cid and _cid > 0 else None
                         )
                     )
                 except Exception:
@@ -1706,6 +1779,10 @@ class ProfAIAgent:
                 msg = rt.get('message', "Should I mark this as complete?")
                 await self.websocket.send({"type": "ask_confirmation", "message": msg})
                 await self._stream_answer_response(msg, "confirmation", skip_text_send=True)
+            elif act == 'start_quiz':
+                after_action = rt.get('after_quiz_action', 'next_course')
+                after_data = rt.get('after_quiz_data', {})
+                await self._start_comprehension_quiz(tid, after_action, after_data)
             elif act == 'mark_complete':
                 await self._handle_mark_complete()
                 # After marking complete, offer to advance if there's a next topic/course
@@ -1725,13 +1802,15 @@ class ProfAIAgent:
                         await self.websocket.send({"type": "ask_confirmation", "message": follow_up})
                         await self._stream_answer_response(follow_up, "confirmation", skip_text_send=True)
             elif act == 'mark_and_advance':
-                await self._handle_mark_complete()
-                await self._handle_advance_next_topic(tid, rt)
+                await self._handle_mark_complete(speak=False)
+                await self._handle_advance_next_topic(tid, rt, marked_complete=True)
             elif act == 'mark_and_next_course':
-                await self._handle_mark_complete()
+                await self._handle_mark_complete(speak=False)
                 await self._handle_next_course()
             elif act == 'next_course':
                 await self._handle_next_course()
+            elif act == 'previous_course':
+                await self._handle_previous_course(tid)
             elif act == 'greeting':
                 await self._stream_answer_response(rt.get('message', "Hello!"), "greeting")
             # --- Navigation actions (session init + course browsing) ---
@@ -1750,11 +1829,46 @@ class ProfAIAgent:
             elif act == 'resume_session':
                 await self._handle_resume_session(tid)
             elif act == 'check_progress':
-                await self._handle_check_progress()
+                # Check if user is asking about a specific course's progress
+                cp_course_name = None
+                if ui and ('course' in ui.lower() or any(hint in ui.lower() for hint in ['specific', 'particular', 'for ', 'in ', 'of '])):
+                    course_names = await self._get_course_name_list()
+                    if course_names:
+                        current_title = ""
+                        orch_state = self.orchestrator.get_session(tid) if self.orchestrator else None
+                        if orch_state:
+                            current_title = orch_state.course_title or ""
+                        llm_result = await classify_navigation_intent(
+                            ui, course_names, current_course=current_title, timeout=2.0
+                        )
+                        if llm_result and llm_result.get('course_name'):
+                            cp_course_name = llm_result['course_name']
+                            log(f"🤖 LLM extracted course for progress: {cp_course_name}")
+                await self._handle_check_progress(course_name=cp_course_name)
             elif act in ('answer_with_rag', 'answer_general'):
-                if self.teaching_session:
-                    self.teaching_session['mode'] = 'query_resolution'
-                await self._execute_answer_pipeline(tid, rt, ui)
+                # ── Tier 1.5: check if this "question" is actually a navigation/correction ──
+                reclassified = False
+                if ui and self._looks_like_navigation(ui):
+                    log(f"🤖 Question may be navigation, calling LLM classifier...")
+                    course_names = await self._get_course_name_list()
+                    current_title = ""
+                    orch_state = self.orchestrator.get_session(tid) if self.orchestrator else None
+                    if orch_state:
+                        current_title = orch_state.course_title or ""
+                    llm_result = await classify_navigation_intent(
+                        ui, course_names, current_course=current_title, timeout=2.0
+                    )
+                    if llm_result:
+                        llm_intent = llm_result.get('intent', '')
+                        conf = llm_result.get('confidence', 0)
+                        if llm_intent not in ('question', 'unknown') and conf >= 0.6:
+                            log(f"🤖 LLM reclassified question → {llm_intent} (conf={conf})")
+                            await self._handle_llm_reclassified(llm_intent, llm_result, tid, ui)
+                            reclassified = True
+                if not reclassified:
+                    if self.teaching_session:
+                        self.teaching_session['mode'] = 'query_resolution'
+                    await self._execute_answer_pipeline(tid, rt, ui)
             else:
                 log(f"⚠️ Unknown action: {act}")
         except asyncio.CancelledError:
@@ -1797,7 +1911,11 @@ class ProfAIAgent:
             self.teaching_session['_last_scheduled_action'] = act
             self.teaching_session['_last_scheduled_time'] = now
 
-        task = asyncio.create_task(self._dispatch_action(act, rt, ui, tid, save_user_msg=save_user_msg))
+        # Bump action generation so stale handlers can detect they've been superseded
+        self._action_gen += 1
+        my_gen = self._action_gen
+
+        task = asyncio.create_task(self._dispatch_action(act, rt, ui, tid, save_user_msg=save_user_msg, action_gen=my_gen))
         if self.teaching_session:
             self.teaching_session['current_answer_task'] = task
         return task
@@ -1886,6 +2004,7 @@ class ProfAIAgent:
         # Save assistant response to DB (once)
         if self.session_manager and self.session_id:
             try:
+                _cid = self.teaching_session.get('course_id')
                 await asyncio.get_event_loop().run_in_executor(
                     None,
                     lambda: self.session_manager.add_message(
@@ -1894,7 +2013,7 @@ class ProfAIAgent:
                         role='assistant',
                         content=answer_text,
                         message_type='voice',
-                        course_id=self.teaching_session['course_id']
+                        course_id=_cid if _cid and _cid > 0 else None
                     )
                 )
             except Exception:
@@ -1949,8 +2068,10 @@ class ProfAIAgent:
                 conversation_history = []
                 if self.session_manager and self.session_id:
                     try:
-                        conversation_history = self.session_manager.get_conversation_history(
-                            self.session_id, limit=3
+                        conversation_history = await asyncio.get_event_loop().run_in_executor(
+                            None, lambda: self.session_manager.get_conversation_history(
+                                self.session_id, limit=3
+                            )
                         )
                     except Exception:
                         pass
@@ -2045,8 +2166,13 @@ class ProfAIAgent:
         except Exception as e:
             logging.info(f"[WebSocket] ⚠️ Filler TTS error (non-fatal): {e}")
     
-    async def _handle_mark_complete(self):
-        """Mark current topic/module as complete via the progress API."""
+    async def _handle_mark_complete(self, speak: bool = True):
+        """Mark current topic/module as complete via the progress API.
+        
+        Args:
+            speak: If True, speak a TTS confirmation and fetch recommendations.
+                   Set to False when followed by an immediate advance (cohesive flow).
+        """
         if not self.teaching_session or not self.database_service:
             return
         try:
@@ -2074,32 +2200,38 @@ class ProfAIAgent:
                 if db_module_id is None or db_topic_id is None:
                     log(f"⚠️ Could not resolve DB IDs for module_idx={module_idx}, topic_idx={topic_idx}")
                 
-                self.database_service.mark_topic_complete(
-                    user_id=int(user_id),
-                    course_id=int(course_id),
-                    module_id=db_module_id if db_module_id is not None else module_idx,
-                    topic_id=db_topic_id if db_topic_id is not None else topic_idx,
+                await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: self.database_service.mark_topic_complete(
+                        user_id=int(user_id),
+                        course_id=int(course_id),
+                        module_id=db_module_id if db_module_id is not None else module_idx,
+                        topic_id=db_topic_id if db_topic_id is not None else topic_idx,
+                    )
                 )
                 log(f"✅ Marked complete: course={course_id} module={module_idx} topic={topic_idx} ({topic_title})")
 
                 # Update course_progress JSONB table
                 try:
-                    stats = self.database_service.get_course_completion_stats(int(user_id), int(course_id))
+                    stats = await asyncio.get_event_loop().run_in_executor(
+                        None, lambda: self.database_service.get_course_completion_stats(int(user_id), int(course_id))
+                    )
                     module_title = ""
                     if course_data and module_idx < len(course_data.get("modules", [])):
                         module_title = course_data["modules"][module_idx].get("title", "")
-                    self.database_service.get_or_update_course_progress(
-                        user_id=int(user_id),
-                        course_id=int(course_id),
-                        progress_data={
-                            "current_module_index": module_idx,
-                            "current_topic_index": topic_idx,
-                            "last_module_title": module_title,
-                            "last_topic_title": topic_title,
-                            "completed_topics": stats.get('completed_topics', 0),
-                            "total_topics": stats.get('total_topics', 0),
-                            "overall_pct": stats.get('completion_percentage', 0),
-                        }
+                    await asyncio.get_event_loop().run_in_executor(
+                        None, lambda: self.database_service.get_or_update_course_progress(
+                            user_id=int(user_id),
+                            course_id=int(course_id),
+                            progress_data={
+                                "current_module_index": module_idx,
+                                "current_topic_index": topic_idx,
+                                "last_module_title": module_title,
+                                "last_topic_title": topic_title,
+                                "completed_topics": stats.get('completed_topics', 0),
+                                "total_topics": stats.get('total_topics', 0),
+                                "overall_pct": stats.get('completion_percentage', 0),
+                            }
+                        )
                     )
                 except Exception as cp_err:
                     log(f"⚠️ course_progress update failed (non-critical): {cp_err}")
@@ -2111,13 +2243,14 @@ class ProfAIAgent:
                     "module_index": module_idx,
                     "topic_index": topic_idx,
                 })
-                # Also speak a short confirmation
-                await self._stream_answer_response(
-                    f"Done! I've marked that as complete.",
-                    "progress"
-                )
-                # Fetch recommendations (non-blocking, best-effort)
-                await self._send_recommendations_if_available()
+                if speak:
+                    # Speak a short confirmation
+                    await self._stream_answer_response(
+                        f"Done! I've marked that as complete.",
+                        "progress"
+                    )
+                    # Fetch recommendations (non-blocking, best-effort)
+                    await self._send_recommendations_if_available()
         except Exception as e:
             log(f"⚠️ mark_topic_complete failed: {e}")
             await self.websocket.send({
@@ -2126,12 +2259,11 @@ class ProfAIAgent:
             })
 
     async def _send_recommendations_if_available(self):
-        """Fetch and send learning recommendations to the client (best-effort)."""
+        """Fetch recommendations, speak them via TTS so user can choose, and send JSON."""
         try:
             uid = self.teaching_session.get('user_id') if self.teaching_session else self.user_id
             if not uid:
                 return
-            # Reuse cached instance to avoid creating new DB connections per call
             if not hasattr(self, '_recommendation_service') or self._recommendation_service is None:
                 from services.recommendation_service import RecommendationService
                 self._recommendation_service = RecommendationService()
@@ -2139,6 +2271,7 @@ class ProfAIAgent:
                 None, self._recommendation_service.get_recommendations, int(uid)
             )
             if result and 'error' not in result:
+                # Send JSON for UI display
                 await self.websocket.send({
                     "type": "recommendations",
                     "next_topics": result.get('next_topics', [])[:3],
@@ -2146,9 +2279,275 @@ class ProfAIAgent:
                     "next_courses": result.get('next_courses', [])[:2],
                     "summary": result.get('summary', ''),
                 })
-                log(f"📊 Recommendations sent: {len(result.get('next_topics',[]))} topics, {len(result.get('recommended_quizzes',[]))} quizzes")
+                log(f"📊 Recommendations sent")
+
+                # Build a short spoken summary so user can hear options
+                rec_speech = self._format_recommendations_as_speech(result)
+                if rec_speech:
+                    await self._stream_answer_response(rec_speech, "recommendations")
         except Exception as e:
             log(f"⚠️ Recommendations fetch failed (non-critical): {e}")
+
+    def _format_recommendations_as_speech(self, result: dict) -> str:
+        """Format recommendation data as a short TTS-friendly spoken summary."""
+        parts = []
+        next_topics = result.get('next_topics', [])[:2]
+        quizzes = result.get('recommended_quizzes', [])[:2]
+        next_courses = result.get('next_courses', [])[:2]
+        summary = result.get('summary', '')
+
+        if next_topics:
+            topic_names = [t.get('title', t.get('name', '')) for t in next_topics if isinstance(t, dict)]
+            topic_names = [n for n in topic_names if n]  # filter empty strings
+            if not topic_names:
+                topic_names = [str(t) for t in next_topics if str(t).strip()]
+            if topic_names:
+                parts.append(f"Next up, you could continue with: {', or '.join(topic_names[:2])}.")
+
+        if quizzes:
+            parts.append(f"There are also {len(quizzes)} quizzes ready for you to try.")
+
+        if next_courses:
+            course_names = [c.get('title', c.get('name', '')) for c in next_courses if isinstance(c, dict)]
+            course_names = [n for n in course_names if n]  # filter empty strings
+            if not course_names:
+                course_names = [str(c) for c in next_courses if str(c).strip()]
+            if course_names:
+                parts.append(f"Other courses available: {', '.join(course_names[:2])}.")
+
+        if summary and not parts:
+            parts.append(summary)
+
+        if parts:
+            parts.append("What would you like to do?")
+            return " ".join(parts)
+        return ""
+
+    # ── Comprehension Quiz Infrastructure ──
+
+    async def _start_comprehension_quiz(self, thread_id: str, after_action: str, after_data: dict):
+        """Generate 2-3 comprehension questions via Groq and ask the first one."""
+        try:
+            orch_state = self.orchestrator.get_session(thread_id) if self.orchestrator else None
+            topic_title = orch_state.sub_topic_title if orch_state else "this topic"
+            raw_content = orch_state.raw_content if orch_state else ""
+
+            # Use first 3000 chars of content for question generation
+            content_snippet = raw_content[:3000] if raw_content else ""
+
+            persona = self.teaching_session.get('persona', {})
+            persona_name = persona.get('name', 'Professor')
+
+            questions = await self._generate_quiz_questions(topic_title, content_snippet)
+            if not questions:
+                # Fallback: skip quiz and proceed directly
+                log("⚠️ Quiz generation failed, proceeding without quiz")
+                await self._complete_quiz_and_proceed(thread_id, after_action, after_data)
+                return
+
+            # Store quiz state
+            self.teaching_session['mode'] = 'quiz_in_progress'
+            self.teaching_session['quiz_questions'] = questions
+            self.teaching_session['quiz_index'] = 0
+            self.teaching_session['quiz_scores'] = []
+            self.teaching_session['quiz_after_action'] = after_action
+            self.teaching_session['quiz_after_data'] = after_data
+
+            # Ask first question
+            intro = f"Great, let me ask you {len(questions)} quick questions. Here's the first one."
+            q_text = f"{intro} {questions[0]}"
+            await self.websocket.send({
+                "type": "quiz_question",
+                "question_index": 0,
+                "total_questions": len(questions),
+                "question": questions[0],
+            })
+            await self._stream_answer_response(q_text, "quiz_question")
+            log(f"🧠 Quiz started: {len(questions)} questions, after_action={after_action}")
+
+        except Exception as e:
+            log(f"❌ _start_comprehension_quiz error: {e}")
+            await self._complete_quiz_and_proceed(thread_id, after_action, after_data)
+
+    async def _generate_quiz_questions(self, topic_title: str, content: str) -> list:
+        """Use Groq to generate 2-3 short comprehension questions."""
+        try:
+            from groq import Groq
+            import config
+            client = Groq(api_key=config.GROQ_API_KEY)
+
+            prompt = (
+                f"You are a teacher testing a student on '{topic_title}'.\n"
+                f"Based on this content:\n---\n{content}\n---\n"
+                f"Generate exactly 3 short comprehension questions. "
+                f"Questions should test understanding, not just recall. "
+                f"Keep each question under 25 words.\n"
+                f"Return ONLY the questions, one per line, numbered 1. 2. 3."
+            )
+
+            response = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: client.chat.completions.create(
+                    model="llama-3.1-8b-instant",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.7,
+                    max_tokens=300,
+                )
+            )
+            text = response.choices[0].message.content.strip()
+            # Parse numbered questions
+            import re
+            lines = [re.sub(r'^\d+[\.\)]\s*', '', line.strip()) for line in text.split('\n') if line.strip()]
+            questions = [q for q in lines if len(q) > 10][:3]
+            log(f"🧠 Generated {len(questions)} quiz questions")
+            return questions
+        except Exception as e:
+            log(f"❌ Quiz question generation failed: {e}")
+            return []
+
+    async def _handle_quiz_answer(self, user_answer: str):
+        """Rate the user's quiz answer via Groq and move to next question or complete."""
+        if not self.teaching_session or self.teaching_session.get('mode') != 'quiz_in_progress':
+            return
+
+        questions = self.teaching_session.get('quiz_questions', [])
+        idx = self.teaching_session.get('quiz_index', 0)
+        scores = self.teaching_session.get('quiz_scores', [])
+
+        if idx >= len(questions):
+            return
+
+        current_question = questions[idx]
+
+        # Rate answer via Groq
+        try:
+            from groq import Groq
+            import config
+            client = Groq(api_key=config.GROQ_API_KEY)
+
+            orch_state = self.orchestrator.get_session(
+                self.teaching_session.get('thread_id', '')
+            ) if self.orchestrator else None
+            raw_content = orch_state.raw_content[:2000] if orch_state and orch_state.raw_content else ""
+
+            prompt = (
+                f"You are grading a student's answer.\n"
+                f"Topic context: {raw_content}\n"
+                f"Question: {current_question}\n"
+                f"Student's answer: {user_answer}\n\n"
+                f"Rate the answer as: correct, partially_correct, or incorrect.\n"
+                f"Then give a ONE sentence feedback (encouraging, max 20 words).\n"
+                f"Format: RATING|FEEDBACK"
+            )
+
+            response = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: client.chat.completions.create(
+                    model="llama-3.1-8b-instant",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.3,
+                    max_tokens=100,
+                )
+            )
+            result_text = response.choices[0].message.content.strip()
+            parts = result_text.split('|', 1)
+            rating = parts[0].strip().lower() if parts else "partially_correct"
+            feedback = parts[1].strip() if len(parts) > 1 else "Good attempt!"
+
+            # Normalize rating
+            if 'correct' in rating and 'incorrect' not in rating and 'partial' not in rating:
+                score = 'correct'
+            elif 'partial' in rating:
+                score = 'partially_correct'
+            else:
+                score = 'incorrect'
+
+        except Exception as e:
+            log(f"⚠️ Quiz rating failed: {e}")
+            score = 'partially_correct'
+            feedback = "Let's move on."
+
+        scores.append({'question': current_question, 'answer': user_answer, 'score': score, 'feedback': feedback})
+        self.teaching_session['quiz_scores'] = scores
+        self.teaching_session['quiz_index'] = idx + 1
+
+        # Send rating to client
+        await self.websocket.send({
+            "type": "quiz_answer_rated",
+            "question_index": idx,
+            "score": score,
+            "feedback": feedback,
+        })
+
+        # Check if more questions
+        if idx + 1 < len(questions):
+            next_q = questions[idx + 1]
+            if score == 'correct':
+                response_text = f"{feedback} Next question. {next_q}"
+            else:
+                response_text = f"{feedback} Let's try the next one. {next_q}"
+
+            await self.websocket.send({
+                "type": "quiz_question",
+                "question_index": idx + 1,
+                "total_questions": len(questions),
+                "question": next_q,
+            })
+            await self._stream_answer_response(response_text, "quiz_question")
+        else:
+            # Quiz complete — summarize and proceed
+            await self._finish_quiz()
+
+    async def _finish_quiz(self):
+        """Summarize quiz results and proceed with the after-quiz action."""
+        if not self.teaching_session:
+            return
+
+        scores = self.teaching_session.get('quiz_scores', [])
+        correct = sum(1 for s in scores if s['score'] == 'correct')
+        partial = sum(1 for s in scores if s['score'] == 'partially_correct')
+        total = len(scores)
+
+        # Build summary
+        if correct == total:
+            summary = f"Excellent! You got all {total} questions right. You clearly understand this topic well."
+        elif correct + partial >= total * 0.5:
+            summary = f"Good effort! You got {correct} out of {total} correct. Let's keep building on that."
+        else:
+            summary = f"You got {correct} out of {total}. Don't worry, practice makes perfect. We'll keep learning."
+
+        await self.websocket.send({
+            "type": "quiz_complete",
+            "correct": correct,
+            "partial": partial,
+            "total": total,
+            "summary": summary,
+        })
+        summary_with_transition = f"{summary} Now let's move on."
+        await self._stream_answer_response(summary_with_transition, "quiz_complete")
+
+        # Wait for TTS to finish before proceeding
+        await self._await_pending_tts()
+
+        # Proceed with after-quiz action
+        thread_id = self.teaching_session.get('thread_id', '')
+        after_action = self.teaching_session.get('quiz_after_action', 'next_course')
+        after_data = self.teaching_session.get('quiz_after_data', {})
+
+        # Clean up quiz state
+        self.teaching_session['mode'] = 'course_teaching'
+        for key in ('quiz_questions', 'quiz_index', 'quiz_scores', 'quiz_after_action', 'quiz_after_data'):
+            self.teaching_session.pop(key, None)
+
+        await self._complete_quiz_and_proceed(thread_id, after_action, after_data)
+
+    async def _complete_quiz_and_proceed(self, thread_id: str, after_action: str, after_data: dict):
+        """Mark complete and execute the after-quiz action (next_course or advance_next_topic)."""
+        # Mark current topic complete (speak=False: cohesive transition handled by advance)
+        await self._handle_mark_complete(speak=False)
+
+        if after_action == 'next_course':
+            await self._handle_next_course()
+        elif after_action == 'advance_next_topic':
+            await self._handle_advance_next_topic(thread_id, after_data, marked_complete=True)
 
     async def _handle_next_course(self):
         """Load the next course from the database and start teaching it."""
@@ -2156,7 +2555,9 @@ class ProfAIAgent:
             return
         try:
             current_course_id = int(self.teaching_session.get('course_id', 0))
-            all_courses = self.database_service.get_all_courses()
+            all_courses = await asyncio.get_event_loop().run_in_executor(
+                None, self.database_service.get_all_courses
+            )
             if not all_courses:
                 await self.websocket.send({
                     "type": "error",
@@ -2165,7 +2566,7 @@ class ProfAIAgent:
                 return
 
             # Sort by id and find next
-            sorted_courses = sorted(all_courses, key=lambda c: c.get('id', 0))
+            sorted_courses = sorted(all_courses, key=lambda c: c.get('id') or 0)
             next_course = None
             for c in sorted_courses:
                 if c.get('id', 0) > current_course_id:
@@ -2187,48 +2588,95 @@ class ProfAIAgent:
             next_title = next_course.get('title', 'Unknown')
             log(f"⏭️ Switching to next course: {next_title} (id={next_id})")
 
+            # Notify client that we're loading the next course
+            await self.websocket.send({
+                "type": "loading",
+                "message": f"Loading next course: {next_title}..."
+            })
+
+            # Track previous course for "go back" navigation
+            old_cid = self.teaching_session.get('course_id')
+            if old_cid and old_cid != next_id:
+                self.teaching_session['previous_course_id'] = old_cid
+
             # Update course_id FIRST so any barge-in during loading uses correct course
             self.teaching_session['course_id'] = next_id
+            my_gen = self._action_gen  # snapshot for staleness check
 
-            # Update session's current_course_id in database
-            if self.session_id and self.database_service:
-                try:
-                    self.database_service.update_session_course(self.session_id, next_id)
-                except Exception as e:
-                    log(f"⚠️ Failed to update session course: {e}")
+            # ── Parallel DB calls: load course content + update session ──
+            loop = asyncio.get_event_loop()
+            async def _load_next():
+                return await loop.run_in_executor(
+                    None, lambda: self.database_service.get_course_with_content(next_id))
+            async def _update_next():
+                if self.session_id and self.database_service:
+                    try:
+                        await loop.run_in_executor(
+                            None, lambda: self.database_service.update_session_course(self.session_id, next_id))
+                    except Exception:
+                        pass
+            course_data, _ = await asyncio.gather(_load_next(), _update_next())
 
-            # Load full course content
-            course_data = self.database_service.get_course_with_content(next_id)
+            # Staleness check
+            if self._action_is_stale(my_gen):
+                log(f"⏭️ next_course stale after DB load — aborting")
+                return
+
             if not course_data:
-                await self.websocket.send({
-                    "type": "error",
-                    "error": f"Could not load course: {next_title}"
-                })
+                await self.websocket.send({"type": "error", "error": f"Could not load course: {next_title}"})
                 return
 
             # Update teaching session
             self.teaching_session['course_id'] = next_id
             self.teaching_session['course_data'] = course_data
-            self.teaching_session['module_index'] = 0
-            self.teaching_session['sub_topic_index'] = 0
 
             modules = course_data.get("modules", [])
             if not modules:
                 await self.websocket.send({"type": "error", "error": "Course has no modules."})
                 return
 
-            first_mod = modules[0]
-            sub_topics = first_mod.get("topics", first_mod.get("sub_topics", []))
-            first_topic = sub_topics[0] if sub_topics else {}
-            module_title = first_mod.get('title', 'Module 1')
-            sub_topic_title = first_topic.get('title', 'Topic 1')
+            # ── Check user progress (lightweight: reuse course_data, only fetch progress) ──
+            m_idx, t_idx = 0, 0
+            is_resuming = False
+            user_id = int(self.user_id) if self.user_id else None
+            if user_id and self.database_service:
+                try:
+                    progress = await loop.run_in_executor(
+                        None, lambda: self.database_service.get_user_progress(user_id, next_id)
+                    )
+                    completed_ids = {p['topic_id'] for p in progress
+                                     if p.get('status') == 'completed' and p.get('topic_id')}
+                    if completed_ids:
+                        for mi, mod in enumerate(modules):
+                            topics = mod.get('topics', mod.get('sub_topics', []))
+                            for ti, tp in enumerate(topics):
+                                if tp.get('id') not in completed_ids:
+                                    m_idx, t_idx = mi, ti
+                                    if mi > 0 or ti > 0:
+                                        is_resuming = True
+                                        log(f"📍 Next course progress found: resuming at module={mi}, topic={ti}")
+                                    break
+                            else:
+                                continue
+                            break
+                except Exception as e:
+                    log(f"⚠️ Progress check for next course failed: {e}")
+
+            self.teaching_session['module_index'] = m_idx
+            self.teaching_session['sub_topic_index'] = t_idx
+
+            target_mod = modules[m_idx] if m_idx < len(modules) else modules[0]
+            sub_topics = target_mod.get("topics", target_mod.get("sub_topics", []))
+            target_topic = sub_topics[t_idx] if t_idx < len(sub_topics) else (sub_topics[0] if sub_topics else {})
+            module_title = target_mod.get('title', f'Module {m_idx + 1}')
+            sub_topic_title = target_topic.get('title', f'Topic {t_idx + 1}')
 
             # Update orchestrator
             tid = self.teaching_session['thread_id']
             self.orchestrator.advance_topic(
                 session_id=tid,
-                module_index=0,
-                sub_topic_index=0,
+                module_index=m_idx,
+                sub_topic_index=t_idx,
                 module_title=module_title,
                 sub_topic_title=sub_topic_title,
                 total_sub_topics=len(sub_topics),
@@ -2239,18 +2687,27 @@ class ProfAIAgent:
                 orch_state.course_title = next_title
                 orch_state.total_modules = len(modules)
 
+            # Staleness check before streaming
+            if self._action_is_stale(my_gen):
+                log(f"⏭️ next_course stale before streaming — aborting")
+                return
+
             # Notify client
+            if is_resuming:
+                change_msg = f"Resuming course: {next_title} — picking up at {module_title}, {sub_topic_title}"
+            else:
+                change_msg = f"Starting new course: {next_title}"
             await self.websocket.send({
                 "type": "course_changed",
                 "course_id": next_id,
                 "course_title": next_title,
                 "module_title": module_title,
                 "sub_topic_title": sub_topic_title,
-                "message": f"Starting new course: {next_title}"
+                "message": change_msg,
             })
 
-            # Prepare and stream first topic
-            raw_content = first_topic.get('content', '')
+            # Prepare and stream topic
+            raw_content = target_topic.get('content', '')
             if not raw_content:
                 raw_content = f"This topic covers {sub_topic_title} as part of {module_title}."
             if len(raw_content) > 8000:
@@ -2272,6 +2729,127 @@ class ProfAIAgent:
                 "type": "error",
                 "error": f"Failed to load next course: {str(e)}"
             })
+
+    async def _handle_previous_course(self, tid):
+        """Switch back to the previously active course, resuming where user left off."""
+        log = lambda msg: logging.info(f"[WebSocket] {msg}")
+        if not self.teaching_session:
+            await self._stream_answer_response("No active session.", "error")
+            return
+
+        prev_id = self.teaching_session.get('previous_course_id')
+        if not prev_id:
+            await self._stream_answer_response(
+                "There's no previous course to go back to. You can say 'list courses' to see available courses.",
+                "nav_info"
+            )
+            return
+
+        try:
+            log(f"⏮️ Switching to previous course id={prev_id}")
+            await self.websocket.send({
+                "type": "loading",
+                "message": "Loading previous course..."
+            })
+
+            # Track current as previous before switching
+            cur_id = self.teaching_session.get('course_id')
+            if cur_id and cur_id != prev_id:
+                self.teaching_session['previous_course_id'] = cur_id
+
+            self.teaching_session['course_id'] = prev_id
+
+            # Update session in DB
+            if self.session_id and self.database_service:
+                try:
+                    await asyncio.get_event_loop().run_in_executor(
+                        None, lambda: self.database_service.update_session_course(self.session_id, prev_id)
+                    )
+                except Exception:
+                    pass
+
+            course_data = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: self.database_service.get_course_with_content(prev_id)
+            )
+            if not course_data:
+                await self._stream_answer_response("I couldn't load the previous course.", "error")
+                return
+
+            modules = course_data.get("modules", [])
+            if not modules:
+                await self._stream_answer_response("The previous course has no modules.", "error")
+                return
+
+            # Try to find where user left off via progress DB
+            m_idx, t_idx = 0, 0
+            course_title = course_data.get('title', 'Unknown')
+            if self.database_service and self.user_id:
+                try:
+                    progress = await asyncio.get_event_loop().run_in_executor(
+                        None, lambda: self.database_service.get_or_update_course_progress(
+                            int(self.user_id), prev_id
+                        )
+                    )
+                    if progress:
+                        m_idx = progress.get('current_module_index', 0) or 0
+                        t_idx = progress.get('current_topic_index', 0) or 0
+                except Exception:
+                    pass
+
+            if m_idx >= len(modules):
+                m_idx = 0
+            module = modules[m_idx]
+            sub_topics = module.get("topics", module.get("sub_topics", []))
+            if t_idx >= len(sub_topics):
+                t_idx = 0
+            topic = sub_topics[t_idx] if sub_topics else {}
+            module_title = module.get('title', f'Module {m_idx + 1}')
+            topic_title = topic.get('title', f'Topic {t_idx + 1}')
+
+            self.teaching_session['course_data'] = course_data
+            self.teaching_session['module_index'] = m_idx
+            self.teaching_session['sub_topic_index'] = t_idx
+            self.teaching_session['mode'] = 'course_teaching'
+
+            # Update orchestrator
+            self.orchestrator.advance_topic(
+                session_id=tid, module_index=m_idx, sub_topic_index=t_idx,
+                module_title=module_title, sub_topic_title=topic_title,
+                total_sub_topics=len(sub_topics),
+            )
+            orch_state = self.orchestrator.get_session(tid)
+            if orch_state:
+                orch_state.course_id = prev_id
+                orch_state.course_title = course_title
+                orch_state.total_modules = len(modules)
+
+            # Announce — keep it short, no re-intro needed
+            intro = (
+                f"Switching back to {course_title}, "
+                f"{module_title}, topic: {topic_title}."
+            )
+            await self.websocket.send({
+                "type": "course_changed",
+                "course_id": prev_id, "course_title": course_title,
+                "module_title": module_title, "sub_topic_title": topic_title,
+            })
+
+            raw_content = topic.get('content', '') or f"This topic covers {topic_title}."
+            if len(raw_content) > 8000:
+                raw_content = raw_content[:7500] + "..."
+            teaching_content = self._create_simple_teaching_content(module_title, topic_title, raw_content)
+            self.teaching_session['teaching_content'] = teaching_content
+            self.orchestrator.set_content(tid, teaching_content, raw_content)
+
+            await self._stream_answer_response(intro, "course_intro")
+            first_segment = self.orchestrator.start_teaching(tid)
+            if first_segment:
+                await self._stream_teaching_content(first_segment, self.teaching_session['language'])
+
+        except Exception as e:
+            log(f"❌ _handle_previous_course error: {e}")
+            import traceback; traceback.print_exc()
+            await self._stream_answer_response("I couldn't switch to the previous course.", "error")
 
     # ============= NAVIGATION ACTION HANDLERS =============
 
@@ -2327,41 +2905,118 @@ class ProfAIAgent:
             return
         try:
             log(f"📚 select_course: number={requested_number}, raw='{raw_input}'")
-            all_courses = self.database_service.get_all_courses()
+            all_courses = await asyncio.get_event_loop().run_in_executor(
+                None, self.database_service.get_all_courses
+            )
             if not all_courses:
                 await self._stream_answer_response("No courses are available.", "error")
                 return
 
-            sorted_courses = sorted(all_courses, key=lambda c: c.get('course_order', c.get('id', 0)))
+            sorted_courses = sorted(all_courses, key=lambda c: c.get('course_order') or c.get('id') or 0)
+            course_name_list = [c.get('title', '') for c in sorted_courses]
             target = None
+            llm_intent_result = None
+            resume_after_select = False
 
-            # Try by number (1-indexed)
-            if requested_number is not None:
+            # ── Tier 1.5: LLM classifier for accurate course resolution ──
+            if raw_input:
+                current_title = ""
+                orch_state = self.orchestrator.get_session(tid) if self.orchestrator else None
+                if orch_state:
+                    current_title = orch_state.course_title or ""
+                llm_intent_result = await classify_navigation_intent(
+                    raw_input, course_name_list, current_course=current_title
+                )
+
+            if llm_intent_result:
+                llm_course = llm_intent_result.get('course_name')
+                llm_num = llm_intent_result.get('course_number')
+                llm_real_intent = llm_intent_result.get('intent', '')
+
+                # If LLM says this is actually a different intent, re-route
+                if llm_real_intent in ('check_progress', 'list_courses', 'resume_session',
+                                       'previous_course', 'next_course', 'question'):
+                    log(f"🤖 LLM reclassified select_course → {llm_real_intent}")
+                    await self._handle_llm_reclassified(llm_real_intent, llm_intent_result, tid, raw_input)
+                    return
+
+                # Check if user wants to resume this specific course
+                if llm_real_intent == 'select_course_resume':
+                    resume_after_select = True
+
+                # Match by LLM-returned course name (exact match against list)
+                if llm_course:
+                    for c in sorted_courses:
+                        if c.get('title', '').lower() == llm_course.lower():
+                            target = c
+                            log(f"🤖 LLM matched course: '{llm_course}'")
+                            break
+
+                # Match by LLM-returned course number
+                if not target and llm_num is not None:
+                    idx = llm_num - 1 if llm_num > 0 else len(sorted_courses) - 1
+                    if 0 <= idx < len(sorted_courses):
+                        target = sorted_courses[idx]
+                        log(f"🤖 LLM matched course number: {llm_num}")
+
+            # ── Fallback: keyword-based matching ──
+            if not target and requested_number is not None:
                 idx = requested_number - 1 if requested_number > 0 else len(sorted_courses) - 1
                 if 0 <= idx < len(sorted_courses):
                     target = sorted_courses[idx]
                 else:
                     log(f"⚠️ Course number {requested_number} out of range (1-{len(sorted_courses)})")
 
-            # Try by name match if number didn't work
+            # Fallback name matching (when LLM is unavailable or returned no match)
             if not target and raw_input:
                 raw_lower = raw_input.lower()
+                stop_words = {'course', 'start', 'switch', 'to', 'the', 'a', 'go',
+                              'with', 'let', 'me', 'can', 'we', 'us', "let's",
+                              'please', 'want', 'i', 'begin', 'open', 'take', 'from',
+                              'select', 'number', 'no'}
+                raw_words = set(raw_lower.split()) - stop_words
+
+                # Pass 1: exact substring match
                 for c in sorted_courses:
                     title_lower = c.get('title', '').lower()
                     if title_lower in raw_lower or raw_lower in title_lower:
                         target = c
                         break
-                    # Also try partial word overlap (e.g. "cyber" matches "Cyber Security")
-                    raw_words = set(raw_lower.split())
-                    title_words = set(title_lower.split())
-                    if raw_words & title_words - {'course', 'start', 'switch', 'to', 'the', 'a', 'go'}:
-                        target = c
-                        break
+
+                # Pass 2: significant word overlap
+                if not target:
+                    best_score = 0
+                    for c in sorted_courses:
+                        title_lower = c.get('title', '').lower()
+                        title_words = set(title_lower.split()) - stop_words
+                        overlap = raw_words & title_words
+                        if len(overlap) > best_score and len(overlap) >= 1:
+                            best_score = len(overlap)
+                            target = c
+
+                # Pass 3: fuzzy matching for STT mishearings
+                if not target:
+                    from difflib import SequenceMatcher
+                    best_ratio = 0.0
+                    clean_query = ' '.join(w for w in raw_lower.split() if w not in stop_words)
+                    for c in sorted_courses:
+                        title_lower = c.get('title', '').lower()
+                        ratio = SequenceMatcher(None, clean_query, title_lower).ratio()
+                        for rw in raw_words:
+                            for tw in title_lower.split():
+                                wr = SequenceMatcher(None, rw, tw).ratio()
+                                if wr > 0.75 and wr > ratio:
+                                    ratio = max(ratio, wr * 0.9)
+                        if ratio > best_ratio and ratio >= 0.45:
+                            best_ratio = ratio
+                            target = c
+                    if target:
+                        log(f"🔍 Fuzzy matched '{clean_query}' → '{target.get('title')}' (ratio={best_ratio:.2f})")
 
             if not target:
-                course_names = ', '.join([f"{i+1}. {c.get('title','')}" for i, c in enumerate(sorted_courses[:5])])
+                course_names = '. '.join([f"{i+1}: {c.get('title','')}" for i, c in enumerate(sorted_courses)])
                 await self._stream_answer_response(
-                    f"I couldn't find that course. Available courses include: {course_names}. "
+                    f"I couldn't find that course. Available courses: {course_names}. "
                     f"Say the course number to start.",
                     "error"
                 )
@@ -2371,17 +3026,39 @@ class ProfAIAgent:
             course_title = target.get('title', 'Unknown')
             log(f"📚 User selected course: {course_title} (id={course_id})")
 
-            # Load and start teaching this course from module 0, topic 0
+            # Notify client we're loading
+            await self.websocket.send({
+                "type": "loading",
+                "message": f"Loading course: {course_title}..."
+            })
+
+            # Track previous course for "go back" navigation
+            old_cid = self.teaching_session.get('course_id')
+            if old_cid and old_cid != course_id:
+                self.teaching_session['previous_course_id'] = old_cid
+
             self.teaching_session['course_id'] = course_id
+            my_gen = self._action_gen  # snapshot for staleness check
 
-            # Update session in DB
-            if self.session_id and self.database_service:
-                try:
-                    self.database_service.update_session_course(self.session_id, course_id)
-                except Exception:
-                    pass
+            # ── Parallel DB calls: load course content + update session ──
+            loop = asyncio.get_event_loop()
+            async def _load_course():
+                return await loop.run_in_executor(
+                    None, lambda: self.database_service.get_course_with_content(course_id))
+            async def _update_session():
+                if self.session_id and self.database_service:
+                    try:
+                        await loop.run_in_executor(
+                            None, lambda: self.database_service.update_session_course(self.session_id, course_id))
+                    except Exception:
+                        pass
+            course_data, _ = await asyncio.gather(_load_course(), _update_session())
 
-            course_data = self.database_service.get_course_with_content(course_id)
+            # Staleness check: if user spoke again during DB call, abort
+            if self._action_is_stale(my_gen):
+                log(f"⏭️ select_course stale after DB load — aborting")
+                return
+
             if not course_data:
                 await self._stream_answer_response(f"I couldn't load {course_title}.", "error")
                 return
@@ -2392,19 +3069,48 @@ class ProfAIAgent:
                 return
 
             self.teaching_session['course_data'] = course_data
-            self.teaching_session['module_index'] = 0
-            self.teaching_session['sub_topic_index'] = 0
             self.teaching_session['mode'] = 'course_teaching'
 
-            first_mod = modules[0]
-            sub_topics = first_mod.get("topics", first_mod.get("sub_topics", []))
-            first_topic = sub_topics[0] if sub_topics else {}
-            module_title = first_mod.get('title', 'Module 1')
-            sub_topic_title = first_topic.get('title', 'Topic 1')
+            # ── Check user progress (lightweight: reuse course_data, only fetch progress) ──
+            m_idx, t_idx = 0, 0
+            is_resuming = False
+            user_id = int(self.user_id) if self.user_id else None
+            if user_id and self.database_service:
+                try:
+                    progress = await loop.run_in_executor(
+                        None, lambda: self.database_service.get_user_progress(user_id, course_id)
+                    )
+                    completed_ids = {p['topic_id'] for p in progress
+                                     if p.get('status') == 'completed' and p.get('topic_id')}
+                    if completed_ids:
+                        # Walk modules/topics to find first incomplete
+                        for mi, mod in enumerate(modules):
+                            topics = mod.get('topics', mod.get('sub_topics', []))
+                            for ti, tp in enumerate(topics):
+                                if tp.get('id') not in completed_ids:
+                                    m_idx, t_idx = mi, ti
+                                    if mi > 0 or ti > 0:
+                                        is_resuming = True
+                                        log(f"📍 Progress found: resuming at module={mi}, topic={ti}")
+                                    break
+                            else:
+                                continue
+                            break
+                except Exception as e:
+                    log(f"⚠️ Progress check failed (starting from beginning): {e}")
+
+            self.teaching_session['module_index'] = m_idx
+            self.teaching_session['sub_topic_index'] = t_idx
+
+            target_mod = modules[m_idx] if m_idx < len(modules) else modules[0]
+            sub_topics = target_mod.get("topics", target_mod.get("sub_topics", []))
+            target_topic = sub_topics[t_idx] if t_idx < len(sub_topics) else (sub_topics[0] if sub_topics else {})
+            module_title = target_mod.get('title', f'Module {m_idx + 1}')
+            sub_topic_title = target_topic.get('title', f'Topic {t_idx + 1}')
 
             # Update orchestrator
             self.orchestrator.advance_topic(
-                session_id=tid, module_index=0, sub_topic_index=0,
+                session_id=tid, module_index=m_idx, sub_topic_index=t_idx,
                 module_title=module_title, sub_topic_title=sub_topic_title,
                 total_sub_topics=len(sub_topics),
             )
@@ -2414,12 +3120,59 @@ class ProfAIAgent:
                 orch_state.course_title = course_title
                 orch_state.total_modules = len(modules)
 
-            # Announce and start
-            intro = (
-                f"Great, let's start with {course_title}. "
-                f"This course has {len(modules)} modules. "
-                f"We'll begin with {module_title}, topic: {sub_topic_title}."
-            )
+            # Announce — persona-aware, shorter if already greeted
+            already_greeted = self.teaching_session.get('session_greeted', False)
+            persona_style = (self.teaching_session.get('persona', {}).get('style', '') or '').lower()
+
+            if is_resuming:
+                # Resuming from progress — tell user where we're picking up
+                if 'warm' in persona_style:
+                    intro = (f"Welcome back to {course_title}! I see you've already made some progress. "
+                             f"Let's pick up from {module_title}, topic: {sub_topic_title}.")
+                elif 'socratic' in persona_style:
+                    intro = (f"Returning to {course_title}. You left off at {module_title}, "
+                             f"{sub_topic_title}. Let's continue from there.")
+                elif 'direct' in persona_style:
+                    intro = (f"Resuming {course_title}. Picking up at {module_title}, "
+                             f"topic {sub_topic_title}.")
+                else:
+                    intro = (f"I see you have progress in {course_title}. "
+                             f"Picking up where you left off: {module_title}, topic: {sub_topic_title}.")
+                if not already_greeted:
+                    self.teaching_session['session_greeted'] = True
+            elif already_greeted:
+                if 'warm' in persona_style:
+                    intro = f"Alright, switching over to {course_title}! We'll start with {module_title}, topic: {sub_topic_title}."
+                elif 'socratic' in persona_style:
+                    intro = f"Let's shift our focus to {course_title}. We'll begin with {module_title}, specifically {sub_topic_title}."
+                elif 'direct' in persona_style:
+                    intro = f"Moving to {course_title}. Starting point: {module_title}, topic {sub_topic_title}."
+                else:
+                    intro = f"Okay, let's move to {course_title}. Starting with {module_title}, topic: {sub_topic_title}."
+            else:
+                if 'warm' in persona_style:
+                    intro = (
+                        f"Great choice! {course_title} is going to be a fun one. "
+                        f"It has {len(modules)} modules and we'll kick things off with {module_title}, "
+                        f"topic: {sub_topic_title}."
+                    )
+                elif 'socratic' in persona_style:
+                    intro = (
+                        f"Good. {course_title} — {len(modules)} modules to work through. "
+                        f"We'll begin with {module_title}, starting with {sub_topic_title}."
+                    )
+                elif 'direct' in persona_style:
+                    intro = (
+                        f"Right, {course_title}. {len(modules)} modules total. "
+                        f"First up: {module_title}, topic {sub_topic_title}. Let's go."
+                    )
+                else:
+                    intro = (
+                        f"Alright, let's start with {course_title}. "
+                        f"This course has {len(modules)} modules. "
+                        f"We'll begin with {module_title}, topic: {sub_topic_title}."
+                    )
+                self.teaching_session['session_greeted'] = True
             await self.websocket.send({
                 "type": "course_changed",
                 "course_id": course_id, "course_title": course_title,
@@ -2437,21 +3190,24 @@ class ProfAIAgent:
                 },
             })
 
-            raw_content = first_topic.get('content', '') or f"This topic covers {sub_topic_title}."
+            raw_content = target_topic.get('content', '') or f"This topic covers {sub_topic_title}."
             if len(raw_content) > 8000:
                 raw_content = raw_content[:7500] + "..."
             teaching_content = self._create_simple_teaching_content(module_title, sub_topic_title, raw_content)
             self.teaching_session['teaching_content'] = teaching_content
             self.orchestrator.set_content(tid, teaching_content, raw_content)
 
-            # Mark topic as in_progress in DB
-            if self.database_service and first_mod.get('id') and first_topic.get('id'):
-                try:
-                    self.database_service.mark_topic_in_progress(
-                        int(self.user_id), course_id, first_mod['id'], first_topic['id']
-                    )
-                except Exception:
-                    pass
+            # Mark topic as in_progress in DB (fire-and-forget, don't block)
+            if self.database_service and target_mod.get('id') and target_topic.get('id'):
+                _mod_id, _top_id, _uid = target_mod['id'], target_topic['id'], int(self.user_id)
+                asyncio.ensure_future(loop.run_in_executor(
+                    None, lambda: self.database_service.mark_topic_in_progress(_uid, course_id, _mod_id, _top_id)
+                ))
+
+            # Final staleness check before streaming
+            if self._action_is_stale(my_gen):
+                log(f"⏭️ select_course stale before streaming — aborting")
+                return
 
             # Stream intro then start teaching
             await self._stream_answer_response(intro, "course_intro")
@@ -2463,6 +3219,46 @@ class ProfAIAgent:
             log(f"❌ _handle_select_course error: {e}")
             import traceback; traceback.print_exc()
             await self._stream_answer_response("I couldn't switch to that course.", "error")
+
+    async def _handle_llm_reclassified(self, llm_intent, llm_result, tid, raw_input):
+        """Handle re-routing when LLM classifier overrides the Tier 1 intent."""
+        log = lambda msg: logging.info(f"[WebSocket] {msg}")
+        log(f"🤖 Re-routing to LLM intent: {llm_intent}")
+
+        if llm_intent == 'check_progress':
+            course_name = llm_result.get('course_name')
+            await self._handle_check_progress(course_name=course_name)
+        elif llm_intent == 'list_courses':
+            await self._handle_list_courses()
+        elif llm_intent == 'resume_session':
+            await self._handle_resume_session(tid)
+        elif llm_intent == 'previous_course':
+            await self._handle_previous_course(tid)
+        elif llm_intent == 'next_course':
+            await self._handle_next_course()
+        elif llm_intent == 'question':
+            await self._execute_answer_pipeline(tid, {
+                "action": "answer_general",
+                "intent": "question",
+                "state": self.orchestrator.get_session(tid),
+            }, raw_input)
+        elif llm_intent == 'correction':
+            # User is correcting a misunderstanding — try to extract what they actually want
+            course_name = llm_result.get('course_name')
+            if course_name:
+                # Re-dispatch as select_course with the corrected course name
+                await self._handle_select_course(None, course_name, tid)
+            else:
+                await self._stream_answer_response(
+                    "I'm sorry for the confusion. Could you tell me which course you'd like to start?",
+                    "clarify"
+                )
+        else:
+            log(f"⚠️ Unknown LLM intent for re-route: {llm_intent}")
+            await self._stream_answer_response(
+                "I'm not sure what you'd like to do. You can say 'list courses' to see available courses.",
+                "clarify"
+            )
 
     async def _handle_select_module(self, requested_number, tid):
         """Jump to a specific module in the current course."""
@@ -2596,6 +3392,7 @@ class ProfAIAgent:
                 "message": "📍 Resuming your session...",
                 "subtype": "processing",
             })
+            my_gen = self._action_gen  # snapshot for staleness check
             user_id = int(self.user_id) if self.user_id else None
             if not user_id:
                 await self._stream_answer_response("I need your user ID to resume.", "error")
@@ -2607,6 +3404,11 @@ class ProfAIAgent:
             learning = await loop.run_in_executor(
                 None, self.database_service.get_user_learning_summary, user_id
             )
+            # Staleness check after first slow DB call
+            if self._action_is_stale(my_gen):
+                log(f"⏭️ resume_session stale after learning_summary — aborting")
+                return
+
             last_course_id = learning.get('last_course_id')
             if not last_course_id:
                 await self._stream_answer_response(
@@ -2618,6 +3420,11 @@ class ProfAIAgent:
             resume_info = await loop.run_in_executor(
                 None, self.session_init_service._find_resume_point, user_id, last_course_id
             )
+            # Staleness check after second slow DB call
+            if self._action_is_stale(my_gen):
+                log(f"⏭️ resume_session stale after find_resume_point — aborting")
+                return
+
             if not resume_info:
                 await self._stream_answer_response(
                     f"You've completed all topics in {learning.get('last_course_title', 'your last course')}! "
@@ -2635,7 +3442,9 @@ class ProfAIAgent:
             # Use cached course_data from _find_resume_point to avoid duplicate DB call
             course_data = resume_info.pop('_course_data', None)
             if not course_data:
-                course_data = self.database_service.get_course_with_content(course_id)
+                course_data = await loop.run_in_executor(
+                    None, lambda: self.database_service.get_course_with_content(course_id)
+                )
             if not course_data:
                 await self._stream_answer_response("I couldn't load the course for resuming.", "error")
                 return
@@ -2654,19 +3463,23 @@ class ProfAIAgent:
             module_title = module.get('title', f'Module {m_idx + 1}')
             topic_title = topic.get('title', f'Topic {t_idx + 1}')
 
+            # Track previous course for "go back" navigation
+            old_cid = self.teaching_session.get('course_id')
+            if old_cid and old_cid != course_id:
+                self.teaching_session['previous_course_id'] = old_cid
+
             self.teaching_session['course_id'] = course_id
             self.teaching_session['course_data'] = course_data
             self.teaching_session['module_index'] = m_idx
             self.teaching_session['sub_topic_index'] = t_idx
             self.teaching_session['mode'] = 'course_teaching'
 
+            # Fire-and-forget: update session course in DB
             if self.session_id and self.database_service:
-                try:
-                    await loop.run_in_executor(
-                        None, self.database_service.update_session_course, self.session_id, course_id
-                    )
-                except Exception:
-                    pass
+                _sid, _cid = self.session_id, course_id
+                asyncio.ensure_future(loop.run_in_executor(
+                    None, lambda: self.database_service.update_session_course(_sid, _cid)
+                ))
 
             self.orchestrator.advance_topic(
                 session_id=tid, module_index=m_idx, sub_topic_index=t_idx,
@@ -2698,11 +3511,19 @@ class ProfAIAgent:
                 },
             })
 
-            intro = (
-                f"Let's pick up where we left off. "
-                f"We're in {resume_info.get('course_title', 'your course')}, "
-                f"{module_title}, topic: {topic_title}."
-            )
+            already_greeted = self.teaching_session.get('session_greeted', False)
+            if already_greeted:
+                intro = (
+                    f"Resuming {resume_info.get('course_title', 'your course')}, "
+                    f"{module_title}, topic: {topic_title}."
+                )
+            else:
+                intro = (
+                    f"Let's pick up where we left off. "
+                    f"We're in {resume_info.get('course_title', 'your course')}, "
+                    f"{module_title}, topic: {topic_title}."
+                )
+                self.teaching_session['session_greeted'] = True
 
             raw_content = topic.get('content', '') or f"This topic covers {topic_title}."
             if len(raw_content) > 8000:
@@ -2710,6 +3531,11 @@ class ProfAIAgent:
             teaching_content = self._create_simple_teaching_content(module_title, topic_title, raw_content)
             self.teaching_session['teaching_content'] = teaching_content
             self.orchestrator.set_content(tid, teaching_content, raw_content)
+
+            # Staleness check before streaming
+            if self._action_is_stale(my_gen):
+                log(f"⏭️ resume_session stale before streaming — aborting")
+                return
 
             await self._stream_answer_response(intro, "resume_intro")
             first_segment = self.orchestrator.start_teaching(tid)
@@ -2721,8 +3547,8 @@ class ProfAIAgent:
             import traceback; traceback.print_exc()
             await self._stream_answer_response("I couldn't resume your previous session.", "error")
 
-    async def _handle_check_progress(self):
-        """Show user's progress report via TTS."""
+    async def _handle_check_progress(self, course_name: str = None):
+        """Show user's progress report via TTS. If course_name given, show progress for that specific course."""
         if not self.session_init_service:
             await self._stream_answer_response("Progress tracking is not available right now.", "error")
             return
@@ -2733,19 +3559,29 @@ class ProfAIAgent:
                 await self._stream_answer_response("I need your user ID to check progress.", "error")
                 return
 
-            text = await asyncio.get_event_loop().run_in_executor(
-                None, self.session_init_service.build_progress_text, user_id, user_name
-            )
+            if course_name:
+                text = await asyncio.get_event_loop().run_in_executor(
+                    None, self.session_init_service.build_course_progress_text,
+                    user_id, course_name, user_name
+                )
+            else:
+                text = await asyncio.get_event_loop().run_in_executor(
+                    None, self.session_init_service.build_progress_text, user_id, user_name
+                )
             await self.websocket.send({"type": "progress_report", "text": text})
             await self._stream_answer_response(text, "progress_report")
         except Exception as e:
             log(f"❌ _handle_check_progress error: {e}")
             await self._stream_answer_response("I couldn't load your progress right now.", "error")
 
-    async def _handle_advance_next_topic(self, thread_id: str, routing: dict):
+    async def _handle_advance_next_topic(self, thread_id: str, routing: dict, marked_complete: bool = False):
         """
         Auto-advance to the next sub-topic or module when all segments are done.
         Loads new content from the stored course_data and starts streaming.
+
+        Args:
+            marked_complete: If True, the previous topic was just marked complete
+                             (speak=False path) — include that in the transition message.
         """
         next_mi = routing.get('next_module_index', 0)
         next_si = routing.get('next_sub_topic_index', 0)
@@ -2806,8 +3642,35 @@ class ProfAIAgent:
         )
         
         # Update teaching_session indices
+        prev_mi = self.teaching_session.get('module_index', 0)
+        prev_si = self.teaching_session.get('sub_topic_index', 0)
         self.teaching_session['module_index'] = next_mi
         self.teaching_session['sub_topic_index'] = next_si
+        
+        # Mark new topic as in_progress (fire-and-forget)
+        if self.database_service and module.get('id') and sub_topic.get('id'):
+            _uid = int(self.teaching_session.get('user_id', 0))
+            _cid = int(self.teaching_session.get('course_id', 0))
+            _mid, _tid = module['id'], sub_topic['id']
+            if _uid and _cid:
+                asyncio.ensure_future(asyncio.get_event_loop().run_in_executor(
+                    None, lambda: self.database_service.mark_topic_in_progress(_uid, _cid, _mid, _tid)
+                ))
+        
+        # Build cohesive transition intro
+        changed_module = (next_mi != prev_mi)
+        if marked_complete:
+            if changed_module:
+                transition = (f"Great, I've marked that as complete. "
+                              f"Let's move on to {module_title}, topic: {sub_topic_title}.")
+            else:
+                transition = (f"Got it, marked as complete. "
+                              f"Moving on to the next topic: {sub_topic_title}.")
+        else:
+            if changed_module:
+                transition = f"Let's move on to {module_title}, topic: {sub_topic_title}."
+            else:
+                transition = f"Moving on to the next topic: {sub_topic_title}."
         
         # Load and prepare new content
         raw_content = sub_topic.get('content', '')
@@ -2826,16 +3689,32 @@ class ProfAIAgent:
         log(f"✅ New topic content ready ({len(teaching_content)} chars, "
             f"{self.orchestrator.get_session(thread_id).total_segments} segments)")
         
-        # Start streaming the first segment of the new topic
+        # Speak cohesive transition, then start teaching
+        await self._stream_answer_response(transition, "topic_transition")
         first_segment = self.orchestrator.start_teaching(thread_id)
         if first_segment:
             await self._stream_teaching_content(first_segment, self.teaching_session['language'])
         else:
             log("⚠️ No content to stream for new topic")
 
+    async def _await_pending_tts(self, timeout: float = 15.0):
+        """Wait for any in-flight TTS task to finish before starting a new audio stream.
+        Prevents intro and teaching audio from overlapping on the client."""
+        if not self.teaching_session:
+            return
+        pending = self.teaching_session.get('current_tts_task')
+        if pending and not pending.done():
+            try:
+                await asyncio.wait_for(asyncio.shield(pending), timeout=timeout)
+            except (asyncio.TimeoutError, asyncio.CancelledError, Exception):
+                pass
+
     async def _stream_teaching_content(self, content: str, language: str):
         """Stream teaching audio with cancellation support for barge-in."""
         try:
+            # Wait for any pending intro/answer audio to finish first
+            await self._await_pending_tts()
+
             self.teaching_session['is_teaching'] = True
             self.teaching_session['_streaming_text'] = content  # Track for barge-in resume
             tts_content = self._sanitize_for_tts(content)
@@ -2980,7 +3859,7 @@ class ProfAIAgent:
                                 role='assistant',
                                 content=response_text,
                                 message_type='voice',
-                                course_id=_cid,
+                                course_id=_cid if _cid and _cid > 0 else None,
                                 metadata={'agent': agent_name}
                             )
                         )
@@ -3114,41 +3993,208 @@ class ProfAIAgent:
         text = re.sub(r'\n{3,}', '\n\n', text)
         return text.strip()
 
+    def _looks_like_navigation(self, text: str) -> bool:
+        """Quick heuristic: does this 'question' look like it might be a navigation/correction intent?
+        Used to decide whether to call the LLM Tier 1.5 classifier."""
+        t = text.lower()
+        nav_hints = [
+            'no ', 'no,', 'no.', 'i asked', 'i said', 'i meant', 'i want',
+            'start from', 'start with', 'switch to', 'go to', 'go back',
+            'change to', 'course', 'progress', 'previous', 'resume',
+            'not that', 'wrong course', 'different course', 'other course',
+            'i had asked', 'that is not', "that's not", 'accountancy',
+            'can you tell me', 'show me', 'how far', 'how much',
+        ]
+        return any(hint in t for hint in nav_hints)
+
+    async def _get_course_name_list(self) -> list:
+        """Get sorted list of course titles for LLM classifier context."""
+        if not self.database_service:
+            return []
+        try:
+            all_courses = await asyncio.get_event_loop().run_in_executor(
+                None, self.database_service.get_all_courses
+            )
+            if not all_courses:
+                return []
+            sorted_courses = sorted(all_courses, key=lambda c: c.get('course_order') or c.get('id') or 0)
+            return [c.get('title', '') for c in sorted_courses]
+        except Exception:
+            return []
+
+    def _get_persona_templates(self):
+        """Return persona-specific speech templates based on the active persona style."""
+        persona = self.teaching_session.get('persona', {}) if self.teaching_session else {}
+        style = (persona.get('style', '') or '').lower()
+        name = persona.get('name', 'Professor')
+
+        if 'warm' in style or 'encouraging' in style:
+            # Professor Sarah style
+            return {
+                'intros': [
+                    f"Alright, so today we're going to explore something really interesting — {{topic}}. I think you're going to enjoy this!",
+                    f"Okay! So let's talk about {{topic}}. This is one of those topics that once it clicks, everything else starts making sense.",
+                    f"So here's the thing about {{topic}} — it's actually way more fascinating than it sounds. Let me show you why.",
+                ],
+                'transitions': [
+                    "Now here's where it gets really interesting. ",
+                    "Okay, stay with me here because this next part is important. ",
+                    "So building on what we just covered, ",
+                    "And here's the cool part — ",
+                ],
+                'checkpoints': [
+                    "Alright, let me pause here for a sec. Does that make sense so far? If you have any questions, go ahead — otherwise just say 'continue' and we'll keep going!",
+                    "Okay, that was a lot of good stuff! Take a moment to think about it. Any questions? If not, say 'continue' and we'll move on.",
+                    "Pretty cool, right? I want to make sure you're with me. Anything you'd like me to explain again? Just say 'continue' when you're ready.",
+                ],
+                'closings': [
+                    "And that wraps up this section! You're making great progress. Any questions before we move on?",
+                    "Awesome, that covers this part. You've done a fantastic job keeping up! Anything you want to go over again?",
+                ],
+            }
+        elif 'socratic' in style or 'analytical' in style:
+            # Professor James style
+            return {
+                'intros': [
+                    f"Let me pose a question first — what comes to mind when you hear {{topic}}? Let's build on that.",
+                    f"Consider this — {{topic}} is one of those foundational concepts that everything else builds upon. Let's analyze it together.",
+                    f"Before we begin with {{topic}}, think about why this matters. Ready? Let's explore.",
+                ],
+                'transitions': [
+                    "Now think about why this matters. ",
+                    "Here's where it gets analytically interesting. ",
+                    "Consider the implications of this. ",
+                    "Building on that logic, ",
+                ],
+                'checkpoints': [
+                    "Let me ask you this — based on what we've discussed, what do you think is the key insight here? Take a moment to reflect, then say 'continue' when you're ready.",
+                    "Here's a thought exercise: how would you explain what we just covered to someone else? Think about it, then say 'continue'.",
+                    "Pause and consider — what patterns do you notice? When you're ready, say 'continue'.",
+                ],
+                'closings': [
+                    "We've covered solid ground here. I'd encourage you to reflect on the key ideas. Any questions?",
+                    "That's the analytical framework for this section. Think about how these pieces connect. Anything to discuss?",
+                ],
+            }
+        elif 'direct' in style or 'structured' in style:
+            # Professor Daniel style
+            return {
+                'intros': [
+                    f"Let's get right into {{topic}}. Here's what you need to know.",
+                    f"{{topic}} — this is essential, so pay attention. Let me break it down for you.",
+                    f"Alright, {{topic}}. I'm going to be straightforward with you — master this, and the rest follows.",
+                ],
+                'transitions': [
+                    "Key point coming up. ",
+                    "Next important concept. ",
+                    "Here's what follows from that. ",
+                    "Now pay attention to this. ",
+                ],
+                'checkpoints': [
+                    "Let's check your understanding. Can you recall the main points? Think about it, then say 'continue'.",
+                    "Quick check — are you clear on everything so far? If something's unclear, ask now. Otherwise, say 'continue'.",
+                    "Stop and make sure you've got this down. Any gaps? Say 'continue' when you're confident.",
+                ],
+                'closings': [
+                    "That covers the essentials. Make sure you've internalized the key points. Questions?",
+                    "Clear and straightforward — that's this section done. What needs clarification?",
+                ],
+            }
+        elif 'methodical' in style or 'nurturing' in style:
+            # Professor Emily style
+            return {
+                'intros': [
+                    f"Okay, let's take {{topic}} step by step. Don't worry if it seems complex at first — we'll work through it together.",
+                    f"So we're going to look at {{topic}} today. I'll walk you through each part carefully, so just follow along.",
+                    f"Let's start with {{topic}}. I'll make sure we go at a pace that works for you.",
+                ],
+                'transitions': [
+                    "Now let's move to the next piece of the puzzle. ",
+                    "Good, you're keeping up well. Here's the next part. ",
+                    "Step by step, here's what comes next. ",
+                    "Following that naturally, ",
+                ],
+                'checkpoints': [
+                    "Let's take a breather here. How are you feeling about this so far? If anything's unclear, let me know — otherwise say 'continue' and we'll keep going.",
+                    "I want to make sure we're on the same page. Take a moment to absorb this, then say 'continue' when ready.",
+                    "Don't rush — make sure you're comfortable with what we've covered. Any questions? Say 'continue' to proceed.",
+                ],
+                'closings': [
+                    "Well done! That's this section complete. Remember, it's perfectly okay to come back and review. Any questions?",
+                    "Great work getting through that. Take your time with it. Anything you'd like me to go over again?",
+                ],
+            }
+        else:
+            # Generic/default style
+            return {
+                'intros': [
+                    f"Let's dive into {{topic}}.",
+                    f"Today we're covering {{topic}}. Let's get started.",
+                ],
+                'transitions': [
+                    "Moving on, ",
+                    "Next up, ",
+                    "Building on that, ",
+                ],
+                'checkpoints': [
+                    "Let me pause here. Any questions so far? Say 'continue' when you're ready.",
+                    "Take a moment to think about what we've covered. Say 'continue' to proceed.",
+                ],
+                'closings': [
+                    "That covers this section. Feel free to ask questions, or say 'continue' to proceed.",
+                ],
+            }
+
     def _create_simple_teaching_content(self, module_title: str, topic_title: str, raw_content: str) -> str:
         """
-        Create simple teaching content as fallback when teaching service is unavailable.
+        Create persona-flavored teaching content with comprehension checkpoints.
         
-        Args:
-            module_title: Module name
-            topic_title: Sub-topic name
-            raw_content: Raw content from JSON
-        
-        Returns:
-            Formatted teaching content string
+        Uses the active professor persona's speech style for intros, transitions,
+        checkpoints, and closings — so content sounds like a real human teacher
+        rather than a robotic text dump.
         """
-        # Personalise greeting with username and persona
-        user_name = ""
-        persona_name = ""
-        if self.teaching_session:
-            user_name = self.teaching_session.get('user_name', '')
-            persona = self.teaching_session.get('persona', {})
-            persona_name = persona.get('name', '')
-        intro = f"I'm {persona_name}. " if persona_name else ""
-        greeting = f"{intro}Hey {user_name}, let's" if user_name else f"{intro}Let's"
+        import random
+        templates = self._get_persona_templates()
         
-        content = f"{greeting} learn about {topic_title} in the {module_title} module.\n\n"
+        # Persona-flavored intro
+        intro_tmpl = random.choice(templates['intros'])
+        content = intro_tmpl.format(topic=topic_title) + "\n\n"
         
-        # Add raw content with basic formatting
-        if raw_content and len(raw_content.strip()) > 0:
-            # Split into paragraphs — include ALL content; the segmenter handles chunking for TTS
-            paragraphs = raw_content.strip().split('\n\n')
-            for para in paragraphs:
-                if para.strip():
-                    content += para.strip() + "\n\n"
-        else:
+        if not raw_content or not raw_content.strip():
             content += "This topic covers important concepts that we'll explore together.\n\n"
+            return content
         
-        content += "Feel free to ask questions or say 'continue' when you're ready to proceed."
+        # Split raw content into paragraphs
+        paragraphs = [p.strip() for p in raw_content.strip().split('\n\n') if p.strip()]
+        
+        # Build content with persona-flavored transitions and checkpoints
+        _CHECKPOINT_INTERVAL = 2000
+        chars_since_checkpoint = 0
+        checkpoint_count = 0
+        transition_idx = 0
+        
+        for i, para in enumerate(paragraphs):
+            # Add a persona transition before some paragraphs (not the first)
+            if i > 0 and chars_since_checkpoint > 500 and random.random() < 0.3:
+                trans = templates['transitions'][transition_idx % len(templates['transitions'])]
+                content += trans
+                transition_idx += 1
+            
+            content += para + "\n\n"
+            chars_since_checkpoint += len(para)
+            
+            # Insert persona-flavored checkpoint after enough content
+            # The ---CHECKPOINT--- marker forces a segment split so the system
+            # actually WAITS for user input before continuing.
+            if chars_since_checkpoint >= _CHECKPOINT_INTERVAL and i < len(paragraphs) - 1:
+                checkpoint = templates['checkpoints'][checkpoint_count % len(templates['checkpoints'])]
+                content += checkpoint + "\n---CHECKPOINT---\n"
+                checkpoint_count += 1
+                chars_since_checkpoint = 0
+        
+        # Persona-flavored closing
+        closing = random.choice(templates['closings'])
+        content += closing
         
         return content
 
@@ -3245,7 +4291,7 @@ class ProfAIAgent:
                         role='user',
                         content=user_input,
                         message_type='text',
-                        course_id=_cid
+                        course_id=_cid if _cid and _cid > 0 else None
                     )
                 )
             except Exception:
@@ -3880,14 +4926,36 @@ async def start_websocket_server(host: str, port: int):
     """
     Start the ProfAI WebSocket server with optimized configuration.
     """
+    # --- Pre-warm shared service singletons so first client connects instantly ---
+    log("🔥 Pre-warming shared services (ChatService, AudioService, TeachingService)...")
+    try:
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, _get_shared_chat_service)
+        log("  ✅ ChatService ready")
+    except Exception as e:
+        log(f"  ⚠️ ChatService pre-warm failed (will retry on first client): {e}")
+    try:
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, _get_shared_audio_service)
+        log("  ✅ AudioService ready")
+    except Exception as e:
+        log(f"  ⚠️ AudioService pre-warm failed: {e}")
+    try:
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, _get_shared_teaching_service)
+        log("  ✅ TeachingService ready")
+    except Exception as e:
+        log(f"  ⚠️ TeachingService pre-warm failed: {e}")
+    log("🔥 All shared services pre-warmed!")
+
     # Enhanced WebSocket server configuration for stability
     server_config = {
-        "ping_interval": 30,  # Send ping every 30 seconds
-        "ping_timeout": 20,   # Wait 20 seconds for pong
-        "close_timeout": 5,   # Wait 5 seconds for close
-        "max_size": 2**20,    # 1MB max message size
-        "max_queue": 16,      # Reduced queue size for stability
-        "compression": None,  # Disable compression to reduce complexity
+        "ping_interval": 120,  # Send ping every 120 seconds (remote NeonDB queries take 10-20s each)
+        "ping_timeout": 120,   # Wait 120 seconds for pong
+        "close_timeout": 10,   # Wait 10 seconds for close
+        "max_size": 2**20,     # 1MB max message size
+        "max_queue": 16,       # Reduced queue size for stability
+        "compression": None,   # Disable compression to reduce complexity
     }
     
     log(f"Starting ProfAI WebSocket server on {host}:{port}")

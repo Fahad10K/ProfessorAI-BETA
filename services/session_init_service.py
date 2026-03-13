@@ -227,7 +227,7 @@ class SessionInitService:
             return "There are no courses available at the moment."
 
         lines = [f"We have {len(courses)} courses available:"]
-        for i, c in enumerate(courses[:10], 1):
+        for i, c in enumerate(courses, 1):
             modules = c.get('module_count', 0)
             topics = c.get('topic_count', 0)
             lines.append(
@@ -310,4 +310,51 @@ class SessionInitService:
             lines.append(f"You've fully completed {courses_completed} course{'s' if courses_completed > 1 else ''}. Great job!")
 
         lines.append("What would you like to do next?")
+        return " ".join(lines)
+
+    def build_course_progress_text(self, user_id: int, course_name: str, user_name: str = "") -> str:
+        """Build a TTS-friendly progress report for a specific course."""
+        from services.realtime_orchestrator import _clean_first_name
+        name = _clean_first_name(user_name)
+
+        learning = self.db.get_user_learning_summary(user_id)
+        course_details = learning.get('course_details', [])
+
+        # Find the matching course (fuzzy match on name)
+        target = None
+        course_lower = course_name.lower()
+        for detail in course_details:
+            if detail.get('title', '').lower() == course_lower:
+                target = detail
+                break
+        if not target:
+            from difflib import SequenceMatcher
+            best_ratio, best_detail = 0.0, None
+            for detail in course_details:
+                ratio = SequenceMatcher(None, course_lower, detail.get('title', '').lower()).ratio()
+                if ratio > best_ratio:
+                    best_ratio = ratio
+                    best_detail = detail
+            if best_ratio >= 0.5:
+                target = best_detail
+
+        if not target:
+            return (
+                f"{name}, I couldn't find progress data for '{course_name}'. "
+                f"You may not have started that course yet. Say 'list courses' to see available courses."
+            )
+
+        pct = target.get('completion_pct', 0)
+        completed = target.get('completed_topics', 0)
+        total = target.get('total_topics', 0)
+        title = target.get('title', course_name)
+        remaining = total - completed
+
+        lines = [f"Here's your progress for {title}, {name}."]
+        lines.append(f"You've completed {completed} out of {total} topics, that's {pct:.0f}% done.")
+        if remaining > 0:
+            lines.append(f"You have {remaining} topic{'s' if remaining > 1 else ''} remaining.")
+        else:
+            lines.append("You've completed this entire course! Great job!")
+        lines.append("Would you like to continue with this course or do something else?")
         return " ".join(lines)

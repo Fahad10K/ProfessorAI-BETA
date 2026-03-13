@@ -287,6 +287,13 @@
         .msg.course-change { background: #2e1065; border-left: 3px solid #7c3aed; text-align: center; }
         .msg.thinking { background: #1e293b; border: 1px dashed #f59e0b; text-align: center; }
 
+        .recommendations-panel { text-align: left; }
+        .recommendations-panel strong { display: block; margin-bottom: 8px; font-size: 1.05em; }
+        .rec-section { margin: 6px 0; color: #d1d5db; }
+        .rec-section em { color: #a7f3d0; }
+        .rec-section ul { margin: 4px 0 4px 18px; padding: 0; }
+        .rec-section ul li { margin: 2px 0; }
+
         .msg-label { font-size: 0.8em; font-weight: 600; color: #94a3b8; margin-bottom: 4px; }
         .msg-text { line-height: 1.5; }
 
@@ -819,14 +826,11 @@ function flushPendingAudioNow() {
 }
 
 function prepareAudio(audioBase64) {
-    const raw = atob(audioBase64);
-    const bytes = new Uint8Array(raw.length);
-    for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
-    const blob = new Blob([bytes], { type: 'audio/mp3' });
-    const url = URL.createObjectURL(blob);
-    const audio = new Audio(url);
+    // Use data URL instead of blob URL to avoid "blob:null" errors on file:// protocol
+    const dataUrl = 'data:audio/mp3;base64,' + audioBase64;
+    const audio = new Audio(dataUrl);
     audio.preload = 'auto';
-    return { audio, url };
+    return { audio, url: null };
 }
 
 function playPrepared({ audio, url }) {
@@ -835,7 +839,7 @@ function playPrepared({ audio, url }) {
         const done = () => {
             if (settled) return;
             settled = true;
-            URL.revokeObjectURL(url);
+            if (url) URL.revokeObjectURL(url);
             if (currentAudio === audio) currentAudio = null;
             resolve();
         };
@@ -971,6 +975,14 @@ function handleMessage(event) {
 
             case 'course_complete':
                 addTeachMsg('progress-update', `🎉🎓 ${data.message || 'Congratulations!'}`);
+                break;
+
+            case 'recommendations':
+                handleRecommendations(data);
+                break;
+
+            case 'loading':
+                addTeachMsg('system', `⏳ ${data.message || 'Loading...'}`);
                 break;
 
             case 'all_courses_complete':
@@ -1130,6 +1142,41 @@ function handleTopicAdvanced(data) {
         (data.module_index || 0) + 1, (data.sub_topic_index || 0) + 1);
     addTeachMsg('course-change', `⏭️ ${data.module_title} → ${data.sub_topic_title}`);
     document.getElementById('btnContinue').disabled = true;
+}
+
+function handleRecommendations(data) {
+    let html = '<div class="recommendations-panel">';
+    html += '<strong>📊 Recommendations</strong>';
+
+    const topics = data.next_topics || [];
+    if (topics.length > 0) {
+        html += '<div class="rec-section"><em>Next Topics:</em><ul>';
+        for (const t of topics) {
+            html += `<li>${t.title || t.topic_title || t}</li>`;
+        }
+        html += '</ul></div>';
+    }
+
+    const quizzes = data.recommended_quizzes || [];
+    if (quizzes.length > 0) {
+        html += `<div class="rec-section"><em>Quizzes Available:</em> ${quizzes.length} quiz${quizzes.length > 1 ? 'zes' : ''} ready</div>`;
+    }
+
+    const courses = data.next_courses || [];
+    if (courses.length > 0) {
+        html += '<div class="rec-section"><em>Other Courses:</em><ul>';
+        for (const c of courses) {
+            html += `<li>${c.title || c}</li>`;
+        }
+        html += '</ul></div>';
+    }
+
+    if (data.summary) {
+        html += `<div class="rec-section">${data.summary}</div>`;
+    }
+
+    html += '</div>';
+    addTeachMsg('progress-update', html);
 }
 
 function handleCourseChanged(data) {
